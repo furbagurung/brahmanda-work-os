@@ -1,6 +1,5 @@
 import { API_BASE_URL } from './api'
-
-const AUTH_STORAGE_KEY = 'brahmanda-work-os-auth'
+import { clearAuthSession, getAuthSession, saveAuthSession } from './authStorage'
 
 export async function login(email, password) {
   const response = await fetch(`${API_BASE_URL}/auth.php`, {
@@ -24,24 +23,38 @@ export async function login(email, password) {
   }
 
   const user = payload.data?.user
-  if (!user) {
-    throw new Error('Authentication response did not include a user.')
+  const token = payload.data?.token
+  if (!user || !token) {
+    throw new Error('Authentication response did not include a valid session.')
   }
 
-  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user))
+  saveAuthSession({
+    user,
+    token,
+    tokenExpiresAt: payload.data.token_expires_at,
+  })
   return user
 }
 
-export function logout() {
-  localStorage.removeItem(AUTH_STORAGE_KEY)
+export async function logout() {
+  const session = getAuthSession()
+
+  try {
+    if (session?.token) {
+      await fetch(`${API_BASE_URL}/auth.php?action=logout`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.token}`,
+        },
+      })
+    }
+  } finally {
+    clearAuthSession()
+  }
 }
 
 export function getCurrentUser() {
-  try {
-    const storedUser = localStorage.getItem(AUTH_STORAGE_KEY)
-    return storedUser ? JSON.parse(storedUser) : null
-  } catch {
-    localStorage.removeItem(AUTH_STORAGE_KEY)
-    return null
-  }
+  return getAuthSession()?.user || null
 }

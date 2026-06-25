@@ -10,6 +10,8 @@ CREATE TABLE users (
     email VARCHAR(190) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role ENUM('admin', 'manager', 'member') NOT NULL DEFAULT 'member',
+    api_token CHAR(64) NULL UNIQUE COMMENT 'SHA-256 hash of the active bearer token',
+    token_expires_at DATETIME NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 

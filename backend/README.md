@@ -26,6 +26,12 @@ For an existing database created before proof attachments were added, run:
 mysql -u root -p brahmanda_work_os < backend/sql/add_task_attachments.sql
 ```
 
+For an existing database created before token authentication was added, run:
+
+```bash
+mysql -u root -p brahmanda_work_os < backend/sql/add_api_tokens.sql
+```
+
 Demo administrator:
 
 ```text
@@ -98,6 +104,47 @@ All request bodies use JSON. All responses have this shape:
 }
 ```
 
+## Authentication
+
+`POST api/auth.php` accepts:
+
+```json
+{
+  "email": "admin@brahmandatech.com",
+  "password": "change-me"
+}
+```
+
+Successful login returns an opaque bearer token that expires after seven days. The database stores only a SHA-256 hash of the token.
+
+Send the token to every private endpoint:
+
+```text
+Authorization: Bearer <token>
+```
+
+Private endpoints return HTTP `401` when the token is missing, invalid, expired, or logged out.
+
+Invalidate the active token:
+
+```text
+POST api/auth.php?action=logout
+Authorization: Bearer <token>
+```
+
+Quick test:
+
+```bash
+curl -X POST http://localhost:8000/api/auth.php \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"admin@brahmandatech.com\",\"password\":\"change-me\"}"
+
+curl http://localhost:8000/api/clients.php \
+  -H "Authorization: Bearer <token>"
+```
+
+The React frontend stores the token in localStorage for now. For higher-security deployments, move authentication to secure, HTTP-only cookies.
+
 ## Endpoints
 
 | Method | Endpoint | Purpose |
@@ -121,5 +168,6 @@ All request bodies use JSON. All responses have this shape:
 | GET | `api/reports.php?client_id=1&month=6&year=2026` | Generate monthly report data |
 | POST | `api/reports.php` | Save or update a generated report |
 | POST | `api/auth.php` | Verify email and password |
+| POST | `api/auth.php?action=logout` | Invalidate the active bearer token |
 
 When a task becomes billable, its billing row is inserted or updated automatically. When a task is marked completed, its daily log is inserted once inside the same database transaction.

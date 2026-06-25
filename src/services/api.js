@@ -1,11 +1,15 @@
+import { clearAuthSession, getAuthToken } from './authStorage'
+
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
 
 async function request(endpoint, options = {}) {
+  const token = getAuthToken()
   const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
     ...options,
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
   })
@@ -15,6 +19,12 @@ async function request(endpoint, options = {}) {
     payload = await response.json()
   } catch {
     throw new Error(`API returned an invalid response (${response.status}).`)
+  }
+
+  if (response.status === 401) {
+    clearAuthSession()
+    window.dispatchEvent(new Event('auth:unauthorized'))
+    throw new Error(payload.message || 'Your session has expired. Please log in again.')
   }
 
   if (!response.ok || payload.success === false) {

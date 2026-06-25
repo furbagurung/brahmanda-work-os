@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/response.php';
+require_once __DIR__ . '/../helpers/auth_guard.php';
 
 bootstrapApi();
 
@@ -100,6 +101,7 @@ function taskValues(array $data): array
 
 try {
     $pdo = Database::connect();
+    $currentUser = requireAuth($pdo);
     $method = $_SERVER['REQUEST_METHOD'];
 
     if ($method === 'GET') {

@@ -548,12 +548,18 @@ function WorkspaceApp({ user, onLogout }) {
 export default function App() {
   const [user, setUser] = useState(() => getCurrentUser())
 
+  useEffect(() => {
+    const handleUnauthorized = () => setUser(null)
+    window.addEventListener('auth:unauthorized', handleUnauthorized)
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized)
+  }, [])
+
   if (!user) {
     return <LoginPage onLogin={setUser} />
   }
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     setUser(null)
   }
 
