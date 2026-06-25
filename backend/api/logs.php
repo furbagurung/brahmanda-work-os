@@ -41,7 +41,31 @@ try {
     $statement = $pdo->prepare($sql);
     $statement->execute($parameters);
 
-    jsonResponse($statement->fetchAll());
+    $logs = $statement->fetchAll();
+
+    if ($logs !== []) {
+        $taskIds = array_values(array_unique(array_column($logs, 'task_id')));
+        $placeholders = implode(',', array_fill(0, count($taskIds), '?'));
+        $attachmentStatement = $pdo->prepare(
+            'SELECT id, task_id, attachment_type, title, url, created_at
+             FROM task_attachments
+             WHERE task_id IN (' . $placeholders . ')
+             ORDER BY created_at ASC, id ASC'
+        );
+        $attachmentStatement->execute($taskIds);
+        $attachmentsByTask = [];
+
+        foreach ($attachmentStatement->fetchAll() as $attachment) {
+            $attachmentsByTask[(string) $attachment['task_id']][] = $attachment;
+        }
+
+        foreach ($logs as &$log) {
+            $log['attachments'] = $attachmentsByTask[(string) $log['task_id']] ?? [];
+        }
+        unset($log);
+    }
+
+    jsonResponse($logs);
 } catch (Throwable $exception) {
     handleException($exception);
 }

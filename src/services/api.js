@@ -40,6 +40,10 @@ export const updateTask = (id, data) => request(`tasks.php?id=${encodeURICompone
 export const deleteTask = (id) => request(`tasks.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 export const markTaskCompleted = (id) => request(`tasks.php?id=${encodeURIComponent(id)}&action=complete`, { method: 'PATCH' })
 
+export const getTaskAttachments = (taskId) => request(`attachments.php?task_id=${encodeURIComponent(taskId)}`)
+export const createTaskAttachment = (data) => request('attachments.php', jsonOptions('POST', data))
+export const deleteTaskAttachment = (id) => request(`attachments.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+
 export const getDailyLogs = () => request('logs.php')
 export const getBillings = () => request('billing.php')
 export const updateBilling = (taskId, data) => request(`billing.php?id=${encodeURIComponent(taskId)}`, jsonOptions('PATCH', data))
@@ -104,7 +108,9 @@ export function taskToApi(task) {
     priority: task.priority,
     deadline: task.deadline || null,
     status: task.status,
-    proof_link: task.proofLink || null,
+    proof_link: Array.isArray(task.attachments)
+      ? task.attachments[0]?.url || null
+      : task.proofLink || null,
     is_billable: Boolean(task.billable),
     billable_amount: task.billable ? Number(task.amount || 0) : 0,
     payment_status: task.paymentStatus || 'Unpaid',
@@ -130,6 +136,7 @@ export function taskFromApi(task) {
     completedAt: task.completed_at ? String(task.completed_at).slice(0, 10) : '',
     paymentStatus: task.payment_status || 'Unpaid',
     invoiceStatus: task.invoice_status || 'Not invoiced',
+    attachments: task.attachments || [],
   }
 }
 
@@ -146,6 +153,18 @@ export function logFromApi(log) {
     billable: Number(log.is_billable) === 1,
     amount: Number(log.billable_amount || 0),
     completedAt: log.log_date,
+    attachments: log.attachments || [],
+  }
+}
+
+export function attachmentFromApi(attachment) {
+  return {
+    id: String(attachment.id),
+    taskId: String(attachment.task_id),
+    type: attachment.attachment_type || 'link',
+    title: attachment.title,
+    url: attachment.url,
+    createdAt: attachment.created_at,
   }
 }
 

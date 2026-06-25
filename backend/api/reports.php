@@ -51,6 +51,28 @@ try {
         ]);
         $completed = $completedStatement->fetchAll();
 
+        if ($completed !== []) {
+            $completedIds = array_column($completed, 'id');
+            $placeholders = implode(',', array_fill(0, count($completedIds), '?'));
+            $attachmentStatement = $pdo->prepare(
+                'SELECT id, task_id, attachment_type, title, url, created_at
+                 FROM task_attachments
+                 WHERE task_id IN (' . $placeholders . ')
+                 ORDER BY created_at ASC, id ASC'
+            );
+            $attachmentStatement->execute($completedIds);
+            $attachmentsByTask = [];
+
+            foreach ($attachmentStatement->fetchAll() as $attachment) {
+                $attachmentsByTask[(string) $attachment['task_id']][] = $attachment;
+            }
+
+            foreach ($completed as &$task) {
+                $task['attachments'] = $attachmentsByTask[(string) $task['id']] ?? [];
+            }
+            unset($task);
+        }
+
         $pendingStatement = $pdo->prepare(
             'SELECT id, title, category, priority, deadline, status
              FROM tasks

@@ -48,7 +48,12 @@ export default function ReportsPage({ clients, tasks, isFallback }) {
   const monthLabel = MONTHS.find((item) => item.value === Number(month))?.label || ''
   const amountFor = (task) => Number(task.billable_amount ?? task.amount ?? 0)
   const billableTotal = Number(report?.extra_billable_work?.total ?? billable.reduce((total, task) => total + amountFor(task), 0))
+  const attachmentsFor = (task) => task.attachments || []
   const listText = (items, formatter = (item) => item.title) => items.map((item) => `- ${formatter(item)}`).join('\n') || '- None recorded'
+  const completedText = completed.map((task) => {
+    const proofs = attachmentsFor(task).map((attachment) => `  Proof: ${attachment.title} — ${attachment.url}`).join('\n')
+    return `- ${task.title}${proofs ? `\n${proofs}` : ''}`
+  }).join('\n') || '- None recorded'
 
   const reportText = `BRAHMANDA TECH
 MONTHLY CLIENT REPORT
@@ -58,7 +63,7 @@ Period: ${monthLabel} ${year}
 Status: ${status}
 
 Work completed:
-${listText(completed)}
+${completedText}
 
 Designs/content delivered:
 ${listText(deliverables)}
@@ -146,7 +151,8 @@ Prepared by Brahmanda Tech`
   const downloadReport = () => {
     const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[character])
     const listHtml = (items, formatter = (item) => item.title) => items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(formatter(item))}</li>`).join('')}</ul>` : '<p>None recorded.</p>'
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(client?.name || 'Client')} - ${monthLabel} ${year}</title><style>body{font-family:Helvetica,Arial,sans-serif;color:#18181b;max-width:800px;margin:48px auto;padding:0 24px;line-height:1.6}header{border-bottom:3px solid #002fa7;padding-bottom:24px;margin-bottom:24px}.brand{color:#002fa7;font-weight:700;letter-spacing:.12em;font-size:12px}h1{margin:8px 0 0;font-size:30px}h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#52525b;border-top:1px solid #e4e4e7;padding-top:18px;margin-top:22px}li{margin:5px 0}.total{display:flex;justify-content:space-between;border-top:1px solid #e4e4e7;padding-top:10px;font-weight:700}footer{margin-top:36px;border-top:1px solid #e4e4e7;padding-top:18px;color:#52525b}</style></head><body><header><div class="brand">BRAHMANDA TECH / WORK OS</div><h1>Monthly Client Report</h1><p>${escapeHtml(client?.name || '')} · ${monthLabel} ${year} · ${escapeHtml(status)}</p></header><h2>Work completed</h2>${listHtml(completed)}<h2>Designs and content delivered</h2>${listHtml(deliverables)}<h2>Website and technical work</h2>${listHtml(technicalWork)}<h2>Revisions completed</h2>${listHtml(revisions)}<h2>Pending tasks</h2>${listHtml(pending, (task) => `${task.title} (${task.status})`)}<h2>Extra billable work</h2>${listHtml(billable, (task) => `${task.title}: ${formatMoney(amountFor(task))}`)}<p class="total"><span>Total billable amount</span><span>${escapeHtml(formatMoney(billableTotal))}</span></p><h2>Next month plan</h2>${listHtml(nextMonthPlan, (item) => item)}<footer>Prepared by Brahmanda Tech</footer></body></html>`
+    const completedHtml = completed.length ? `<ul>${completed.map((task) => `<li><strong>${escapeHtml(task.title)}</strong>${attachmentsFor(task).length ? `<ul>${attachmentsFor(task).map((attachment) => `<li><a href="${escapeHtml(attachment.url)}">${escapeHtml(attachment.title)}</a></li>`).join('')}</ul>` : ''}</li>`).join('')}</ul>` : '<p>None recorded.</p>'
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(client?.name || 'Client')} - ${monthLabel} ${year}</title><style>body{font-family:Helvetica,Arial,sans-serif;color:#18181b;max-width:800px;margin:48px auto;padding:0 24px;line-height:1.6}header{border-bottom:3px solid #002fa7;padding-bottom:24px;margin-bottom:24px}.brand{color:#002fa7;font-weight:700;letter-spacing:.12em;font-size:12px}h1{margin:8px 0 0;font-size:30px}h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#52525b;border-top:1px solid #e4e4e7;padding-top:18px;margin-top:22px}li{margin:5px 0}a{color:#002fa7}.total{display:flex;justify-content:space-between;border-top:1px solid #e4e4e7;padding-top:10px;font-weight:700}footer{margin-top:36px;border-top:1px solid #e4e4e7;padding-top:18px;color:#52525b}</style></head><body><header><div class="brand">BRAHMANDA TECH / WORK OS</div><h1>Monthly Client Report</h1><p>${escapeHtml(client?.name || '')} · ${monthLabel} ${year} · ${escapeHtml(status)}</p></header><h2>Work completed</h2>${completedHtml}<h2>Designs and content delivered</h2>${listHtml(deliverables)}<h2>Website and technical work</h2>${listHtml(technicalWork)}<h2>Revisions completed</h2>${listHtml(revisions)}<h2>Pending tasks</h2>${listHtml(pending, (task) => `${task.title} (${task.status})`)}<h2>Extra billable work</h2>${listHtml(billable, (task) => `${task.title}: ${formatMoney(amountFor(task))}`)}<p class="total"><span>Total billable amount</span><span>${escapeHtml(formatMoney(billableTotal))}</span></p><h2>Next month plan</h2>${listHtml(nextMonthPlan, (item) => item)}<footer>Prepared by Brahmanda Tech</footer></body></html>`
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }))
     const link = document.createElement('a')
     link.href = url
@@ -181,7 +187,7 @@ Prepared by Brahmanda Tech`
         </div>
       </header>
       <div className="p-6 sm:p-8">
-        <ReportSection title="Work completed">{completed.length ? <ul className="space-y-2">{completed.map((task) => <li key={task.id} className="flex justify-between gap-4 border-b border-line pb-2"><span>{task.title}</span><span className="text-zinc-500">{task.category}</span></li>)}</ul> : <p className="text-zinc-500">No completed work recorded for this month.</p>}</ReportSection>
+        <ReportSection title="Work completed">{completed.length ? <ul className="space-y-4">{completed.map((task) => <li key={task.id} className="border-b border-line pb-3"><div className="flex justify-between gap-4"><span className="font-medium">{task.title}</span><span className="text-zinc-500">{task.category}</span></div>{attachmentsFor(task).length > 0 && <div className="mt-2 flex flex-wrap gap-2">{attachmentsFor(task).map((attachment) => <a key={attachment.id || attachment.url} href={attachment.url} target="_blank" rel="noreferrer" className="border border-blue/20 bg-blue/5 px-2 py-1 text-xs font-semibold text-blue hover:underline">{attachment.title}</a>)}</div>}</li>)}</ul> : <p className="text-zinc-500">No completed work recorded for this month.</p>}</ReportSection>
         <ReportSection title="Designs and content delivered">{deliverables.length ? <ul className="space-y-2">{deliverables.map((task) => <li key={task.id}>{task.title}</li>)}</ul> : <p className="text-zinc-500">No design or content deliverables recorded.</p>}</ReportSection>
         <ReportSection title="Website and technical work">{technicalWork.length ? <ul className="space-y-2">{technicalWork.map((task) => <li key={task.id}>{task.title}</li>)}</ul> : <p className="text-zinc-500">No website or technical work recorded.</p>}</ReportSection>
         <ReportSection title="Revisions completed">{revisions.length ? <ul className="space-y-2">{revisions.map((task) => <li key={task.id}>{task.title}</li>)}</ul> : <p className="text-zinc-500">No completed revisions recorded.</p>}</ReportSection>

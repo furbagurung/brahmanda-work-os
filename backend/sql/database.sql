@@ -56,6 +56,19 @@ CREATE TABLE tasks (
     INDEX idx_tasks_billable (is_billable)
 ) ENGINE=InnoDB;
 
+CREATE TABLE task_attachments (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    task_id BIGINT UNSIGNED NOT NULL,
+    attachment_type VARCHAR(50) NOT NULL DEFAULT 'link',
+    title VARCHAR(190) NOT NULL,
+    url VARCHAR(1000) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_task_attachments_task
+        FOREIGN KEY (task_id) REFERENCES tasks(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    INDEX idx_task_attachments_task (task_id)
+) ENGINE=InnoDB;
+
 CREATE TABLE daily_logs (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     client_id BIGINT UNSIGNED NOT NULL,

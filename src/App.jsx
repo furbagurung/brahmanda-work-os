@@ -11,9 +11,11 @@ import {
 import { CATEGORIES, initialClients, initialTasks, PRIORITIES, TASK_STATUSES } from './data'
 import {
   billingFromApi, clientFromApi, clientToApi, createClient as createClientApi,
-  createTask as createTaskApi, deleteClient as deleteClientApi, deleteTask as deleteTaskApi,
+  createTask as createTaskApi, createTaskAttachment, deleteClient as deleteClientApi,
+  deleteTask as deleteTaskApi, deleteTaskAttachment,
   generateReport as generateReportApi, getBillings, getClients, getDailyLogs, getTasks,
-  logFromApi, markTaskCompleted, taskFromApi, taskToApi, updateBilling as updateBillingApi,
+  getTaskAttachments, logFromApi, markTaskCompleted, taskFromApi, taskToApi,
+  updateBilling as updateBillingApi, attachmentFromApi,
   updateClient as updateClientApi, updateTask as updateTaskApi,
 } from './services/api'
 import { formatDate, formatMoney } from './utils'
@@ -59,15 +61,20 @@ function useWorkspace() {
   }, [workspace])
 
   const loadApiData = async () => {
-    const [clients, tasks, logs, billing] = await Promise.all([
+    const [clients, taskRows, logs, billing] = await Promise.all([
       getClients(),
       getTasks(),
       getDailyLogs(),
       getBillings(),
     ])
+    const attachments = await Promise.all(taskRows.map(async (task) => [
+      String(task.id),
+      (await getTaskAttachments(task.id)).map(attachmentFromApi),
+    ]))
+    const attachmentsByTask = Object.fromEntries(attachments)
     const next = {
       clients: clients.map(clientFromApi),
-      tasks: tasks.map(taskFromApi),
+      tasks: taskRows.map((task) => taskFromApi({ ...task, attachments: attachmentsByTask[String(task.id)] || [] })),
       logs: logs.map(logFromApi),
       billings: (billing.items || []).map(billingFromApi),
     }
@@ -154,8 +161,32 @@ function useWorkspace() {
   const saveTask = async (task) => runWithFallback(
     async () => {
       const exists = workspace.tasks.some((item) => item.id === task.id)
-      if (exists) await updateTaskApi(task.id, taskToApi(task))
-      else await createTaskApi(taskToApi(task))
+      const current = workspace.tasks.find((item) => item.id === task.id)
+      const response = exists
+        ? await updateTaskApi(task.id, taskToApi(task))
+        : await createTaskApi(taskToApi(task))
+      const taskId = exists ? task.id : String(response.id)
+      const originalAttachments = current?.attachments || []
+      const submittedAttachments = task.attachments || []
+
+      for (const original of originalAttachments) {
+        const submitted = submittedAttachments.find((attachment) => attachment.id === original.id)
+        if (!submitted || submitted.title !== original.title || submitted.url !== original.url) {
+          await deleteTaskAttachment(original.id)
+        }
+      }
+
+      for (const attachment of submittedAttachments) {
+        const original = originalAttachments.find((item) => item.id === attachment.id)
+        if (!original || original.title !== attachment.title || original.url !== attachment.url) {
+          await createTaskAttachment({
+            task_id: Number(taskId),
+            attachment_type: attachment.type || 'link',
+            title: attachment.title,
+            url: attachment.url,
+          })
+        }
+      }
     },
     () => saveTaskLocal(task),
   )
@@ -256,16 +287,28 @@ function Field({ label, children, className = '' }) {
   return <label className={`block ${className}`}><span className="mb-2 block text-sm font-semibold">{label}</span>{children}</label>
 }
 
-const blankTask = (clientId = '') => ({ id: '', clientId, title: '', description: '', category: 'Design', priority: 'Medium', deadline: TODAY, status: 'New', proofLink: '', billable: false, amount: 0, assignee: 'AS', completedAt: '', paymentStatus: 'Unpaid', invoiceStatus: 'Not invoiced' })
+const blankTask = (clientId = '') => ({ id: '', clientId, title: '', description: '', category: 'Design', priority: 'Medium', deadline: TODAY, status: 'New', proofLink: '', attachments: [], billable: false, amount: 0, assignee: 'AS', completedAt: '', paymentStatus: 'Unpaid', invoiceStatus: 'Not invoiced' })
 
 function TaskForm({ task, clients, onSave, onClose }) {
-  const [form, setForm] = useState(task || blankTask(clients[0]?.id))
+  const [form, setForm] = useState(() => {
+    const initial = task || blankTask(clients[0]?.id)
+    const attachments = initial.attachments?.length
+      ? initial.attachments
+      : initial.proofLink
+        ? [{ id: '', type: 'link', title: 'Proof link', url: initial.proofLink }]
+        : []
+    return { ...initial, attachments }
+  })
   const [saving, setSaving] = useState(false)
   const change = (key, value) => setForm((current) => ({ ...current, [key]: value }))
+  const addProof = () => setForm((current) => ({ ...current, attachments: [...current.attachments, { id: '', type: 'link', title: '', url: '' }] }))
+  const updateProof = (index, key, value) => setForm((current) => ({ ...current, attachments: current.attachments.map((attachment, attachmentIndex) => attachmentIndex === index ? { ...attachment, [key]: value } : attachment) }))
+  const removeProof = (index) => setForm((current) => ({ ...current, attachments: current.attachments.filter((_, attachmentIndex) => attachmentIndex !== index) }))
   const submit = async (event) => {
     event.preventDefault()
+    const attachments = form.attachments.filter((attachment) => attachment.title.trim() && attachment.url.trim())
     setSaving(true)
-    await onSave(form)
+    await onSave({ ...form, attachments, proofLink: attachments[0]?.url || '' })
     setSaving(false)
     onClose()
   }
@@ -279,8 +322,14 @@ function TaskForm({ task, clients, onSave, onClose }) {
         <Field label="Priority"><select className="field" value={form.priority} onChange={(event) => change('priority', event.target.value)}>{PRIORITIES.map((item) => <option key={item}>{item}</option>)}</select></Field>
         <Field label="Deadline"><input className="field" type="date" value={form.deadline} onChange={(event) => change('deadline', event.target.value)} required /></Field>
         <Field label="Status"><select className="field" value={form.status} onChange={(event) => change('status', event.target.value)}>{TASK_STATUSES.map((item) => <option key={item}>{item}</option>)}</select></Field>
-        <Field label="Proof link"><input className="field" type="url" value={form.proofLink} onChange={(event) => change('proofLink', event.target.value)} placeholder="https://" /></Field>
         <Field label="Assignee initials"><input className="field" value={form.assignee} onChange={(event) => change('assignee', event.target.value.toUpperCase().slice(0, 3))} /></Field>
+        <section className="border border-line p-4 sm:col-span-2">
+          <div className="flex items-center justify-between gap-4"><div><h3 className="text-sm font-semibold">Proof links</h3><p className="mt-1 text-xs text-zinc-500">Google Drive, design, social post, or website links.</p></div><button type="button" className="button-secondary px-3 py-2" onClick={addProof}><Plus size={14} />Add Proof Link</button></div>
+          <div className="mt-4 space-y-3">
+            {form.attachments.map((attachment, index) => <div key={`${attachment.id}-${index}`} className="grid gap-3 border-t border-line pt-3 sm:grid-cols-[1fr_1.4fr_auto]"><input className="field" value={attachment.title} onChange={(event) => updateProof(index, 'title', event.target.value)} placeholder="Proof title" required /><input className="field" type="url" value={attachment.url} onChange={(event) => updateProof(index, 'url', event.target.value)} placeholder="https://" required /><button type="button" className="flex h-10 w-10 items-center justify-center border border-line text-zinc-500 hover:border-red-300 hover:text-red-700" onClick={() => removeProof(index)} aria-label="Remove proof link"><X size={16} /></button></div>)}
+            {!form.attachments.length && <p className="text-sm text-zinc-400">No proof links added.</p>}
+          </div>
+        </section>
         <label className="flex items-center gap-3 border border-line p-3 text-sm font-semibold sm:col-span-2"><input type="checkbox" checked={form.billable} onChange={(event) => change('billable', event.target.checked)} className="h-4 w-4 accent-blue" />This is extra billable work</label>
         {form.billable && <Field label="Billable amount"><input className="field" type="number" min="0" value={form.amount} onChange={(event) => change('amount', event.target.value)} required /></Field>}
       </div>
@@ -390,7 +439,7 @@ function DailyLogsPage({ clients, logs }) {
     { key: 'client', label: 'Client', render: (task) => clients.find((client) => client.id === task.clientId)?.name || 'Deleted client' },
     { key: 'title', label: 'Work done', render: (task) => <div><p className="font-semibold">{task.title}</p><p className="mt-1 max-w-md text-xs text-zinc-500">{task.description}</p></div> },
     { key: 'category', label: 'Category' },
-    { key: 'proof', label: 'Proof', render: (task) => <ProofLink href={task.proofLink} /> },
+    { key: 'proof', label: 'Proof', render: (task) => task.attachments?.length ? <div className="space-y-1">{task.attachments.map((attachment) => <a key={attachment.id || attachment.url} className="block font-medium text-blue hover:underline" href={attachment.url} target="_blank" rel="noreferrer">{attachment.title}</a>)}</div> : <ProofLink href={task.proofLink} /> },
     { key: 'billable', label: 'Billable', render: (task) => task.billable ? <Badge className="border-blue/20 bg-blue/5 text-blue">{formatMoney(task.amount)}</Badge> : <span className="text-zinc-500">No</span> },
   ]
   return <><PageHeading number="05" title="Daily Logs" description="Completed tasks are recorded here automatically when their status changes." /><div className="mb-6 grid gap-px border border-line bg-line sm:grid-cols-3"><StatCard label="Completed entries" value={String(completed.length).padStart(2, '0')} change="Auto-generated" icon={CheckCircle2} /><StatCard label="Clients delivered" value={String(new Set(completed.map((task) => task.clientId)).size).padStart(2, '0')} change="In completed work" icon={Users} /><StatCard label="Billable delivered" value={formatMoney(completed.filter((task) => task.billable).reduce((sum, task) => sum + Number(task.amount), 0))} change="Completed only" icon={CircleDollarSign} /></div><div className="panel"><Table columns={columns} data={completed} emptyMessage="Completed tasks will appear here automatically." /></div></>

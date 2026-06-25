@@ -20,6 +20,12 @@ mysql -u root -p brahmanda_work_os < backend/sql/seed.sql
 
 The seed file is idempotent: running it again does not duplicate clients or tasks with the same names.
 
+For an existing database created before proof attachments were added, run:
+
+```bash
+mysql -u root -p brahmanda_work_os < backend/sql/add_task_attachments.sql
+```
+
 Demo administrator:
 
 ```text
@@ -106,6 +112,9 @@ All request bodies use JSON. All responses have this shape:
 | PUT | `api/tasks.php?id=1` | Update task |
 | PATCH | `api/tasks.php?id=1&action=complete` | Mark completed and create daily log |
 | DELETE | `api/tasks.php?id=1` | Delete task |
+| GET | `api/attachments.php?task_id=1` | List proof links for a task |
+| POST | `api/attachments.php` | Add a proof link |
+| DELETE | `api/attachments.php?id=1` | Delete a proof link |
 | GET | `api/logs.php` | List daily logs; optional `client_id`, `date` filters |
 | GET | `api/billing.php` | List billable tasks and totals |
 | PATCH | `api/billing.php?id=1` | Update payment or invoice status by task id |

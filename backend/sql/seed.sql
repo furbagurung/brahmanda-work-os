@@ -176,3 +176,14 @@ ON DUPLICATE KEY UPDATE
     payment_status = VALUES(payment_status),
     invoice_status = VALUES(invoice_status),
     billing_date = VALUES(billing_date);
+
+-- Migrate legacy single proof links into the multi-link attachment table.
+INSERT INTO task_attachments (task_id, attachment_type, title, url)
+SELECT t.id, 'link', 'Proof link', t.proof_link
+FROM tasks t
+WHERE t.proof_link IS NOT NULL
+  AND t.proof_link <> ''
+  AND NOT EXISTS (
+      SELECT 1 FROM task_attachments a
+      WHERE a.task_id = t.id AND a.url = t.proof_link
+  );
