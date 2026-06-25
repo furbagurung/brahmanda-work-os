@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: #18181b;
+  background: #f7f7f8;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #002fa7;
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+}
+
+@layer components {
+  .panel {
+    @apply border border-line bg-white;
+  }
+
+  .button-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-blue px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#002680];
+  }
+
+  .button-secondary {
+    @apply inline-flex items-center justify-center gap-2 border border-line bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-zinc-400;
+  }
+
+  .field {
+    @apply w-full border border-line bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-zinc-400 focus:border-blue;
+  }
+}
