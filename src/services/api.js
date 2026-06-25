@@ -71,6 +71,15 @@ export const generateReport = (clientId, month, year) => getReports({
 
 export const saveReport = (data) => request('reports.php', jsonOptions('POST', data))
 
+export const getUsers = async () => {
+  const data = await request('users.php')
+  return Array.isArray(data) ? data : [data]
+}
+export const createUser = (data) => request('users.php', jsonOptions('POST', data))
+export const updateUser = (id, data) => request(`users.php?id=${encodeURIComponent(id)}`, jsonOptions('PUT', data))
+export const deactivateUser = (id) => request(`users.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+export const changeUserPassword = (id, password) => request(`users.php?id=${encodeURIComponent(id)}&action=password`, jsonOptions('PATCH', { password }))
+
 export function clientToApi(client) {
   return {
     name: client.name,

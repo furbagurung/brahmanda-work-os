@@ -32,6 +32,12 @@ For an existing database created before token authentication was added, run:
 mysql -u root -p brahmanda_work_os < backend/sql/add_api_tokens.sql
 ```
 
+For an existing database created before team account status was added, run:
+
+```bash
+mysql -u root -p brahmanda_work_os < backend/sql/add_user_status.sql
+```
+
 Demo administrator:
 
 ```text
@@ -169,5 +175,10 @@ The React frontend stores the token in localStorage for now. For higher-security
 | POST | `api/reports.php` | Save or update a generated report |
 | POST | `api/auth.php` | Verify email and password |
 | POST | `api/auth.php?action=logout` | Invalidate the active bearer token |
+| GET | `api/users.php` | Admin: list users; manager/member: own profile |
+| POST | `api/users.php` | Admin: create a user |
+| PUT | `api/users.php?id=1` | Admin: update name, email, role, and status |
+| PATCH | `api/users.php?id=1&action=password` | Admin: change a password |
+| DELETE | `api/users.php?id=1` | Admin: deactivate a user and revoke their token |
 
 When a task becomes billable, its billing row is inserted or updated automatically. When a task is marked completed, its daily log is inserted once inside the same database transaction.

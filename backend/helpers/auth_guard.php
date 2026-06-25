@@ -30,9 +30,10 @@ function requireAuth(PDO $pdo): array
 
     $tokenHash = hash('sha256', $token);
     $statement = $pdo->prepare(
-        'SELECT id, name, email, role, created_at, token_expires_at
+        'SELECT id, name, email, role, status, created_at, token_expires_at
          FROM users
          WHERE api_token = ?
+           AND status = "active"
            AND token_expires_at IS NOT NULL
            AND token_expires_at > NOW()
          LIMIT 1'
@@ -45,4 +46,11 @@ function requireAuth(PDO $pdo): array
     }
 
     return $user;
+}
+
+function requireAdmin(array $user): void
+{
+    if (($user['role'] ?? '') !== 'admin') {
+        errorResponse('Administrator access is required.', 403);
+    }
 }

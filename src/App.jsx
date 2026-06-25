@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   BarChart3, Bell, BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronDown,
   CircleDollarSign, ClipboardCopy, ClipboardList, Clock3, Command, FileText,
-  LayoutDashboard, LogOut, Menu, Plus, ReceiptText, Search, Settings, Users, X,
+  LayoutDashboard, LogOut, Menu, Plus, ReceiptText, Search, Settings, Users, UsersRound, X,
 } from 'lucide-react'
 import {
   ActionMenu, Badge, BillingBadge, ClientCard, EmptyState, Modal, PriorityBadge,
@@ -21,7 +21,8 @@ import {
 import { formatDate, formatMoney } from './utils'
 import LoginPage from './LoginPage'
 import MonthlyReportsPage from './ReportsPage'
-import { getCurrentUser, logout } from './services/auth'
+import TeamPage from './TeamPage'
+import { getCurrentUser, logout, updateCurrentUser } from './services/auth'
 
 const STORAGE_KEY = 'brahmanda-work-os-v2'
 const TODAY = '2026-06-25'
@@ -33,6 +34,7 @@ const navigation = [
   { label: 'Daily Logs', icon: CalendarDays },
   { label: 'Reports', icon: BarChart3 },
   { label: 'Billing', icon: ReceiptText },
+  { label: 'Team', icon: UsersRound },
   { label: 'Settings', icon: Settings },
 ]
 
@@ -517,7 +519,7 @@ function SettingsPage({ resetWorkspace }) {
   return <><PageHeading number="08" title="Settings" description="Workspace preferences and local fallback controls." /><div className="grid gap-6 lg:grid-cols-[240px_1fr]"><nav className="panel h-fit p-2">{['Workspace', 'Team members', 'Task fields', 'Notifications', 'Billing details'].map((item, index) => <button key={item} className={`w-full px-3 py-2.5 text-left text-sm font-medium ${index === 0 ? 'bg-blue text-white' : 'hover:bg-canvas'}`}>{item}</button>)}</nav><section className="panel"><div className="border-b border-line p-6"><h2 className="text-lg font-semibold">Workspace details</h2><p className="mt-1 text-sm text-zinc-500">API data is cached locally and used when the backend is unavailable.</p></div><div className="space-y-5 p-6"><Field label="Workspace name"><input className="field" defaultValue="Brahmanda Tech" /></Field><div className="grid gap-5 sm:grid-cols-2"><Field label="Timezone"><select className="field" defaultValue="Asia/Kathmandu"><option>Asia/Kathmandu</option></select></Field><Field label="Currency"><select className="field" defaultValue="NPR"><option>NPR — Nepalese Rupee</option></select></Field></div><div className="border-t border-line pt-5"><h3 className="font-semibold">Reset local fallback data</h3><p className="mt-1 text-sm text-zinc-500">Switch to demo mode and restore the original clients and tasks.</p><button className="button-secondary mt-4 text-red-700" onClick={() => window.confirm('Reset local fallback data?') && resetWorkspace()}>Reset dummy data</button></div></div></section></div></>
 }
 
-function WorkspaceApp({ user, onLogout }) {
+function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   const workspace = useWorkspace()
   const [activePage, setActivePage] = useState('Dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -536,6 +538,7 @@ function WorkspaceApp({ user, onLogout }) {
     'Daily Logs': <DailyLogsPage clients={workspace.clients} logs={workspace.logs} />,
     Reports: <MonthlyReportsPage clients={workspace.clients} tasks={workspace.tasks} isFallback={workspace.isFallback} />,
     Billing: <BillingPage clients={workspace.clients} billings={workspace.billings} updateTask={workspace.updateTask} />,
+    Team: <TeamPage currentUser={user} onCurrentUserUpdate={onUserUpdate} />,
     Settings: <SettingsPage resetWorkspace={workspace.resetWorkspace} />,
   }
 
@@ -563,5 +566,10 @@ export default function App() {
     setUser(null)
   }
 
-  return <WorkspaceApp user={user} onLogout={handleLogout} />
+  const handleUserUpdate = (updatedUser) => {
+    updateCurrentUser(updatedUser)
+    setUser(updatedUser)
+  }
+
+  return <WorkspaceApp user={user} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />
 }

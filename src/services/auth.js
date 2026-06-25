@@ -1,5 +1,5 @@
 import { API_BASE_URL } from './api'
-import { clearAuthSession, getAuthSession, saveAuthSession } from './authStorage'
+import { clearAuthSession, getAuthSession, saveAuthSession, updateStoredUser } from './authStorage'
 
 export async function login(email, password) {
   const response = await fetch(`${API_BASE_URL}/auth.php`, {
@@ -57,4 +57,8 @@ export async function logout() {
 
 export function getCurrentUser() {
   return getAuthSession()?.user || null
+}
+
+export function updateCurrentUser(user) {
+  updateStoredUser(user)
 }

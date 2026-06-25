@@ -34,3 +34,9 @@ export function getAuthToken() {
 export function clearAuthSession() {
   localStorage.removeItem(AUTH_STORAGE_KEY)
 }
+
+export function updateStoredUser(user) {
+  const session = getAuthSession()
+  if (!session) return
+  saveAuthSession({ ...session, user })
+}

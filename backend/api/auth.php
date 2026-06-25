@@ -28,9 +28,9 @@ try {
     requireFields($data, ['email', 'password']);
 
     $statement = $pdo->prepare(
-        'SELECT id, name, email, password, role, created_at
+        'SELECT id, name, email, password, role, status, created_at
          FROM users
-         WHERE email = ?
+         WHERE email = ? AND status = "active"
          LIMIT 1'
     );
     $statement->execute([strtolower(trim((string) $data['email']))]);
