@@ -18,6 +18,7 @@ import {
 } from './services/api'
 import { formatDate, formatMoney } from './utils'
 import LoginPage from './LoginPage'
+import MonthlyReportsPage from './ReportsPage'
 import { getCurrentUser, logout } from './services/auth'
 
 const STORAGE_KEY = 'brahmanda-work-os-v2'
@@ -395,7 +396,7 @@ function DailyLogsPage({ clients, logs }) {
   return <><PageHeading number="05" title="Daily Logs" description="Completed tasks are recorded here automatically when their status changes." /><div className="mb-6 grid gap-px border border-line bg-line sm:grid-cols-3"><StatCard label="Completed entries" value={String(completed.length).padStart(2, '0')} change="Auto-generated" icon={CheckCircle2} /><StatCard label="Clients delivered" value={String(new Set(completed.map((task) => task.clientId)).size).padStart(2, '0')} change="In completed work" icon={Users} /><StatCard label="Billable delivered" value={formatMoney(completed.filter((task) => task.billable).reduce((sum, task) => sum + Number(task.amount), 0))} change="Completed only" icon={CircleDollarSign} /></div><div className="panel"><Table columns={columns} data={completed} emptyMessage="Completed tasks will appear here automatically." /></div></>
 }
 
-function ReportsPage({ clients, tasks, isFallback }) {
+export function LegacyReportsPage({ clients, tasks, isFallback }) {
   const [clientId, setClientId] = useState(clients[0]?.id || '')
   const [month, setMonth] = useState('2026-06')
   const [generated, setGenerated] = useState(false)
@@ -484,7 +485,7 @@ function WorkspaceApp({ user, onLogout }) {
     Tasks: <TasksPage {...shared} />,
     'Kanban Board': <KanbanPage {...shared} />,
     'Daily Logs': <DailyLogsPage clients={workspace.clients} logs={workspace.logs} />,
-    Reports: <ReportsPage clients={workspace.clients} tasks={workspace.tasks} isFallback={workspace.isFallback} />,
+    Reports: <MonthlyReportsPage clients={workspace.clients} tasks={workspace.tasks} isFallback={workspace.isFallback} />,
     Billing: <BillingPage clients={workspace.clients} billings={workspace.billings} updateTask={workspace.updateTask} />,
     Settings: <SettingsPage resetWorkspace={workspace.resetWorkspace} />,
   }

@@ -59,3 +59,39 @@ textarea:focus-visible {
     @apply w-full border border-line bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-zinc-400 focus:border-blue;
   }
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #report-preview,
+  #report-preview * {
+    visibility: visible;
+  }
+
+  #report-preview {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    border: 0;
+  }
+
+  #report-preview .no-print {
+    display: none !important;
+  }
+
+  #report-preview section {
+    break-inside: avoid;
+  }
+}

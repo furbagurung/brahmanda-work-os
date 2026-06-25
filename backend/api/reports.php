@@ -66,16 +66,18 @@ try {
              WHERE client_id = :client_id
                AND is_billable = 1
                AND (
-                    (completed_at IS NOT NULL AND MONTH(completed_at) = :month AND YEAR(completed_at) = :year)
+                    (completed_at IS NOT NULL AND MONTH(completed_at) = :completed_month AND YEAR(completed_at) = :completed_year)
                     OR
-                    (completed_at IS NULL AND MONTH(created_at) = :month AND YEAR(created_at) = :year)
+                    (completed_at IS NULL AND MONTH(created_at) = :created_month AND YEAR(created_at) = :created_year)
                )
              ORDER BY created_at ASC'
         );
         $billableStatement->execute([
             ':client_id' => $clientId,
-            ':month' => $month,
-            ':year' => $year,
+            ':completed_month' => $month,
+            ':completed_year' => $year,
+            ':created_month' => $month,
+            ':created_year' => $year,
         ]);
         $billable = $billableStatement->fetchAll();
 
@@ -84,15 +86,42 @@ try {
             return in_array($task['category'], $deliveredCategories, true);
         }));
 
+        $technicalCategories = ['Web', 'Technical', 'Development', 'SEO', 'Digital'];
+        $technicalWork = array_values(array_filter($completed, function (array $task) use ($technicalCategories): bool {
+            return in_array($task['category'], $technicalCategories, true);
+        }));
+
+        $revisions = array_values(array_filter($completed, function (array $task): bool {
+            return stripos((string) $task['title'], 'revision') !== false
+                || stripos((string) $task['description'], 'revision') !== false;
+        }));
+
         $billableTotal = array_reduce($billable, function (float $total, array $task): float {
             return $total + (float) $task['billable_amount'];
         }, 0.0);
+
+        $savedReportStatement = $pdo->prepare(
+            'SELECT id, status, created_at
+             FROM reports
+             WHERE client_id = :client_id
+               AND report_month = :month
+               AND report_year = :year
+             LIMIT 1'
+        );
+        $savedReportStatement->execute([
+            ':client_id' => $clientId,
+            ':month' => $month,
+            ':year' => $year,
+        ]);
+        $savedReport = $savedReportStatement->fetch() ?: null;
 
         jsonResponse([
             'client' => $client,
             'period' => ['month' => $month, 'year' => $year],
             'work_completed' => $completed,
             'deliverables' => $deliverables,
+            'technical_work' => $technicalWork,
+            'revisions_completed' => $revisions,
             'pending_tasks' => $pending,
             'extra_billable_work' => [
                 'items' => $billable,
@@ -103,6 +132,7 @@ try {
                 'Review campaign performance and document findings.',
                 'Confirm next month priorities with the client.',
             ],
+            'saved_report' => $savedReport,
         ]);
     }
 

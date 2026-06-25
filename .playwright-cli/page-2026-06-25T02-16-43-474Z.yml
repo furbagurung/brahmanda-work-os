@@ -1,0 +1,219 @@
+- generic [ref=e40]:
+  - complementary [ref=e41]:
+    - button "BRAHMANDA OS" [ref=e43] [cursor=pointer]:
+      - img [ref=e45]
+      - generic [ref=e47]: BRAHMANDA OS
+    - navigation [ref=e48]:
+      - paragraph [ref=e49]: Workspace
+      - generic [ref=e50]:
+        - button "01 Dashboard" [ref=e51] [cursor=pointer]:
+          - generic [ref=e52]: "01"
+          - img [ref=e53]
+          - generic [ref=e58]: Dashboard
+        - button "02 Clients" [ref=e59] [cursor=pointer]:
+          - generic [ref=e60]: "02"
+          - img [ref=e61]
+          - generic [ref=e66]: Clients
+        - button "03 Tasks" [ref=e67] [cursor=pointer]:
+          - generic [ref=e68]: "03"
+          - img [ref=e69]
+          - generic [ref=e72]: Tasks
+        - button "04 Kanban Board" [ref=e73] [cursor=pointer]:
+          - generic [ref=e74]: "04"
+          - img [ref=e75]
+          - generic [ref=e79]: Kanban Board
+        - button "05 Daily Logs" [ref=e80] [cursor=pointer]:
+          - generic [ref=e81]: "05"
+          - img [ref=e82]
+          - generic [ref=e84]: Daily Logs
+        - button "06 Reports" [ref=e85] [cursor=pointer]:
+          - generic [ref=e86]: "06"
+          - img [ref=e87]
+          - generic [ref=e89]: Reports
+        - button "07 Billing" [ref=e90] [cursor=pointer]:
+          - generic [ref=e91]: "07"
+          - img [ref=e92]
+          - generic [ref=e94]: Billing
+        - button "08 Settings" [ref=e95] [cursor=pointer]:
+          - generic [ref=e96]: "08"
+          - img [ref=e97]
+          - generic [ref=e100]: Settings
+    - generic [ref=e102]:
+      - generic [ref=e103]: BT
+      - generic [ref=e104]:
+        - paragraph [ref=e105]: Brahmanda Tech
+        - paragraph [ref=e106]: Agency workspace
+      - img [ref=e107]
+  - generic [ref=e109]:
+    - banner [ref=e110]:
+      - generic [ref=e111]:
+        - paragraph [ref=e112]: Dashboard
+        - paragraph [ref=e113]: Brahmanda Tech / Internal workspace
+      - button "New task" [ref=e114] [cursor=pointer]:
+        - img [ref=e115]
+        - text: New task
+      - button "Notifications" [ref=e116] [cursor=pointer]:
+        - img [ref=e117]
+      - generic [ref=e121]:
+        - paragraph [ref=e122]: Brahmanda Admin
+        - paragraph [ref=e123]: admin
+      - generic [ref=e124]: BA
+      - button "Log out" [ref=e125] [cursor=pointer]:
+        - img [ref=e126]
+    - main [ref=e129]:
+      - generic [ref=e130]:
+        - generic [ref=e131]:
+          - generic [ref=e132]: "01"
+          - generic [ref=e133]:
+            - heading "Agency overview" [level=1] [ref=e134]
+            - paragraph [ref=e135]: Live workload, delivery, and billable activity from your local workspace.
+        - button "Create task" [ref=e136] [cursor=pointer]:
+          - img [ref=e137]
+          - text: Create task
+      - generic [ref=e138]: Connected to API
+      - generic [ref=e140]:
+        - generic [ref=e141]:
+          - generic [ref=e142]:
+            - img [ref=e144]
+            - generic [ref=e149]:
+              - img [ref=e150]
+              - text: Client workspaces
+          - generic [ref=e153]: "04"
+          - generic [ref=e154]: Active Clients
+        - generic [ref=e155]:
+          - generic [ref=e156]:
+            - img [ref=e158]
+            - generic [ref=e161]:
+              - img [ref=e162]
+              - text: 0 open
+          - generic [ref=e165]: "00"
+          - generic [ref=e166]: Today’s Tasks
+        - generic [ref=e167]:
+          - generic [ref=e168]:
+            - img [ref=e170]
+            - generic [ref=e173]:
+              - img [ref=e174]
+              - text: Across all clients
+          - generic [ref=e177]: "06"
+          - generic [ref=e178]: Pending Tasks
+        - generic [ref=e179]:
+          - generic [ref=e180]:
+            - img [ref=e182]
+            - generic [ref=e185]:
+              - img [ref=e186]
+              - text: Stored in daily logs
+          - generic [ref=e189]: "02"
+          - generic [ref=e190]: Completed
+        - generic [ref=e191]:
+          - generic [ref=e192]:
+            - img [ref=e194]
+            - generic [ref=e197]:
+              - img [ref=e198]
+              - text: 3 items
+          - generic [ref=e201]: Rs 27,000
+          - generic [ref=e202]: Billable Work
+        - generic [ref=e203]:
+          - generic [ref=e204]:
+            - img [ref=e206]
+            - generic [ref=e209]:
+              - img [ref=e210]
+              - text: From completed tasks
+          - generic [ref=e213]: "02"
+          - generic [ref=e214]: Reports Ready
+      - generic [ref=e215]:
+        - generic [ref=e216]:
+          - generic [ref=e217]:
+            - generic [ref=e218]:
+              - heading "Priority work" [level=2] [ref=e219]
+              - paragraph [ref=e220]: Current tasks requiring attention
+            - button "View all" [ref=e221] [cursor=pointer]
+          - generic [ref=e222]:
+            - article [ref=e223]:
+              - generic [ref=e224]:
+                - generic [ref=e225]: Urgent
+                - button "Actions" [ref=e227] [cursor=pointer]:
+                  - img [ref=e228]
+              - heading "Product label revisions" [level=3] [ref=e232]
+              - paragraph [ref=e233]: Pranam Agro Foods
+              - generic [ref=e234]:
+                - generic [ref=e235]:
+                  - img [ref=e236]
+                  - text: Jun 27
+                - generic [ref=e238]:
+                  - img [ref=e239]
+                  - text: Rs 6,500
+              - combobox "Change task status" [ref=e243]:
+                - option "New"
+                - option "In Progress"
+                - option "Waiting for Client"
+                - option "Revision" [selected]
+                - option "Completed"
+            - article [ref=e244]:
+              - generic [ref=e245]:
+                - generic [ref=e246]: High
+                - button "Actions" [ref=e248] [cursor=pointer]:
+                  - img [ref=e249]
+              - heading "June social media calendar" [level=3] [ref=e253]
+              - paragraph [ref=e254]: 20D Cinema
+              - generic [ref=e256]:
+                - img [ref=e257]
+                - text: Jun 28
+              - combobox "Change task status" [ref=e260]:
+                - option "New"
+                - option "In Progress" [selected]
+                - option "Waiting for Client"
+                - option "Revision"
+                - option "Completed"
+            - article [ref=e261]:
+              - generic [ref=e262]:
+                - generic [ref=e263]: High
+                - button "Actions" [ref=e265] [cursor=pointer]:
+                  - img [ref=e266]
+              - heading "Movie campaign key visual" [level=3] [ref=e270]
+              - paragraph [ref=e271]: 20D Cinema
+              - generic [ref=e272]:
+                - generic [ref=e273]:
+                  - img [ref=e274]
+                  - text: Jun 30
+                - generic [ref=e276]:
+                  - img [ref=e277]
+                  - text: Rs 12,000
+              - combobox "Change task status" [ref=e281]:
+                - option "New" [selected]
+                - option "In Progress"
+                - option "Waiting for Client"
+                - option "Revision"
+                - option "Completed"
+            - article [ref=e282]:
+              - generic [ref=e283]:
+                - generic [ref=e284]: Medium
+                - button "Actions" [ref=e286] [cursor=pointer]:
+                  - img [ref=e287]
+              - heading "Website performance review" [level=3] [ref=e291]
+              - paragraph [ref=e292]: Malta Peppers
+              - generic [ref=e294]:
+                - img [ref=e295]
+                - text: Jun 29
+              - combobox "Change task status" [ref=e298]:
+                - option "New"
+                - option "In Progress" [selected]
+                - option "Waiting for Client"
+                - option "Revision"
+                - option "Completed"
+        - complementary [ref=e299]:
+          - generic [ref=e300]:
+            - heading "Delivery pulse" [level=2] [ref=e301]
+            - paragraph [ref=e302]: Thursday, June 25
+          - generic [ref=e303]:
+            - generic [ref=e305]:
+              - paragraph [ref=e306]: Pranam Agro Foods
+              - generic [ref=e307]: 0/2
+            - generic [ref=e310]:
+              - paragraph [ref=e311]: Malta Peppers
+              - generic [ref=e312]: 1/2
+            - generic [ref=e316]:
+              - paragraph [ref=e317]: Kittik Enterprise
+              - generic [ref=e318]: 1/2
+            - generic [ref=e322]:
+              - paragraph [ref=e323]: 20D Cinema
+              - generic [ref=e324]: 0/2

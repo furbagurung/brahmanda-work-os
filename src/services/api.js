@@ -55,6 +55,8 @@ export const generateReport = (clientId, month, year) => getReports({
   year,
 })
 
+export const saveReport = (data) => request('reports.php', jsonOptions('POST', data))
+
 export function clientToApi(client) {
   return {
     name: client.name,

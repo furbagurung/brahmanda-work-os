@@ -1,0 +1,32 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - generic [ref=e9]: BRAHMANDA OS
+    - generic [ref=e10]:
+      - text: "01"
+      - heading "Agency work, in one place." [level=1] [ref=e11]:
+        - text: Agency work,
+        - text: in one place.
+      - paragraph [ref=e12]: Manage client delivery, tasks, daily logs, reports, and billing for Brahmanda Tech.
+    - paragraph [ref=e13]: Brahmanda Tech internal workspace
+  - generic [ref=e15]:
+    - paragraph [ref=e16]: Internal access
+    - heading "Sign in" [level=2] [ref=e17]
+    - paragraph [ref=e18]: Use your Brahmanda Work OS account.
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - generic [ref=e21]: Email
+        - generic [ref=e22]:
+          - img [ref=e23]
+          - textbox "Email" [ref=e26]:
+            - /placeholder: you@brahmandatech.com
+      - generic [ref=e27]:
+        - generic [ref=e28]: Password
+        - generic [ref=e29]:
+          - img [ref=e30]
+          - textbox "Password Show password" [ref=e34]:
+            - /placeholder: Enter password
+          - button "Show password" [ref=e35] [cursor=pointer]:
+            - img [ref=e36]
+      - button "Login" [ref=e39] [cursor=pointer]
