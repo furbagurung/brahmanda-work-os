@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/auth_guard.php';
+require_once __DIR__ . '/../helpers/activity_logger.php';
 
 bootstrapApi();
 
@@ -90,7 +91,13 @@ try {
             ':status' => $status,
         ]);
 
-        jsonResponse(['id' => (int) $pdo->lastInsertId()], 201, 'User created.');
+        $id = (int) $pdo->lastInsertId();
+        $created = findUser($pdo, $id);
+        logActivity($pdo, $currentUser, [
+            'action_type' => 'created', 'module' => 'users', 'item_id' => $id,
+            'item_title' => $created['name'], 'description' => 'User created.', 'new_value' => $created,
+        ]);
+        jsonResponse(['id' => $id], 201, 'User created.');
     }
 
     if ($method === 'PUT' || ($method === 'PATCH' && ($_GET['action'] ?? '') !== 'password')) {
@@ -139,7 +146,13 @@ try {
             ':id' => $id,
         ]);
 
-        jsonResponse(findUser($pdo, $id), 200, 'User updated.');
+        $updated = findUser($pdo, $id);
+        logActivity($pdo, $currentUser, [
+            'action_type' => 'updated', 'module' => 'users', 'item_id' => $id,
+            'item_title' => $updated['name'], 'description' => 'User updated.',
+            'old_value' => $existing, 'new_value' => $updated,
+        ]);
+        jsonResponse($updated, 200, 'User updated.');
     }
 
     if ($method === 'PATCH' && ($_GET['action'] ?? '') === 'password') {
@@ -161,13 +174,17 @@ try {
             password_hash((string) $data['password'], PASSWORD_DEFAULT),
             $id,
         ]);
+        logActivity($pdo, $currentUser, [
+            'action_type' => 'password_changed', 'module' => 'users', 'item_id' => $id,
+            'item_title' => findUser($pdo, $id)['name'], 'description' => 'User password changed.',
+        ]);
 
         jsonResponse(['id' => $id], 200, 'Password changed.');
     }
 
     if ($method === 'DELETE') {
         $id = queryId();
-        findUser($pdo, $id);
+        $existing = findUser($pdo, $id);
 
         if ($id === (int) $currentUser['id']) {
             errorResponse('You cannot deactivate your own account.', 422);
@@ -179,6 +196,11 @@ try {
              WHERE id = ?'
         );
         $statement->execute([$id]);
+        logActivity($pdo, $currentUser, [
+            'action_type' => 'deactivated', 'module' => 'users', 'item_id' => $id,
+            'item_title' => $existing['name'], 'description' => 'User deactivated.',
+            'old_value' => $existing, 'new_value' => array_merge($existing, ['status' => 'inactive']),
+        ]);
 
         jsonResponse(['id' => $id], 200, 'User deactivated.');
     }

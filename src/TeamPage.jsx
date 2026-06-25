@@ -57,7 +57,7 @@ function UserForm({ user, onSave, onClose }) {
   </form>
 }
 
-export default function TeamPage({ currentUser, onCurrentUserUpdate }) {
+export default function TeamPage({ currentUser, onCurrentUserUpdate, onActivityRefresh }) {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -104,6 +104,7 @@ export default function TeamPage({ currentUser, onCurrentUserUpdate }) {
       onCurrentUserUpdate(saved)
     }
     await loadUsers()
+    await onActivityRefresh?.()
   }
 
   const handleDeactivate = async (user) => {
@@ -112,6 +113,7 @@ export default function TeamPage({ currentUser, onCurrentUserUpdate }) {
     try {
       await deactivateUser(user.id)
       await loadUsers()
+      await onActivityRefresh?.()
     } catch (requestError) {
       setError(requestError.message)
     }

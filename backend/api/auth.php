@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/auth_guard.php';
+require_once __DIR__ . '/../helpers/activity_logger.php';
 
 bootstrapApi();
 
@@ -21,6 +22,13 @@ try {
             'UPDATE users SET api_token = NULL, token_expires_at = NULL WHERE id = ?'
         );
         $statement->execute([$currentUser['id']]);
+        logActivity($pdo, $currentUser, [
+            'action_type' => 'logout',
+            'module' => 'auth',
+            'item_id' => $currentUser['id'],
+            'item_title' => $currentUser['name'],
+            'description' => $currentUser['name'] . ' logged out.',
+        ]);
         jsonResponse(null, 200, 'Logout successful.');
     }
 
@@ -54,6 +62,13 @@ try {
     ]);
 
     unset($user['password']);
+    logActivity($pdo, $user, [
+        'action_type' => 'login',
+        'module' => 'auth',
+        'item_id' => $user['id'],
+        'item_title' => $user['name'],
+        'description' => $user['name'] . ' logged in.',
+    ]);
 
     jsonResponse([
         'user' => $user,

@@ -80,6 +80,11 @@ export const generateReport = (clientId, month, year) => getReports({
 
 export const saveReport = (data) => request('reports.php', jsonOptions('POST', data))
 
+export const getActivityLogs = (params = {}) => {
+  const query = new URLSearchParams(params)
+  return request(`activity_logs.php${query.toString() ? `?${query}` : ''}`)
+}
+
 export const getUsers = async () => {
   const data = await request('users.php')
   return Array.isArray(data) ? data : [data]
@@ -236,5 +241,28 @@ export function reportFromApi(report) {
     year: Number(report.report_year),
     status: report.status || 'Draft',
     createdAt: report.created_at || '',
+  }
+}
+
+export function activityFromApi(activity) {
+  const parseValue = (value) => {
+    if (!value) return null
+    try { return JSON.parse(value) } catch { return value }
+  }
+  return {
+    id: String(activity.id),
+    userId: activity.user_id ? String(activity.user_id) : '',
+    userName: activity.user_name || 'System',
+    actionType: activity.action_type,
+    module: activity.module,
+    itemId: activity.item_id ? String(activity.item_id) : '',
+    itemTitle: activity.item_title || '',
+    clientId: activity.client_id ? String(activity.client_id) : '',
+    clientName: activity.client_name || '',
+    description: activity.description || '',
+    oldValue: parseValue(activity.old_value),
+    newValue: parseValue(activity.new_value),
+    ipAddress: activity.ip_address || '',
+    createdAt: activity.created_at,
   }
 }

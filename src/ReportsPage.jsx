@@ -19,7 +19,7 @@ function PageHeading() {
   return <div className="mb-8 flex items-start gap-4 border-b border-line pb-7 sm:gap-5"><span className="text-4xl font-light leading-none text-zinc-200 sm:text-5xl">06</span><div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Reports</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">Generate, review, save, and export monthly client delivery reports.</p></div></div>
 }
 
-export default function ReportsPage({ clients, tasks, isFallback }) {
+export default function ReportsPage({ clients, tasks, isFallback, onActivityRefresh }) {
   const [clientId, setClientId] = useState(clients[0]?.id || '')
   const [month, setMonth] = useState(6)
   const [year, setYear] = useState(2026)
@@ -120,6 +120,7 @@ Prepared by Brahmanda Tech`
       setStatus(savedStatus)
       setReport(generatedReport)
       await saveSnapshot(savedStatus, generatedReport)
+      await onActivityRefresh?.()
     } catch (requestError) {
       setError(requestError.message)
     } finally {
@@ -135,6 +136,7 @@ Prepared by Brahmanda Tech`
     setError('')
     try {
       await saveSnapshot(nextStatus)
+      await onActivityRefresh?.()
     } catch (requestError) {
       setError(`Could not save report status. ${requestError.message}`)
     } finally {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   AlertTriangle, BarChart3, Bell, BellRing, BriefcaseBusiness, CalendarDays, CalendarRange, CheckCircle2, ChevronDown,
   CircleDollarSign, ClipboardCopy, ClipboardList, Clock3, Command, FileText,
-  LayoutDashboard, LogOut, Menu, Plus, ReceiptText, Repeat2, Search, Settings, Users, UsersRound, X,
+  History, LayoutDashboard, LogOut, Menu, Plus, ReceiptText, Repeat2, Search, Settings, Users, UsersRound, X,
 } from 'lucide-react'
 import {
   ActionMenu, Badge, BillingBadge, ClientCard, DeadlineBadge, EmptyState, Modal, PriorityBadge,
@@ -10,10 +10,10 @@ import {
 } from './components'
 import { CATEGORIES, initialClients, initialTasks, PRIORITIES, TASK_STATUSES } from './data'
 import {
-  billingFromApi, clientFromApi, clientToApi, createClient as createClientApi,
+  activityFromApi, billingFromApi, clientFromApi, clientToApi, createClient as createClientApi,
   createTask as createTaskApi, createTaskAttachment, deleteClient as deleteClientApi,
   deleteTask as deleteTaskApi, deleteTaskAttachment,
-  generateReport as generateReportApi, getBillings, getClients, getDailyLogs, getReports, getTasks,
+  generateReport as generateReportApi, getActivityLogs, getBillings, getClients, getDailyLogs, getReports, getTasks,
   getTaskAttachments, logFromApi, markTaskCompleted, taskFromApi, taskToApi,
   updateBilling as updateBillingApi, attachmentFromApi, reportFromApi,
   updateClient as updateClientApi, updateTask as updateTaskApi, generateRecurringTasks as generateRecurringTasksApi,
@@ -29,6 +29,7 @@ import GlobalSearch from './GlobalSearch'
 import { QuickAddMenu, QuickTaskForm } from './QuickAdd'
 import RecurringTasksPage from './RecurringTasksPage'
 import { nextRecurrenceDate } from './recurrenceUtils'
+import ActivityPage, { ActivityFeed } from './ActivityPage'
 import { getCurrentUser, logout, updateCurrentUser } from './services/auth'
 
 const STORAGE_KEY = 'brahmanda-work-os-v2'
@@ -42,6 +43,7 @@ const navigation = [
   { label: 'Reminders', icon: BellRing },
   { label: 'Calendar', icon: CalendarRange },
   { label: 'Recurring Tasks', icon: Repeat2 },
+  { label: 'Activity', icon: History },
   { label: 'Reports', icon: BarChart3 },
   { label: 'Billing', icon: ReceiptText },
   { label: 'Team', icon: UsersRound },
@@ -59,9 +61,10 @@ function useWorkspace() {
         logs: parsed.logs || (parsed.tasks || initialTasks).filter((task) => task.status === 'Completed'),
         billings: parsed.billings || (parsed.tasks || initialTasks).filter((task) => task.billable),
         reports: parsed.reports || [],
+        activities: parsed.activities || [],
       }
     } catch {
-      return { clients: initialClients, tasks: initialTasks, logs: [], billings: [], reports: [] }
+      return { clients: initialClients, tasks: initialTasks, logs: [], billings: [], reports: [], activities: [] }
     }
   })
   const [loading, setLoading] = useState(true)
@@ -74,12 +77,13 @@ function useWorkspace() {
   }, [workspace])
 
   const loadApiData = async () => {
-    const [clients, taskRows, logs, billing, reports] = await Promise.all([
+    const [clients, taskRows, logs, billing, reports, activities] = await Promise.all([
       getClients(),
       getTasks(),
       getDailyLogs(),
       getBillings(),
       getReports(),
+      getActivityLogs({ limit: 200 }).catch(() => []),
     ])
     const attachments = await Promise.all(taskRows.map(async (task) => [
       String(task.id),
@@ -92,6 +96,7 @@ function useWorkspace() {
       logs: logs.map(logFromApi),
       billings: (billing.items || []).map(billingFromApi),
       reports: reports.map(reportFromApi),
+      activities: activities.map(activityFromApi),
     }
     setWorkspace(next)
     setIsFallback(false)
@@ -312,14 +317,26 @@ function useWorkspace() {
     }
   }
 
+  const refreshActivities = async () => {
+    if (isFallback) return workspace.activities || []
+    try {
+      const rows = await getActivityLogs({ limit: 200 })
+      const activities = rows.map(activityFromApi)
+      setWorkspace((current) => ({ ...current, activities }))
+      return activities
+    } catch {
+      return workspace.activities || []
+    }
+  }
+
   const resetWorkspace = () => {
     setIsFallback(true)
     setConnectionStatus('fallback')
     setError('Demo mode enabled. Data is stored in this browser only.')
-    setWorkspace({ clients: initialClients, tasks: initialTasks, logs: initialTasks.filter((task) => task.status === 'Completed'), billings: initialTasks.filter((task) => task.billable), reports: [] })
+    setWorkspace({ clients: initialClients, tasks: initialTasks, logs: initialTasks.filter((task) => task.status === 'Completed'), billings: initialTasks.filter((task) => task.billable), reports: [], activities: [] })
   }
 
-  return { ...workspace, loading, error, isFallback, connectionStatus, saveTask, updateTask, deleteTask, saveClient, deleteClient, generateRecurringTasks, resetWorkspace }
+  return { ...workspace, loading, error, isFallback, connectionStatus, saveTask, updateTask, deleteTask, saveClient, deleteClient, generateRecurringTasks, refreshActivities, resetWorkspace }
 }
 
 function Sidebar({ activePage, setActivePage, open, setOpen }) {
@@ -451,7 +468,7 @@ function DeadlineColumn({ title, description, tasks, clients, tone }) {
   return <section className={`border border-line border-t-2 bg-white ${toneClasses[tone]}`}><div className="border-b border-line p-4"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">{title}</h3><span className="text-lg font-semibold">{tasks.length}</span></div><p className="mt-1 text-xs text-zinc-500">{description}</p></div><div className="divide-y divide-line">{tasks.slice(0, 4).map((task) => <div className="p-4" key={task.id}><p className="text-sm font-semibold">{task.title}</p><p className="mt-1 text-xs text-zinc-500">{clients.find((client) => client.id === task.clientId)?.name || 'Deleted client'} · {formatDate(task.deadline)}</p><div className="mt-2 flex flex-wrap gap-2"><PriorityBadge priority={task.priority} /><DeadlineBadge task={task} /></div></div>)}{!tasks.length && <p className="p-5 text-sm text-zinc-400">No tasks</p>}</div></section>
 }
 
-function Dashboard({ clients, tasks, connectionStatus, onNewTask, setActivePage, onEditTask, onDeleteTask, updateTask }) {
+function Dashboard({ clients, tasks, activities, connectionStatus, onNewTask, setActivePage, onEditTask, onDeleteTask, updateTask }) {
   const completed = tasks.filter((task) => task.status === 'Completed')
   const billable = tasks.filter((task) => task.billable)
   const todayTasks = tasks.filter((task) => task.deadline === TODAY)
@@ -492,6 +509,7 @@ function Dashboard({ clients, tasks, connectionStatus, onNewTask, setActivePage,
       <section className="panel"><div className="flex items-center justify-between border-b border-line p-5"><div><h2 className="font-semibold">Priority work</h2><p className="mt-1 text-xs text-zinc-500">Current tasks requiring attention</p></div><button className="text-sm font-semibold text-blue" onClick={() => setActivePage('Tasks')}>View all</button></div>{priorityTasks.length ? <div className="grid gap-px bg-line md:grid-cols-2">{priorityTasks.map((task) => <TaskCard key={task.id} task={task} client={clients.find((client) => client.id === task.clientId)} compact statuses={TASK_STATUSES} onEdit={() => onEditTask(task)} onDelete={() => onDeleteTask(task.id)} onStatusChange={(id, status) => updateTask(id, { status })} />)}</div> : <EmptyState title="No pending work" description="Create a task to start planning client work." action="Create task" onAction={onNewTask} />}</section>
       <aside className="panel"><div className="border-b border-line p-5"><h2 className="font-semibold">Delivery pulse</h2><p className="mt-1 text-xs text-zinc-500">{formatDate(TODAY, { weekday: 'long', month: 'long', day: 'numeric' })}</p></div><div className="divide-y divide-line">{clients.map((client) => { const clientTasks = tasks.filter((task) => task.clientId === client.id); const done = clientTasks.filter((task) => task.status === 'Completed').length; return <div key={client.id} className="p-4"><div className="flex justify-between gap-4"><p className="text-sm font-semibold">{client.name}</p><span className="text-xs text-zinc-500">{done}/{clientTasks.length}</span></div><div className="mt-3 h-1 bg-zinc-100"><div className="h-full bg-blue" style={{ width: `${clientTasks.length ? (done / clientTasks.length) * 100 : 0}%` }} /></div></div>})}</div></aside>
     </div>
+    <section className="panel mt-8"><div className="flex items-center justify-between border-b border-line p-5"><div><h2 className="font-semibold">Recent Activity</h2><p className="mt-1 text-xs text-zinc-500">Latest workspace actions</p></div><button className="text-sm font-semibold text-blue" onClick={() => setActivePage('Activity')}>View all</button></div><ActivityFeed activities={(activities || []).slice(0, 5)} compact /></section>
   </>
 }
 
@@ -647,6 +665,8 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [generatingRecurring, setGeneratingRecurring] = useState(false)
   const [recurringMessage, setRecurringMessage] = useState('')
+  const [activityFilters, setActivityFilters] = useState({ user_id: '', client_id: '', module: '', action_type: '', date_from: '', date_to: '' })
+  const [activityResults, setActivityResults] = useState([])
   const [recentClientIds, setRecentClientIds] = useState(() => {
     try { return JSON.parse(localStorage.getItem('brahmanda-recent-clients') || '[]') } catch { return [] }
   })
@@ -714,6 +734,32 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     window.addEventListener('keydown', shortcuts)
     return () => window.removeEventListener('keydown', shortcuts)
   }, [quickTask])
+  useEffect(() => {
+    let active = true
+    const load = async () => {
+      const params = Object.fromEntries(Object.entries(activityFilters).filter(([, value]) => value))
+      if (workspace.isFallback) {
+        const filtered = (workspace.activities || []).filter((item) => (
+          (!params.user_id || item.userId === params.user_id)
+          && (!params.client_id || item.clientId === params.client_id)
+          && (!params.module || item.module === params.module)
+          && (!params.action_type || item.actionType === params.action_type)
+          && (!params.date_from || String(item.createdAt).slice(0, 10) >= params.date_from)
+          && (!params.date_to || String(item.createdAt).slice(0, 10) <= params.date_to)
+        ))
+        if (active) setActivityResults(filtered)
+        return
+      }
+      try {
+        const rows = await getActivityLogs({ ...params, limit: 500 })
+        if (active) setActivityResults(rows.map(activityFromApi))
+      } catch {
+        if (active) setActivityResults(workspace.activities || [])
+      }
+    }
+    if (!workspace.loading) load()
+    return () => { active = false }
+  }, [activityFilters, workspace.activities, workspace.isFallback, workspace.loading])
   const selectedClient = workspace.clients.find((client) => client.id === selectedClientId)
   const saveTaskWithRecent = async (task) => {
     await workspace.saveTask(task)
@@ -744,12 +790,12 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     setRecurringMessage(count ? `${count} recurring task occurrence${count === 1 ? '' : 's'} generated.` : 'No recurring tasks are currently due.')
     setGeneratingRecurring(false)
   }
-  const shared = { clients: workspace.clients, tasks: workspace.tasks, connectionStatus: workspace.connectionStatus, onNewTask: newTask, onEditTask: setTaskModal, onDeleteTask: deleteTask, updateTask: workspace.updateTask, setActivePage: navigatePage }
+  const shared = { clients: workspace.clients, tasks: workspace.tasks, activities: workspace.activities, connectionStatus: workspace.connectionStatus, onNewTask: newTask, onEditTask: setTaskModal, onDeleteTask: deleteTask, updateTask: workspace.updateTask, setActivePage: navigatePage }
   const pages = {
     Dashboard: <Dashboard {...shared} />,
     Clients: <ClientsPage clients={workspace.clients} tasks={workspace.tasks} onNewClient={() => setClientModal({})} onEditClient={setClientModal} onDeleteClient={deleteClient} onViewClient={openClient} />,
     'Client Detail': selectedClient
-      ? <ClientDetailPage client={selectedClient} tasks={workspace.tasks} billings={workspace.billings} isFallback={workspace.isFallback} onBack={() => navigatePage('Clients')} onNewTask={newTask} onEditTask={setTaskModal} onDeleteTask={deleteTask} updateTask={workspace.updateTask} />
+      ? <ClientDetailPage client={selectedClient} tasks={workspace.tasks} billings={workspace.billings} activities={(workspace.activities || []).filter((activity) => activity.clientId === selectedClient.id).slice(0, 20)} isFallback={workspace.isFallback} onBack={() => navigatePage('Clients')} onNewTask={newTask} onEditTask={setTaskModal} onDeleteTask={deleteTask} updateTask={workspace.updateTask} />
       : <EmptyState title="Client not found" description="This client may have been removed or the link is invalid." action="Back to clients" onAction={() => navigatePage('Clients')} />,
     Tasks: <TasksPage {...shared} />,
     'Kanban Board': <KanbanPage {...shared} />,
@@ -757,9 +803,10 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     Reminders: <RemindersPage clients={workspace.clients} tasks={workspace.tasks} onEditTask={setTaskModal} />,
     Calendar: <CalendarPage clients={workspace.clients} tasks={workspace.tasks} onEditTask={setTaskModal} updateTask={workspace.updateTask} />,
     'Recurring Tasks': <RecurringTasksPage clients={workspace.clients} tasks={workspace.tasks} onEditTask={setTaskModal} updateTask={workspace.updateTask} onGenerate={generateDueRecurring} generating={generatingRecurring} generationMessage={recurringMessage} />,
-    Reports: <MonthlyReportsPage clients={workspace.clients} tasks={workspace.tasks} isFallback={workspace.isFallback} />,
+    Activity: <ActivityPage activities={activityResults} sourceActivities={workspace.activities || []} clients={workspace.clients} filters={activityFilters} setFilters={setActivityFilters} />,
+    Reports: <MonthlyReportsPage clients={workspace.clients} tasks={workspace.tasks} isFallback={workspace.isFallback} onActivityRefresh={workspace.refreshActivities} />,
     Billing: <BillingPage clients={workspace.clients} billings={workspace.billings} updateTask={workspace.updateTask} />,
-    Team: <TeamPage currentUser={user} onCurrentUserUpdate={onUserUpdate} />,
+    Team: <TeamPage currentUser={user} onCurrentUserUpdate={onUserUpdate} onActivityRefresh={workspace.refreshActivities} />,
     Settings: <SettingsPage resetWorkspace={workspace.resetWorkspace} />,
   }
 

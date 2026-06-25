@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/auth_guard.php';
+require_once __DIR__ . '/../helpers/activity_logger.php';
 
 bootstrapApi();
 
@@ -75,7 +76,14 @@ try {
             ':notes' => $data['notes'] ?? null,
         ]);
 
-        jsonResponse(['id' => (int) $pdo->lastInsertId()], 201, 'Client created.');
+        $id = (int) $pdo->lastInsertId();
+        logActivity($pdo, $currentUser, [
+            'action_type' => 'created', 'module' => 'clients', 'item_id' => $id,
+            'item_title' => trim((string) $data['name']), 'client_id' => $id,
+            'client_name' => trim((string) $data['name']),
+            'description' => 'Client created.', 'new_value' => $data,
+        ]);
+        jsonResponse(['id' => $id], 201, 'Client created.');
     }
 
     if ($method === 'PUT' || $method === 'PATCH') {
@@ -118,18 +126,33 @@ try {
             ':notes' => $merged['notes'] ?: null,
             ':id' => $id,
         ]);
+        logActivity($pdo, $currentUser, [
+            'action_type' => ($current['status'] !== 'inactive' && $merged['status'] === 'inactive') ? 'deactivated' : 'updated',
+            'module' => 'clients', 'item_id' => $id,
+            'item_title' => $merged['name'], 'client_id' => $id, 'client_name' => $merged['name'],
+            'description' => 'Client updated.', 'old_value' => $current, 'new_value' => $merged,
+        ]);
 
         jsonResponse(['id' => $id], 200, 'Client updated.');
     }
 
     if ($method === 'DELETE') {
         $id = queryId();
+        $currentStatement = $pdo->prepare('SELECT * FROM clients WHERE id = ?');
+        $currentStatement->execute([$id]);
+        $current = $currentStatement->fetch();
         $statement = $pdo->prepare('DELETE FROM clients WHERE id = ?');
         $statement->execute([$id]);
 
         if ($statement->rowCount() === 0) {
             errorResponse('Client not found.', 404);
         }
+        logActivity($pdo, $currentUser, [
+            'action_type' => 'deleted', 'module' => 'clients', 'item_id' => $id,
+            'item_title' => $current['name'] ?? 'Client', 'client_id' => $id,
+            'client_name' => $current['name'] ?? null, 'description' => 'Client deleted.',
+            'old_value' => $current,
+        ]);
 
         jsonResponse(['id' => $id], 200, 'Client deleted.');
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/auth_guard.php';
+require_once __DIR__ . '/../helpers/activity_logger.php';
 
 bootstrapApi();
 
@@ -163,6 +164,13 @@ try {
             ':year' => $year,
         ]);
         $savedReport = $savedReportStatement->fetch() ?: null;
+        logActivity($pdo, $currentUser, [
+            'action_type' => 'generated', 'module' => 'reports',
+            'item_id' => $savedReport['id'] ?? null,
+            'item_title' => date('F Y', mktime(0, 0, 0, $month, 1, $year)) . ' report',
+            'client_id' => $clientId, 'client_name' => $client['name'],
+            'description' => 'Report generated for ' . date('F Y', mktime(0, 0, 0, $month, 1, $year)) . '.',
+        ]);
 
         jsonResponse([
             'client' => $client,
@@ -193,6 +201,12 @@ try {
             ? $data['report_content']
             : json_encode($data['report_content'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
+        $existingStatement = $pdo->prepare(
+            'SELECT id, status, report_content FROM reports
+             WHERE client_id = ? AND report_month = ? AND report_year = ?'
+        );
+        $existingStatement->execute([(int) $data['client_id'], (int) $data['report_month'], (int) $data['report_year']]);
+        $existing = $existingStatement->fetch();
         $statement = $pdo->prepare(
             'INSERT INTO reports
                 (client_id, report_month, report_year, report_content, status)
@@ -209,9 +223,19 @@ try {
             ':report_content' => $content,
             ':status' => $data['status'] ?? 'Draft',
         ]);
+        $reportId = (int) ($pdo->lastInsertId() ?: ($existing['id'] ?? 0));
+        logActivity($pdo, $currentUser, [
+            'action_type' => $existing ? 'status_updated' : 'created',
+            'module' => 'reports', 'item_id' => $reportId,
+            'item_title' => date('F Y', mktime(0, 0, 0, (int) $data['report_month'], 1, (int) $data['report_year'])) . ' report',
+            'client_id' => (int) $data['client_id'],
+            'description' => $existing ? 'Report content or status updated.' : 'Report saved.',
+            'old_value' => $existing,
+            'new_value' => ['status' => $data['status'] ?? 'Draft', 'report_content' => $content],
+        ]);
 
         jsonResponse([
-            'id' => (int) ($pdo->lastInsertId() ?: 0),
+            'id' => $reportId,
         ], 201, 'Report saved.');
     }
 

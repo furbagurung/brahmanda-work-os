@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/auth_guard.php';
+require_once __DIR__ . '/../helpers/activity_logger.php';
 
 bootstrapApi();
 
@@ -50,9 +51,10 @@ try {
             errorResponse('Attachment URL must be valid.', 422);
         }
 
-        $taskStatement = $pdo->prepare('SELECT id FROM tasks WHERE id = ?');
+        $taskStatement = $pdo->prepare('SELECT id, client_id, title FROM tasks WHERE id = ?');
         $taskStatement->execute([(int) $data['task_id']]);
-        if (!$taskStatement->fetch()) {
+        $task = $taskStatement->fetch();
+        if (!$task) {
             errorResponse('Task not found.', 404);
         }
 
@@ -67,17 +69,36 @@ try {
             ':url' => trim((string) $data['url']),
         ]);
 
-        jsonResponse(['id' => (int) $pdo->lastInsertId()], 201, 'Attachment added.');
+        $id = (int) $pdo->lastInsertId();
+        logActivity($pdo, $currentUser, [
+            'action_type' => 'added', 'module' => 'proofs', 'item_id' => $id,
+            'item_title' => trim((string) $data['title']), 'client_id' => $task['client_id'],
+            'description' => 'Proof link added to ' . $task['title'] . '.',
+            'new_value' => ['task_id' => $task['id'], 'title' => $data['title'], 'url' => $data['url']],
+        ]);
+        jsonResponse(['id' => $id], 201, 'Attachment added.');
     }
 
     if ($method === 'DELETE') {
         $id = queryId();
+        $currentStatement = $pdo->prepare(
+            'SELECT a.*, t.client_id, t.title AS task_title
+             FROM task_attachments a INNER JOIN tasks t ON t.id = a.task_id WHERE a.id = ?'
+        );
+        $currentStatement->execute([$id]);
+        $current = $currentStatement->fetch();
         $statement = $pdo->prepare('DELETE FROM task_attachments WHERE id = ?');
         $statement->execute([$id]);
 
         if ($statement->rowCount() === 0) {
             errorResponse('Attachment not found.', 404);
         }
+        logActivity($pdo, $currentUser, [
+            'action_type' => 'deleted', 'module' => 'proofs', 'item_id' => $id,
+            'item_title' => $current['title'] ?? 'Proof link', 'client_id' => $current['client_id'] ?? null,
+            'description' => 'Proof link deleted from ' . ($current['task_title'] ?? 'task') . '.',
+            'old_value' => $current,
+        ]);
 
         jsonResponse(['id' => $id], 200, 'Attachment deleted.');
     }

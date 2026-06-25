@@ -11,8 +11,9 @@ import {
 import { PRIORITIES, TASK_STATUSES } from './data'
 import { getReports } from './services/api'
 import { formatDate, formatMoney } from './utils'
+import { ActivityFeed } from './ActivityPage'
 
-const TABS = ['Overview', 'Tasks', 'Completed Work', 'Billing', 'Reports', 'Proof Links']
+const TABS = ['Overview', 'Tasks', 'Completed Work', 'Billing', 'Reports', 'Proof Links', 'Activity']
 
 const displayStatus = (status) => String(status || 'active')
   .replaceAll('_', ' ')
@@ -42,6 +43,7 @@ export default function ClientDetailPage({
   client,
   tasks,
   billings,
+  activities = [],
   isFallback,
   onBack,
   onNewTask,
@@ -186,6 +188,7 @@ export default function ClientDetailPage({
       </section>}
 
       {activeTab === 'Proof Links' && <section className="panel">{clientTasks.some((task) => task.attachments?.length || task.proofLink) ? <div className="divide-y divide-line">{clientTasks.filter((task) => task.attachments?.length || task.proofLink).map((task) => <div key={task.id} className="grid gap-3 p-5 sm:grid-cols-[minmax(220px,0.7fr)_1fr]"><div><h3 className="text-sm font-semibold">{task.title}</h3><p className="mt-1 text-xs text-zinc-500">{task.status}</p></div><ProofList task={task} /></div>)}</div> : <EmptyState title="No proof links" description="Proof links added to this client's tasks will appear here." />}</section>}
+      {activeTab === 'Activity' && <section className="panel"><ActivityFeed activities={activities} /></section>}
     </div>
 
     {viewingReport && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-5" onMouseDown={(event) => event.target === event.currentTarget && setViewingReport(null)}><section className="max-h-[90vh] w-full max-w-3xl overflow-y-auto border border-line bg-white"><header className="flex items-start justify-between border-b border-line p-5"><div><h2 className="text-lg font-semibold">{monthName(viewingReport.report_month)} {viewingReport.report_year} report</h2><p className="mt-1 text-sm text-zinc-500">{client.name}</p></div><button className="button-secondary px-3 py-2" onClick={() => setViewingReport(null)}>Close</button></header><pre className="whitespace-pre-wrap p-5 font-sans text-sm leading-6 text-zinc-700">{typeof viewingReport.report_content === 'string' ? viewingReport.report_content : JSON.stringify(viewingReport.report_content, null, 2)}</pre></section></div>}

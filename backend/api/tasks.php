@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/auth_guard.php';
+require_once __DIR__ . '/../helpers/activity_logger.php';
 
 bootstrapApi();
 
@@ -150,7 +151,7 @@ function nextOccurrenceDate(string $date, string $type, int $interval): string
     )->format('Y-m-d');
 }
 
-function generateRecurringTasks(PDO $pdo): array
+function generateRecurringTasks(PDO $pdo, array $currentUser): array
 {
     $today = (new DateTimeImmutable('now', new DateTimeZone('Asia/Kathmandu')))->format('Y-m-d');
     $statement = $pdo->prepare(
@@ -199,7 +200,24 @@ function generateRecurringTasks(PDO $pdo): array
         ]);
         $generatedId = (int) $pdo->lastInsertId();
         $generatedIds[] = $generatedId;
-        syncBilling($pdo, findTask($pdo, $generatedId));
+        $generatedTask = findTask($pdo, $generatedId);
+        syncBilling($pdo, $generatedTask);
+        logActivity($pdo, $currentUser, [
+            'action_type' => 'generated', 'module' => 'recurring_tasks',
+            'item_id' => $generatedId, 'item_title' => $generatedTask['title'],
+            'client_id' => $generatedTask['client_id'],
+            'description' => 'Recurring task occurrence generated for ' . $occurrenceDate . '.',
+            'new_value' => $generatedTask,
+        ]);
+        if ((int) $generatedTask['is_billable'] === 1) {
+            logActivity($pdo, $currentUser, [
+                'action_type' => 'created', 'module' => 'billing',
+                'item_id' => $generatedId, 'item_title' => $generatedTask['title'],
+                'client_id' => $generatedTask['client_id'],
+                'description' => 'Billing item created from recurring task occurrence.',
+                'new_value' => ['amount' => $generatedTask['billable_amount'], 'payment_status' => 'Unpaid', 'invoice_status' => 'Not invoiced'],
+            ]);
+        }
 
         $nextDate = nextOccurrenceDate(
             $occurrenceDate,
@@ -260,7 +278,7 @@ try {
     if ($method === 'POST') {
         if (($_GET['action'] ?? '') === 'generate_recurring') {
             $pdo->beginTransaction();
-            $generatedIds = generateRecurringTasks($pdo);
+            $generatedIds = generateRecurringTasks($pdo, $currentUser);
             $pdo->commit();
             jsonResponse([
                 'generated_count' => count($generatedIds),
@@ -315,6 +333,19 @@ try {
         if ($task['status'] === 'Completed') {
             createDailyLog($pdo, $task);
         }
+        logActivity($pdo, $currentUser, [
+            'action_type' => 'created', 'module' => 'tasks', 'item_id' => $id,
+            'item_title' => $task['title'], 'client_id' => $task['client_id'],
+            'description' => 'Task created.', 'new_value' => $task,
+        ]);
+        if ((int) $task['is_billable'] === 1 && (int) $task['is_recurring'] !== 1) {
+            logActivity($pdo, $currentUser, [
+                'action_type' => 'created', 'module' => 'billing', 'item_id' => $id,
+                'item_title' => $task['title'], 'client_id' => $task['client_id'],
+                'description' => 'Billing item created from task.',
+                'new_value' => ['amount' => $task['billable_amount'], 'payment_status' => $task['payment_status'], 'invoice_status' => $task['invoice_status']],
+            ]);
+        }
 
         $pdo->commit();
         jsonResponse(['id' => $id], 201, 'Task created.');
@@ -363,6 +394,30 @@ try {
         if ($task['status'] === 'Completed') {
             createDailyLog($pdo, $task);
         }
+        logActivity($pdo, $currentUser, [
+            'action_type' => ($current['status'] !== 'Completed' && $task['status'] === 'Completed') ? 'completed' : 'updated',
+            'module' => 'tasks', 'item_id' => $id,
+            'item_title' => $task['title'], 'client_id' => $task['client_id'],
+            'description' => 'Task updated.', 'old_value' => $current, 'new_value' => $task,
+        ]);
+        if ((int) $current['is_billable'] !== 1 && (int) $task['is_billable'] === 1 && (int) $task['is_recurring'] !== 1) {
+            logActivity($pdo, $currentUser, [
+                'action_type' => 'created', 'module' => 'billing', 'item_id' => $id,
+                'item_title' => $task['title'], 'client_id' => $task['client_id'],
+                'description' => 'Billing item created from task.',
+                'new_value' => ['amount' => $task['billable_amount'], 'payment_status' => $task['payment_status'], 'invoice_status' => $task['invoice_status']],
+            ]);
+        } elseif ((int) $current['is_billable'] === 1 && (int) $task['is_billable'] === 1
+            && ((float) $current['billable_amount'] !== (float) $task['billable_amount']
+                || $current['title'] !== $task['title'])) {
+            logActivity($pdo, $currentUser, [
+                'action_type' => 'updated', 'module' => 'billing', 'item_id' => $id,
+                'item_title' => $task['title'], 'client_id' => $task['client_id'],
+                'description' => 'Billing item updated from task.',
+                'old_value' => ['title' => $current['title'], 'amount' => $current['billable_amount']],
+                'new_value' => ['title' => $task['title'], 'amount' => $task['billable_amount']],
+            ]);
+        }
 
         $pdo->commit();
         jsonResponse(['id' => $id], 200, 'Task updated.');
@@ -370,7 +425,7 @@ try {
 
     if ($method === 'PATCH' && ($_GET['action'] ?? '') === 'complete') {
         $id = queryId();
-        findTask($pdo, $id);
+        $current = findTask($pdo, $id);
         $pdo->beginTransaction();
 
         $statement = $pdo->prepare(
@@ -383,6 +438,11 @@ try {
         $task = findTask($pdo, $id);
         createDailyLog($pdo, $task);
         syncBilling($pdo, $task);
+        logActivity($pdo, $currentUser, [
+            'action_type' => 'completed', 'module' => 'tasks', 'item_id' => $id,
+            'item_title' => $task['title'], 'client_id' => $task['client_id'],
+            'description' => 'Task completed.', 'old_value' => $current, 'new_value' => $task,
+        ]);
 
         $pdo->commit();
         jsonResponse(['id' => $id, 'completed_at' => $task['completed_at']], 200, 'Task completed and daily log created.');
@@ -390,12 +450,18 @@ try {
 
     if ($method === 'DELETE') {
         $id = queryId();
+        $current = findTask($pdo, $id);
         $statement = $pdo->prepare('DELETE FROM tasks WHERE id = ?');
         $statement->execute([$id]);
 
         if ($statement->rowCount() === 0) {
             errorResponse('Task not found.', 404);
         }
+        logActivity($pdo, $currentUser, [
+            'action_type' => 'deleted', 'module' => 'tasks', 'item_id' => $id,
+            'item_title' => $current['title'], 'client_id' => $current['client_id'],
+            'description' => 'Task deleted.', 'old_value' => $current,
+        ]);
 
         jsonResponse(['id' => $id], 200, 'Task deleted.');
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/auth_guard.php';
+require_once __DIR__ . '/../helpers/activity_logger.php';
 
 bootstrapApi();
 
@@ -110,6 +111,16 @@ try {
         ]);
 
         $pdo->commit();
+        $newValue = ['payment_status' => $paymentStatus, 'invoice_status' => $invoiceStatus];
+        logActivity($pdo, $currentUser, [
+            'action_type' => $paymentStatus !== $task['payment_status'] ? 'payment_changed' : 'updated',
+            'module' => 'billing', 'item_id' => $taskId, 'item_title' => $task['title'],
+            'client_id' => $task['client_id'], 'description' => $paymentStatus !== $task['payment_status']
+                ? 'Payment status changed.'
+                : 'Billing item updated.',
+            'old_value' => ['payment_status' => $task['payment_status'], 'invoice_status' => $task['invoice_status']],
+            'new_value' => $newValue,
+        ]);
         jsonResponse(['task_id' => $taskId], 200, 'Billing status updated.');
     }
 
