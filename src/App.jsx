@@ -22,6 +22,7 @@ import { formatDate, formatMoney } from './utils'
 import LoginPage from './LoginPage'
 import MonthlyReportsPage from './ReportsPage'
 import TeamPage from './TeamPage'
+import ClientDetailPage from './ClientDetailPage'
 import { getCurrentUser, logout, updateCurrentUser } from './services/auth'
 
 const STORAGE_KEY = 'brahmanda-work-os-v2'
@@ -259,7 +260,7 @@ function Sidebar({ activePage, setActivePage, open, setOpen }) {
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-5">
           <p className="px-3 pb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">Workspace</p>
-          <div className="space-y-1">{navigation.map(({ label, icon: Icon }, index) => <button key={label} onClick={() => { setActivePage(label); setOpen(false) }} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition ${activePage === label ? 'bg-blue text-white' : 'text-zinc-600 hover:bg-canvas hover:text-ink'}`}><span className="w-5 text-[10px] tabular-nums opacity-50">{String(index + 1).padStart(2, '0')}</span><Icon size={17} strokeWidth={1.8} /><span className="font-medium">{label}</span></button>)}</div>
+          <div className="space-y-1">{navigation.map(({ label, icon: Icon }, index) => <button key={label} onClick={() => { setActivePage(label); setOpen(false) }} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition ${(activePage === label || (activePage === 'Client Detail' && label === 'Clients')) ? 'bg-blue text-white' : 'text-zinc-600 hover:bg-canvas hover:text-ink'}`}><span className="w-5 text-[10px] tabular-nums opacity-50">{String(index + 1).padStart(2, '0')}</span><Icon size={17} strokeWidth={1.8} /><span className="font-medium">{label}</span></button>)}</div>
         </nav>
         <div className="border-t border-line p-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center bg-ink text-xs font-bold text-white">BT</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">Brahmanda Tech</p><p className="text-xs text-zinc-500">Agency workspace</p></div><ChevronDown size={15} className="text-zinc-400" /></div></div>
       </aside>
@@ -341,7 +342,7 @@ function TaskForm({ task, clients, onSave, onClose }) {
 }
 
 function ClientForm({ client, onSave, onClose }) {
-  const [form, setForm] = useState(client || { id: '', name: '', initials: '', color: '#002FA7', contact: '', email: '', phone: '', status: 'Active', notes: '' })
+  const [form, setForm] = useState(client || { id: '', name: '', initials: '', color: '#002FA7', contact: '', email: '', phone: '', servicePackage: '', monthlyFee: 0, startDate: '', status: 'active', notes: '' })
   const [saving, setSaving] = useState(false)
   const change = (key, value) => setForm((current) => ({ ...current, [key]: value }))
   const submit = async (event) => {
@@ -352,7 +353,7 @@ function ClientForm({ client, onSave, onClose }) {
     setSaving(false)
     onClose()
   }
-  return <form onSubmit={submit}><div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6"><Field label="Client name"><input className="field" required value={form.name} onChange={(event) => change('name', event.target.value)} /></Field><Field label="Contact / team"><input className="field" required value={form.contact} onChange={(event) => change('contact', event.target.value)} /></Field><Field label="Email"><input className="field" type="email" value={form.email} onChange={(event) => change('email', event.target.value)} /></Field><Field label="Phone"><input className="field" value={form.phone} onChange={(event) => change('phone', event.target.value)} /></Field><Field label="Initials"><input className="field" maxLength="2" value={form.initials} onChange={(event) => change('initials', event.target.value.toUpperCase())} placeholder="Auto-generated" /></Field><Field label="Brand color"><input className="field h-11 p-1" type="color" value={form.color} onChange={(event) => change('color', event.target.value)} /></Field><Field label="Notes" className="sm:col-span-2"><textarea className="field min-h-24" value={form.notes} onChange={(event) => change('notes', event.target.value)} /></Field></div><div className="flex justify-end gap-3 border-t border-line bg-canvas p-4 sm:px-6"><button type="button" className="button-secondary" onClick={onClose}>Cancel</button><button className="button-primary" disabled={saving}>{saving ? 'Saving…' : client?.id ? 'Save changes' : 'Add client'}</button></div></form>
+  return <form onSubmit={submit}><div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6"><Field label="Client name"><input className="field" required value={form.name} onChange={(event) => change('name', event.target.value)} /></Field><Field label="Contact person"><input className="field" required value={form.contact} onChange={(event) => change('contact', event.target.value)} /></Field><Field label="Email"><input className="field" type="email" value={form.email} onChange={(event) => change('email', event.target.value)} /></Field><Field label="Phone"><input className="field" value={form.phone} onChange={(event) => change('phone', event.target.value)} /></Field><Field label="Service package"><input className="field" value={form.servicePackage || ''} onChange={(event) => change('servicePackage', event.target.value)} /></Field><Field label="Monthly fee"><input className="field" type="number" min="0" value={form.monthlyFee || 0} onChange={(event) => change('monthlyFee', event.target.value)} /></Field><Field label="Start date"><input className="field" type="date" value={form.startDate || ''} onChange={(event) => change('startDate', event.target.value)} /></Field><Field label="Status"><select className="field" value={String(form.status || 'active').toLowerCase().replace(' ', '_')} onChange={(event) => change('status', event.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option><option value="on_hold">On hold</option></select></Field><Field label="Initials"><input className="field" maxLength="2" value={form.initials} onChange={(event) => change('initials', event.target.value.toUpperCase())} placeholder="Auto-generated" /></Field><Field label="Brand color"><input className="field h-11 p-1" type="color" value={form.color} onChange={(event) => change('color', event.target.value)} /></Field><Field label="Notes" className="sm:col-span-2"><textarea className="field min-h-24" value={form.notes} onChange={(event) => change('notes', event.target.value)} /></Field></div><div className="flex justify-end gap-3 border-t border-line bg-canvas p-4 sm:px-6"><button type="button" className="button-secondary" onClick={onClose}>Cancel</button><button className="button-primary" disabled={saving}>{saving ? 'Saving…' : client?.id ? 'Save changes' : 'Add client'}</button></div></form>
 }
 
 function Dashboard({ clients, tasks, connectionStatus, onNewTask, setActivePage, onEditTask, onDeleteTask, updateTask }) {
@@ -381,19 +382,14 @@ function Dashboard({ clients, tasks, connectionStatus, onNewTask, setActivePage,
   </>
 }
 
-function ClientsPage({ clients, tasks, onNewClient, onEditClient, onDeleteClient }) {
-  const [selected, setSelected] = useState(null)
+function ClientsPage({ clients, tasks, onNewClient, onEditClient, onDeleteClient, onViewClient }) {
   const metrics = (id) => {
     const list = tasks.filter((task) => task.clientId === id)
     return { total: list.length, completed: list.filter((task) => task.status === 'Completed').length, pending: list.filter((task) => task.status !== 'Completed').length, billable: list.filter((task) => task.billable).reduce((sum, task) => sum + Number(task.amount), 0) }
   }
-  const selectedMetrics = selected ? metrics(selected.id) : null
   return <>
     <PageHeading number="02" title="Clients" description="Client workspaces with task progress, contacts, and billable totals." action="Add client" onAction={onNewClient} />
-    {clients.length ? <div className="grid gap-px border border-line bg-line sm:grid-cols-2 xl:grid-cols-4">{clients.map((client) => <ClientCard key={client.id} client={client} metrics={metrics(client.id)} onView={() => setSelected(client)} onEdit={() => onEditClient(client)} onDelete={() => onDeleteClient(client.id)} />)}</div> : <EmptyState title="No clients yet." description="Add your first client." action="Add client" onAction={onNewClient} />}
-    <Modal open={Boolean(selected)} onClose={() => setSelected(null)} title={selected?.name || ''} description="Client workspace summary">
-      {selected && <div className="p-5 sm:p-6"><div className="grid gap-px border border-line bg-line sm:grid-cols-4">{[['Total tasks', selectedMetrics.total], ['Completed', selectedMetrics.completed], ['Pending', selectedMetrics.pending], ['Billable', formatMoney(selectedMetrics.billable)]].map(([label, value]) => <div key={label} className="bg-white p-4"><p className="text-xl font-semibold">{value}</p><p className="mt-1 text-xs text-zinc-500">{label}</p></div>)}</div><div className="mt-6 grid gap-5 sm:grid-cols-2"><div><p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Contact</p><p className="mt-2 text-sm font-semibold">{selected.contact}</p><p className="mt-1 text-sm text-zinc-500">{selected.email}</p><p className="mt-1 text-sm text-zinc-500">{selected.phone}</p></div><div><p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Client notes</p><p className="mt-2 text-sm leading-6 text-zinc-600">{selected.notes || 'No notes added.'}</p></div></div><div className="mt-6 border-t border-line pt-5"><h3 className="font-semibold">Recent tasks</h3><div className="mt-3 divide-y divide-line border border-line">{tasks.filter((task) => task.clientId === selected.id).slice(0, 5).map((task) => <div key={task.id} className="flex items-center justify-between gap-4 p-3"><div><p className="text-sm font-medium">{task.title}</p><p className="mt-1 text-xs text-zinc-500">{formatDate(task.deadline)}</p></div><StatusBadge status={task.status} /></div>)}</div></div></div>}
-    </Modal>
+    {clients.length ? <div className="grid gap-px border border-line bg-line sm:grid-cols-2 xl:grid-cols-4">{clients.map((client) => <ClientCard key={client.id} client={client} metrics={metrics(client.id)} onView={() => onViewClient(client.id)} onEdit={() => onEditClient(client)} onDelete={() => onDeleteClient(client.id)} />)}</div> : <EmptyState title="No clients yet." description="Add your first client." action="Add client" onAction={onNewClient} />}
   </>
 }
 
@@ -521,7 +517,9 @@ function SettingsPage({ resetWorkspace }) {
 
 function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   const workspace = useWorkspace()
-  const [activePage, setActivePage] = useState('Dashboard')
+  const initialClientId = window.location.hash.match(/^#clients\/(.+)$/)?.[1] || ''
+  const [activePage, setActivePage] = useState(initialClientId ? 'Client Detail' : 'Dashboard')
+  const [selectedClientId, setSelectedClientId] = useState(initialClientId ? decodeURIComponent(initialClientId) : '')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [taskModal, setTaskModal] = useState(null)
   const [clientModal, setClientModal] = useState(null)
@@ -529,10 +527,44 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   const newTask = (defaults = {}) => setTaskModal({ ...blankTask(workspace.clients[0]?.id), ...defaults })
   const deleteTask = (id) => window.confirm('Delete this task? This cannot be undone.') && workspace.deleteTask(id)
   const deleteClient = (id) => window.confirm('Delete this client and all of its tasks?') && workspace.deleteClient(id)
-  const shared = { clients: workspace.clients, tasks: workspace.tasks, connectionStatus: workspace.connectionStatus, onNewTask: newTask, onEditTask: setTaskModal, onDeleteTask: deleteTask, updateTask: workspace.updateTask, setActivePage }
+  const navigatePage = (page) => {
+    setActivePage(page)
+    if (page !== 'Client Detail') {
+      setSelectedClientId('')
+      if (window.location.hash.startsWith('#clients/')) window.history.pushState({}, '', `${window.location.pathname}${window.location.search}`)
+    }
+  }
+  const openClient = (id) => {
+    setSelectedClientId(id)
+    setActivePage('Client Detail')
+    window.history.pushState({ clientId: id }, '', `#clients/${encodeURIComponent(id)}`)
+  }
+  useEffect(() => {
+    const syncRoute = () => {
+      const id = window.location.hash.match(/^#clients\/(.+)$/)?.[1]
+      if (id) {
+        setSelectedClientId(decodeURIComponent(id))
+        setActivePage('Client Detail')
+      } else {
+        setSelectedClientId('')
+        setActivePage((current) => current === 'Client Detail' ? 'Clients' : current)
+      }
+    }
+    window.addEventListener('popstate', syncRoute)
+    window.addEventListener('hashchange', syncRoute)
+    return () => {
+      window.removeEventListener('popstate', syncRoute)
+      window.removeEventListener('hashchange', syncRoute)
+    }
+  }, [])
+  const selectedClient = workspace.clients.find((client) => client.id === selectedClientId)
+  const shared = { clients: workspace.clients, tasks: workspace.tasks, connectionStatus: workspace.connectionStatus, onNewTask: newTask, onEditTask: setTaskModal, onDeleteTask: deleteTask, updateTask: workspace.updateTask, setActivePage: navigatePage }
   const pages = {
     Dashboard: <Dashboard {...shared} />,
-    Clients: <ClientsPage clients={workspace.clients} tasks={workspace.tasks} onNewClient={() => setClientModal({})} onEditClient={setClientModal} onDeleteClient={deleteClient} />,
+    Clients: <ClientsPage clients={workspace.clients} tasks={workspace.tasks} onNewClient={() => setClientModal({})} onEditClient={setClientModal} onDeleteClient={deleteClient} onViewClient={openClient} />,
+    'Client Detail': selectedClient
+      ? <ClientDetailPage client={selectedClient} tasks={workspace.tasks} billings={workspace.billings} isFallback={workspace.isFallback} onBack={() => navigatePage('Clients')} onNewTask={newTask} onEditTask={setTaskModal} onDeleteTask={deleteTask} updateTask={workspace.updateTask} />
+      : <EmptyState title="Client not found" description="This client may have been removed or the link is invalid." action="Back to clients" onAction={() => navigatePage('Clients')} />,
     Tasks: <TasksPage {...shared} />,
     'Kanban Board': <KanbanPage {...shared} />,
     'Daily Logs': <DailyLogsPage clients={workspace.clients} logs={workspace.logs} />,
@@ -542,7 +574,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     Settings: <SettingsPage resetWorkspace={workspace.resetWorkspace} />,
   }
 
-  return <div className="min-h-screen bg-canvas"><Sidebar activePage={activePage} setActivePage={setActivePage} open={sidebarOpen} setOpen={setSidebarOpen} /><div className="lg:pl-64"><Topbar activePage={activePage} setOpen={setSidebarOpen} onNewTask={() => newTask()} user={user} onLogout={onLogout} /><main className="mx-auto max-w-[1600px] p-4 md:p-7 lg:p-9">{workspace.error && <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{workspace.error}</div>}{workspace.loading ? <div className="panel flex min-h-64 items-center justify-center"><div className="text-center"><div className="mx-auto h-7 w-7 animate-spin border-2 border-zinc-200 border-t-blue" /><p className="mt-3 text-sm text-zinc-500">Loading workspace data…</p></div></div> : pages[activePage]}</main></div>
+  return <div className="min-h-screen bg-canvas"><Sidebar activePage={activePage} setActivePage={navigatePage} open={sidebarOpen} setOpen={setSidebarOpen} /><div className="lg:pl-64"><Topbar activePage={activePage === 'Client Detail' ? selectedClient?.name || 'Client Detail' : activePage} setOpen={setSidebarOpen} onNewTask={() => newTask(selectedClient ? { clientId: selectedClient.id } : {})} user={user} onLogout={onLogout} /><main className="mx-auto max-w-[1600px] p-4 md:p-7 lg:p-9">{workspace.error && <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{workspace.error}</div>}{workspace.loading ? <div className="panel flex min-h-64 items-center justify-center"><div className="text-center"><div className="mx-auto h-7 w-7 animate-spin border-2 border-zinc-200 border-t-blue" /><p className="mt-3 text-sm text-zinc-500">Loading workspace data…</p></div></div> : pages[activePage]}</main></div>
     <Modal open={Boolean(taskModal)} onClose={() => setTaskModal(null)} title={taskModal?.id ? 'Edit task' : 'Create task'} description="Task changes update every workspace view.">{taskModal && <TaskForm task={taskModal} clients={workspace.clients} onSave={workspace.saveTask} onClose={() => setTaskModal(null)} />}</Modal>
     <Modal open={Boolean(clientModal)} onClose={() => setClientModal(null)} title={clientModal?.id ? 'Edit client' : 'Add client'} description="Create a client workspace for tasks, reports, and billing.">{clientModal && <ClientForm client={clientModal.id ? clientModal : null} onSave={workspace.saveClient} onClose={() => setClientModal(null)} />}</Modal>
   </div>

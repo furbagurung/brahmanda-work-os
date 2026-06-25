@@ -40,22 +40,30 @@ const jsonOptions = (method, data) => ({
 })
 
 export const getClients = () => request('clients.php')
+export const getClient = (id) => request(`clients.php?id=${encodeURIComponent(id)}`)
 export const createClient = (data) => request('clients.php', jsonOptions('POST', data))
 export const updateClient = (id, data) => request(`clients.php?id=${encodeURIComponent(id)}`, jsonOptions('PUT', data))
 export const deleteClient = (id) => request(`clients.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 
-export const getTasks = () => request('tasks.php')
+export const getTasks = (params = {}) => {
+  const query = new URLSearchParams(params)
+  return request(`tasks.php${query.toString() ? `?${query}` : ''}`)
+}
 export const createTask = (data) => request('tasks.php', jsonOptions('POST', data))
 export const updateTask = (id, data) => request(`tasks.php?id=${encodeURIComponent(id)}`, jsonOptions('PUT', data))
 export const deleteTask = (id) => request(`tasks.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 export const markTaskCompleted = (id) => request(`tasks.php?id=${encodeURIComponent(id)}&action=complete`, { method: 'PATCH' })
 
 export const getTaskAttachments = (taskId) => request(`attachments.php?task_id=${encodeURIComponent(taskId)}`)
+export const getClientAttachments = (clientId) => request(`attachments.php?client_id=${encodeURIComponent(clientId)}`)
 export const createTaskAttachment = (data) => request('attachments.php', jsonOptions('POST', data))
 export const deleteTaskAttachment = (id) => request(`attachments.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 
 export const getDailyLogs = () => request('logs.php')
-export const getBillings = () => request('billing.php')
+export const getBillings = (params = {}) => {
+  const query = new URLSearchParams(params)
+  return request(`billing.php${query.toString() ? `?${query}` : ''}`)
+}
 export const updateBilling = (taskId, data) => request(`billing.php?id=${encodeURIComponent(taskId)}`, jsonOptions('PATCH', data))
 
 export const getReports = (params = {}) => {

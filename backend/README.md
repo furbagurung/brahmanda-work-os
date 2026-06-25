@@ -166,12 +166,14 @@ The React frontend stores the token in localStorage for now. For higher-security
 | PATCH | `api/tasks.php?id=1&action=complete` | Mark completed and create daily log |
 | DELETE | `api/tasks.php?id=1` | Delete task |
 | GET | `api/attachments.php?task_id=1` | List proof links for a task |
+| GET | `api/attachments.php?client_id=1` | List all proof links for a client, grouped by task data |
 | POST | `api/attachments.php` | Add a proof link |
 | DELETE | `api/attachments.php?id=1` | Delete a proof link |
 | GET | `api/logs.php` | List daily logs; optional `client_id`, `date` filters |
 | GET | `api/billing.php` | List billable tasks and totals |
 | PATCH | `api/billing.php?id=1` | Update payment or invoice status by task id |
 | GET | `api/reports.php?client_id=1&month=6&year=2026` | Generate monthly report data |
+| GET | `api/reports.php?client_id=1` | List saved reports for a client |
 | POST | `api/reports.php` | Save or update a generated report |
 | POST | `api/auth.php` | Verify email and password |
 | POST | `api/auth.php?action=logout` | Invalidate the active bearer token |

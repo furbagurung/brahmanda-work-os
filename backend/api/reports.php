@@ -27,6 +27,20 @@ try {
     $method = $_SERVER['REQUEST_METHOD'];
 
     if ($method === 'GET') {
+        $listClientId = filter_input(INPUT_GET, 'client_id', FILTER_VALIDATE_INT);
+        $hasPeriod = isset($_GET['month']) || isset($_GET['year']);
+
+        if ($listClientId && !$hasPeriod) {
+            $statement = $pdo->prepare(
+                'SELECT id, client_id, report_month, report_year, report_content, status, created_at
+                 FROM reports
+                 WHERE client_id = ?
+                 ORDER BY report_year DESC, report_month DESC, created_at DESC'
+            );
+            $statement->execute([$listClientId]);
+            jsonResponse($statement->fetchAll());
+        }
+
         list($clientId, $month, $year) = reportPeriod();
 
         $clientStatement = $pdo->prepare('SELECT * FROM clients WHERE id = ?');

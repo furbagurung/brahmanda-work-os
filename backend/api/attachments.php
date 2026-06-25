@@ -15,18 +15,30 @@ try {
 
     if ($method === 'GET') {
         $taskId = filter_input(INPUT_GET, 'task_id', FILTER_VALIDATE_INT);
+        $clientId = filter_input(INPUT_GET, 'client_id', FILTER_VALIDATE_INT);
 
-        if (!$taskId || $taskId < 1) {
-            errorResponse('A valid task_id query parameter is required.', 422);
+        if ($taskId && $taskId > 0) {
+            $statement = $pdo->prepare(
+                'SELECT id, task_id, attachment_type, title, url, created_at
+                 FROM task_attachments
+                 WHERE task_id = ?
+                 ORDER BY created_at ASC, id ASC'
+            );
+            $statement->execute([$taskId]);
+        } elseif ($clientId && $clientId > 0) {
+            $statement = $pdo->prepare(
+                'SELECT a.id, a.task_id, a.attachment_type, a.title, a.url, a.created_at,
+                        t.title AS task_title
+                 FROM task_attachments a
+                 INNER JOIN tasks t ON t.id = a.task_id
+                 WHERE t.client_id = ?
+                 ORDER BY t.title ASC, a.created_at ASC, a.id ASC'
+            );
+            $statement->execute([$clientId]);
+        } else {
+            errorResponse('A valid task_id or client_id query parameter is required.', 422);
         }
 
-        $statement = $pdo->prepare(
-            'SELECT id, task_id, attachment_type, title, url, created_at
-             FROM task_attachments
-             WHERE task_id = ?
-             ORDER BY created_at ASC, id ASC'
-        );
-        $statement->execute([$taskId]);
         jsonResponse($statement->fetchAll());
     }
 

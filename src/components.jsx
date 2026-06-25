@@ -110,7 +110,7 @@ export function ClientCard({ client, metrics, onView, onEdit, onDelete }) {
   return (
     <article className="panel p-5 transition hover:border-zinc-400">
       <div className="flex items-start justify-between"><div className="flex h-11 w-11 items-center justify-center text-sm font-bold text-white" style={{ backgroundColor: client.color }}>{client.initials}</div><ActionMenu onEdit={onEdit} onDelete={onDelete} /></div>
-      <h3 className="mt-5 text-lg font-semibold">{client.name}</h3><p className="mt-1 text-sm text-zinc-500">{client.contact}</p>
+      <button className="mt-5 block text-left text-lg font-semibold hover:text-blue" onClick={onView}>{client.name}</button><p className="mt-1 text-sm text-zinc-500">{client.contact}</p>
       <div className="mt-6 grid grid-cols-2 border-t border-line pt-4"><div><div className="text-lg font-semibold">{metrics.total}</div><div className="text-xs text-zinc-500">Total tasks</div></div><div className="border-l border-line pl-4"><div className="text-lg font-semibold">{metrics.pending}</div><div className="text-xs text-zinc-500">Pending</div></div></div>
       <button onClick={onView} className="mt-5 flex w-full items-center justify-between border-t border-line pt-4 text-sm font-semibold hover:text-blue">View client <ChevronRight size={16} /></button>
     </article>
