@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   ArrowDownRight, ArrowUpRight, CalendarDays, Check, ChevronRight, CircleDollarSign,
-  ExternalLink, MoreHorizontal, Pencil, ReceiptText, Trash2, X,
+  ExternalLink, MoreHorizontal, Pencil, ReceiptText, Repeat2, Trash2, X,
 } from 'lucide-react'
 
 import { deadlineState, formatDate, formatMoney } from './utils'
@@ -58,6 +58,11 @@ export function DeadlineBadge({ task }) {
   return <Badge className={styles[state]}>{state}</Badge>
 }
 
+export function RecurringBadge({ task }) {
+  if (!task.isRecurring && !task.recurringParentId) return null
+  return <Badge className={task.isRecurring ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-zinc-200 bg-zinc-50 text-zinc-600'}><Repeat2 size={12} className="mr-1" />{task.isRecurring ? 'Recurring' : 'Generated'}</Badge>
+}
+
 export function Modal({ open, title, description, children, onClose, size = 'max-w-2xl' }) {
   useEffect(() => {
     if (!open) return undefined
@@ -110,6 +115,7 @@ export function TaskCard({ task, client, onEdit, onDelete, onStatusChange, statu
       <div className="mt-3 flex flex-wrap gap-2">
         <Badge className="border-zinc-200 bg-zinc-50 text-zinc-700"><CalendarDays size={12} className="mr-1" />{formatDate(task.deadline)}</Badge>
         <DeadlineBadge task={task} />
+        <RecurringBadge task={task} />
         {task.billable && <Badge className="border-blue/20 bg-blue/5 text-blue"><CircleDollarSign size={12} className="mr-1" />{formatMoney(task.amount)}</Badge>}
       </div>
       <div className="mt-4 border-t border-line pt-3">

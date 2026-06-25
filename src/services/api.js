@@ -53,6 +53,7 @@ export const createTask = (data) => request('tasks.php', jsonOptions('POST', dat
 export const updateTask = (id, data) => request(`tasks.php?id=${encodeURIComponent(id)}`, jsonOptions('PUT', data))
 export const deleteTask = (id) => request(`tasks.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 export const markTaskCompleted = (id) => request(`tasks.php?id=${encodeURIComponent(id)}&action=complete`, { method: 'PATCH' })
+export const generateRecurringTasks = () => request('tasks.php?action=generate_recurring', { method: 'POST' })
 
 export const getTaskAttachments = (taskId) => request(`attachments.php?task_id=${encodeURIComponent(taskId)}`)
 export const getClientAttachments = (clientId) => request(`attachments.php?client_id=${encodeURIComponent(clientId)}`)
@@ -136,6 +137,12 @@ export function taskToApi(task) {
     deadline: task.deadline || null,
     reminder_date: task.reminderDate || null,
     reminder_note: task.reminderNote || null,
+    is_recurring: Boolean(task.isRecurring),
+    recurrence_type: task.recurrenceType || null,
+    recurrence_interval: Number(task.recurrenceInterval || 1),
+    recurrence_end_date: task.recurrenceEndDate || null,
+    next_occurrence_date: task.nextOccurrenceDate || null,
+    recurring_parent_id: task.recurringParentId ? Number(task.recurringParentId) : null,
     status: task.status,
     proof_link: Array.isArray(task.attachments)
       ? task.attachments[0]?.url || null
@@ -159,6 +166,12 @@ export function taskFromApi(task) {
     deadline: task.deadline || '',
     reminderDate: task.reminder_date || '',
     reminderNote: task.reminder_note || '',
+    isRecurring: Number(task.is_recurring) === 1,
+    recurrenceType: task.recurrence_type || '',
+    recurrenceInterval: Number(task.recurrence_interval || 1),
+    recurrenceEndDate: task.recurrence_end_date || '',
+    nextOccurrenceDate: task.next_occurrence_date || '',
+    recurringParentId: task.recurring_parent_id ? String(task.recurring_parent_id) : '',
     status: task.status,
     proofLink: task.proof_link || '',
     billable: Number(task.is_billable) === 1,

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   AlertTriangle, BarChart3, Bell, BellRing, BriefcaseBusiness, CalendarDays, CalendarRange, CheckCircle2, ChevronDown,
   CircleDollarSign, ClipboardCopy, ClipboardList, Clock3, Command, FileText,
-  LayoutDashboard, LogOut, Menu, Plus, ReceiptText, Search, Settings, Users, UsersRound, X,
+  LayoutDashboard, LogOut, Menu, Plus, ReceiptText, Repeat2, Search, Settings, Users, UsersRound, X,
 } from 'lucide-react'
 import {
   ActionMenu, Badge, BillingBadge, ClientCard, DeadlineBadge, EmptyState, Modal, PriorityBadge,
@@ -16,7 +16,7 @@ import {
   generateReport as generateReportApi, getBillings, getClients, getDailyLogs, getReports, getTasks,
   getTaskAttachments, logFromApi, markTaskCompleted, taskFromApi, taskToApi,
   updateBilling as updateBillingApi, attachmentFromApi, reportFromApi,
-  updateClient as updateClientApi, updateTask as updateTaskApi,
+  updateClient as updateClientApi, updateTask as updateTaskApi, generateRecurringTasks as generateRecurringTasksApi,
 } from './services/api'
 import { deadlineState, formatDate, formatMoney, todayDateString } from './utils'
 import LoginPage from './LoginPage'
@@ -27,6 +27,8 @@ import RemindersPage from './RemindersPage'
 import CalendarPage from './CalendarPage'
 import GlobalSearch from './GlobalSearch'
 import { QuickAddMenu, QuickTaskForm } from './QuickAdd'
+import RecurringTasksPage from './RecurringTasksPage'
+import { nextRecurrenceDate } from './recurrenceUtils'
 import { getCurrentUser, logout, updateCurrentUser } from './services/auth'
 
 const STORAGE_KEY = 'brahmanda-work-os-v2'
@@ -39,6 +41,7 @@ const navigation = [
   { label: 'Daily Logs', icon: CalendarDays },
   { label: 'Reminders', icon: BellRing },
   { label: 'Calendar', icon: CalendarRange },
+  { label: 'Recurring Tasks', icon: Repeat2 },
   { label: 'Reports', icon: BarChart3 },
   { label: 'Billing', icon: ReceiptText },
   { label: 'Team', icon: UsersRound },
@@ -248,6 +251,67 @@ function useWorkspace() {
     () => setWorkspace((current) => ({ ...current, clients: current.clients.filter((client) => client.id !== id), tasks: current.tasks.filter((task) => task.clientId !== id), logs: current.logs.filter((log) => log.clientId !== id), billings: current.billings.filter((billing) => billing.clientId !== id) })),
   )
 
+  const generateRecurringTasks = async () => {
+    const generateLocal = () => {
+      const dueTemplates = workspace.tasks.filter((task) => (
+        task.isRecurring
+        && task.nextOccurrenceDate
+        && task.nextOccurrenceDate <= TODAY
+        && (!task.recurrenceEndDate || task.nextOccurrenceDate <= task.recurrenceEndDate)
+      ))
+      if (!dueTemplates.length) return 0
+      setWorkspace((current) => {
+        const generated = dueTemplates.map((template, index) => ({
+          ...template,
+          id: `task-${Date.now()}-${index}`,
+          deadline: template.nextOccurrenceDate,
+          reminderDate: '',
+          reminderNote: '',
+          isRecurring: false,
+          recurrenceType: '',
+          recurrenceInterval: 1,
+          recurrenceEndDate: '',
+          nextOccurrenceDate: '',
+          recurringParentId: template.id,
+          status: 'New',
+          proofLink: '',
+          attachments: [],
+          completedAt: '',
+          paymentStatus: 'Unpaid',
+          invoiceStatus: 'Not invoiced',
+        }))
+        const tasks = current.tasks.map((task) => {
+          const template = dueTemplates.find((item) => item.id === task.id)
+          if (!template) return task
+          const next = nextRecurrenceDate(template.nextOccurrenceDate, template.recurrenceType, template.recurrenceInterval)
+          const active = !template.recurrenceEndDate || next <= template.recurrenceEndDate
+          return { ...task, isRecurring: active, nextOccurrenceDate: active ? next : '' }
+        })
+        const allTasks = [...generated, ...tasks]
+        return {
+          ...current,
+          tasks: allTasks,
+          logs: allTasks.filter((task) => task.status === 'Completed'),
+          billings: allTasks.filter((task) => task.billable),
+        }
+      })
+      return dueTemplates.length
+    }
+
+    if (isFallback) return { generated_count: generateLocal() }
+    setError('')
+    try {
+      const response = await generateRecurringTasksApi()
+      await loadApiData()
+      return response
+    } catch (requestError) {
+      setIsFallback(true)
+      setConnectionStatus('error')
+      setError(`Recurring task generation failed. Generated in demo mode only. ${requestError.message}`)
+      return { generated_count: generateLocal() }
+    }
+  }
+
   const resetWorkspace = () => {
     setIsFallback(true)
     setConnectionStatus('fallback')
@@ -255,7 +319,7 @@ function useWorkspace() {
     setWorkspace({ clients: initialClients, tasks: initialTasks, logs: initialTasks.filter((task) => task.status === 'Completed'), billings: initialTasks.filter((task) => task.billable), reports: [] })
   }
 
-  return { ...workspace, loading, error, isFallback, connectionStatus, saveTask, updateTask, deleteTask, saveClient, deleteClient, resetWorkspace }
+  return { ...workspace, loading, error, isFallback, connectionStatus, saveTask, updateTask, deleteTask, saveClient, deleteClient, generateRecurringTasks, resetWorkspace }
 }
 
 function Sidebar({ activePage, setActivePage, open, setOpen }) {
@@ -300,7 +364,7 @@ function Field({ label, children, className = '' }) {
   return <label className={`block ${className}`}><span className="mb-2 block text-sm font-semibold">{label}</span>{children}</label>
 }
 
-const blankTask = (clientId = '') => ({ id: '', clientId, title: '', description: '', category: 'Design', priority: 'Medium', deadline: TODAY, reminderDate: '', reminderNote: '', status: 'New', proofLink: '', attachments: [], billable: false, amount: 0, assignee: 'AS', completedAt: '', paymentStatus: 'Unpaid', invoiceStatus: 'Not invoiced' })
+const blankTask = (clientId = '') => ({ id: '', clientId, title: '', description: '', category: 'Design', priority: 'Medium', deadline: TODAY, reminderDate: '', reminderNote: '', isRecurring: false, recurrenceType: 'monthly', recurrenceInterval: 1, recurrenceEndDate: '', nextOccurrenceDate: '', recurringParentId: '', status: 'New', proofLink: '', attachments: [], billable: false, amount: 0, assignee: 'AS', completedAt: '', paymentStatus: 'Unpaid', invoiceStatus: 'Not invoiced' })
 
 function TaskForm({ task, clients, onSave, onClose }) {
   const [form, setForm] = useState(() => {
@@ -338,6 +402,16 @@ function TaskForm({ task, clients, onSave, onClose }) {
         <Field label="Reminder note" className="sm:col-span-2"><textarea className="field min-h-20 resize-y" value={form.reminderNote || ''} onChange={(event) => change('reminderNote', event.target.value)} placeholder="What needs attention on the reminder date?" /></Field>
         <Field label="Status"><select className="field" value={form.status} onChange={(event) => change('status', event.target.value)}>{TASK_STATUSES.map((item) => <option key={item}>{item}</option>)}</select></Field>
         <Field label="Assignee initials"><input className="field" value={form.assignee} onChange={(event) => change('assignee', event.target.value.toUpperCase().slice(0, 3))} /></Field>
+        <section className="border border-line p-4 sm:col-span-2">
+          <label className="flex items-center gap-3 text-sm font-semibold"><input type="checkbox" checked={Boolean(form.isRecurring)} onChange={(event) => setForm((current) => ({ ...current, isRecurring: event.target.checked, nextOccurrenceDate: event.target.checked ? current.nextOccurrenceDate || current.deadline || TODAY : current.nextOccurrenceDate }))} className="h-4 w-4 accent-blue" />Recurring task</label>
+          <p className="mt-1 text-xs text-zinc-500">Use this task as a template for repeated client work.</p>
+          {form.isRecurring && <div className="mt-4 grid gap-4 border-t border-line pt-4 sm:grid-cols-2">
+            <Field label="Frequency"><select className="field" value={form.recurrenceType || 'monthly'} onChange={(event) => change('recurrenceType', event.target.value)}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></Field>
+            <Field label={`Repeat every X ${form.recurrenceType === 'daily' ? 'days' : form.recurrenceType === 'weekly' ? 'weeks' : 'months'}`}><input className="field" type="number" min="1" value={form.recurrenceInterval || 1} onChange={(event) => change('recurrenceInterval', event.target.value)} required /></Field>
+            <Field label="End date (optional)"><input className="field" type="date" value={form.recurrenceEndDate || ''} onChange={(event) => change('recurrenceEndDate', event.target.value)} /></Field>
+            <Field label="Next occurrence date"><input className="field" type="date" value={form.nextOccurrenceDate || ''} onChange={(event) => change('nextOccurrenceDate', event.target.value)} required /></Field>
+          </div>}
+        </section>
         <section className="border border-line p-4 sm:col-span-2">
           <div className="flex items-center justify-between gap-4"><div><h3 className="text-sm font-semibold">Proof links</h3><p className="mt-1 text-xs text-zinc-500">Google Drive, design, social post, or website links.</p></div><button type="button" className="button-secondary px-3 py-2" onClick={addProof}><Plus size={14} />Add Proof Link</button></div>
           <div className="mt-4 space-y-3">
@@ -386,6 +460,9 @@ function Dashboard({ clients, tasks, connectionStatus, onNewTask, setActivePage,
   const dueTodayTasks = openTasks.filter((task) => deadlineState(task) === 'Due Today')
   const dueThisWeekTasks = openTasks.filter((task) => ['Due Tomorrow', 'Due This Week'].includes(deadlineState(task))).sort((a, b) => a.deadline.localeCompare(b.deadline))
   const upcomingTasks = openTasks.filter((task) => deadlineState(task) === 'Upcoming').sort((a, b) => a.deadline.localeCompare(b.deadline))
+  const recurringTasks = tasks.filter((task) => task.isRecurring && task.nextOccurrenceDate).sort((a, b) => a.nextOccurrenceDate.localeCompare(b.nextOccurrenceDate))
+  const recurringDueToday = recurringTasks.filter((task) => task.nextOccurrenceDate === TODAY)
+  const recurringUpcoming = recurringTasks.filter((task) => task.nextOccurrenceDate > TODAY).slice(0, 4)
   const stats = [
     ['Active Clients', String(clients.length).padStart(2, '0'), 'Client workspaces', Users],
     ['Today’s Tasks', String(todayTasks.length).padStart(2, '0'), `${todayTasks.filter((task) => task.status !== 'Completed').length} open`, ClipboardList],
@@ -406,6 +483,10 @@ function Dashboard({ clients, tasks, connectionStatus, onNewTask, setActivePage,
       <button className="flex items-center justify-between bg-orange-50 p-5 text-left text-orange-800 hover:bg-orange-100" onClick={() => setActivePage('Tasks')}><div><p className="text-3xl font-semibold">{dueTodayTasks.length}</p><p className="mt-1 text-sm font-semibold">Due today</p></div><CalendarDays size={22} /></button>
       <button className="flex items-center justify-between bg-blue/5 p-5 text-left text-blue hover:bg-blue/10" onClick={() => setActivePage('Tasks')}><div><p className="text-3xl font-semibold">{dueThisWeekTasks.length + upcomingTasks.length}</p><p className="mt-1 text-sm font-semibold">Upcoming deadlines</p></div><Clock3 size={22} /></button>
     </div>
+    <section className="mt-8 grid gap-px border border-line bg-line lg:grid-cols-[280px_1fr]">
+      <button className="flex items-center justify-between bg-violet-50 p-5 text-left text-violet-800 hover:bg-violet-100" onClick={() => setActivePage('Recurring Tasks')}><div><p className="text-3xl font-semibold">{recurringDueToday.length}</p><p className="mt-1 text-sm font-semibold">Recurring tasks due today</p></div><Repeat2 size={22} /></button>
+      <div className="bg-white"><div className="flex items-center justify-between border-b border-line px-5 py-3"><div><h2 className="text-sm font-semibold">Upcoming recurring tasks</h2><p className="mt-1 text-xs text-zinc-500">Next scheduled templates</p></div><button className="text-sm font-semibold text-blue" onClick={() => setActivePage('Recurring Tasks')}>Manage</button></div>{recurringUpcoming.length ? <div className="grid gap-px bg-line sm:grid-cols-2 xl:grid-cols-4">{recurringUpcoming.map((task) => <div className="bg-white p-4" key={task.id}><p className="truncate text-sm font-semibold">{task.title}</p><p className="mt-1 truncate text-xs text-zinc-500">{clients.find((client) => client.id === task.clientId)?.name || 'Deleted client'}</p><p className="mt-3 text-xs font-semibold text-violet-700">{formatDate(task.nextOccurrenceDate, { month: 'short', day: 'numeric' })}</p></div>)}</div> : <p className="p-5 text-sm text-zinc-400">No upcoming recurring tasks.</p>}</div>
+    </section>
     <section className="mt-8"><div className="mb-4 flex items-end justify-between border-b border-line pb-3"><div><h2 className="font-semibold">Deadline attention</h2><p className="mt-1 text-xs text-zinc-500">Open client work ordered by urgency</p></div><button className="text-sm font-semibold text-blue" onClick={() => setActivePage('Reminders')}>View reminders</button></div><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><DeadlineColumn title="Overdue Tasks" description="Past deadline" tasks={overdueTasks} clients={clients} tone="red" /><DeadlineColumn title="Due Today" description={formatDate(TODAY, { month: 'long', day: 'numeric' })} tasks={dueTodayTasks} clients={clients} tone="orange" /><DeadlineColumn title="Due This Week" description="Next seven days" tasks={dueThisWeekTasks} clients={clients} tone="blue" /><DeadlineColumn title="Upcoming Deadlines" description="Beyond seven days" tasks={upcomingTasks} clients={clients} tone="blue" /></div></section>
     <div className="mt-8 grid gap-8 xl:grid-cols-[1fr_340px]">
       <section className="panel"><div className="flex items-center justify-between border-b border-line p-5"><div><h2 className="font-semibold">Priority work</h2><p className="mt-1 text-xs text-zinc-500">Current tasks requiring attention</p></div><button className="text-sm font-semibold text-blue" onClick={() => setActivePage('Tasks')}>View all</button></div>{priorityTasks.length ? <div className="grid gap-px bg-line md:grid-cols-2">{priorityTasks.map((task) => <TaskCard key={task.id} task={task} client={clients.find((client) => client.id === task.clientId)} compact statuses={TASK_STATUSES} onEdit={() => onEditTask(task)} onDelete={() => onDeleteTask(task.id)} onStatusChange={(id, status) => updateTask(id, { status })} />)}</div> : <EmptyState title="No pending work" description="Create a task to start planning client work." action="Create task" onAction={onNewTask} />}</section>
@@ -564,6 +645,8 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   const [quickTaskDefaults, setQuickTaskDefaults] = useState(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const [generatingRecurring, setGeneratingRecurring] = useState(false)
+  const [recurringMessage, setRecurringMessage] = useState('')
   const [recentClientIds, setRecentClientIds] = useState(() => {
     try { return JSON.parse(localStorage.getItem('brahmanda-recent-clients') || '[]') } catch { return [] }
   })
@@ -653,6 +736,14 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     onAddDailyLog: () => quickTask({ modeTitle: 'Add daily log', status: 'Completed', deadline: TODAY }),
     onAddBilling: () => quickTask({ modeTitle: 'Add billing item', billable: true }),
   }
+  const generateDueRecurring = async () => {
+    setGeneratingRecurring(true)
+    setRecurringMessage('')
+    const result = await workspace.generateRecurringTasks()
+    const count = Number(result?.generated_count || 0)
+    setRecurringMessage(count ? `${count} recurring task occurrence${count === 1 ? '' : 's'} generated.` : 'No recurring tasks are currently due.')
+    setGeneratingRecurring(false)
+  }
   const shared = { clients: workspace.clients, tasks: workspace.tasks, connectionStatus: workspace.connectionStatus, onNewTask: newTask, onEditTask: setTaskModal, onDeleteTask: deleteTask, updateTask: workspace.updateTask, setActivePage: navigatePage }
   const pages = {
     Dashboard: <Dashboard {...shared} />,
@@ -665,6 +756,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     'Daily Logs': <DailyLogsPage clients={workspace.clients} logs={workspace.logs} />,
     Reminders: <RemindersPage clients={workspace.clients} tasks={workspace.tasks} onEditTask={setTaskModal} />,
     Calendar: <CalendarPage clients={workspace.clients} tasks={workspace.tasks} onEditTask={setTaskModal} updateTask={workspace.updateTask} />,
+    'Recurring Tasks': <RecurringTasksPage clients={workspace.clients} tasks={workspace.tasks} onEditTask={setTaskModal} updateTask={workspace.updateTask} onGenerate={generateDueRecurring} generating={generatingRecurring} generationMessage={recurringMessage} />,
     Reports: <MonthlyReportsPage clients={workspace.clients} tasks={workspace.tasks} isFallback={workspace.isFallback} />,
     Billing: <BillingPage clients={workspace.clients} billings={workspace.billings} updateTask={workspace.updateTask} />,
     Team: <TeamPage currentUser={user} onCurrentUserUpdate={onUserUpdate} />,

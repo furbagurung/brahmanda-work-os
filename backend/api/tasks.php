@@ -48,7 +48,7 @@ function createDailyLog(PDO $pdo, array $task): void
 
 function syncBilling(PDO $pdo, array $task): void
 {
-    if ((int) $task['is_billable'] !== 1) {
+    if ((int) ($task['is_recurring'] ?? 0) === 1 || (int) $task['is_billable'] !== 1) {
         $statement = $pdo->prepare('DELETE FROM billings WHERE task_id = ?');
         $statement->execute([$task['id']]);
         return;
@@ -80,6 +80,7 @@ function syncBilling(PDO $pdo, array $task): void
 
 function taskValues(array $data): array
 {
+    $isRecurring = boolValue($data['is_recurring'] ?? false);
     return [
         ':client_id' => (int) $data['client_id'],
         ':title' => trim((string) $data['title']),
@@ -89,6 +90,12 @@ function taskValues(array $data): array
         ':deadline' => $data['deadline'] ?: null,
         ':reminder_date' => $data['reminder_date'] ?: null,
         ':reminder_note' => $data['reminder_note'] ?: null,
+        ':is_recurring' => $isRecurring,
+        ':recurrence_type' => $isRecurring ? ($data['recurrence_type'] ?: 'monthly') : ($data['recurrence_type'] ?: null),
+        ':recurrence_interval' => max(1, (int) ($data['recurrence_interval'] ?? 1)),
+        ':recurrence_end_date' => $data['recurrence_end_date'] ?: null,
+        ':next_occurrence_date' => $data['next_occurrence_date'] ?: null,
+        ':recurring_parent_id' => !empty($data['recurring_parent_id']) ? (int) $data['recurring_parent_id'] : null,
         ':status' => $data['status'] ?: 'New',
         ':proof_link' => $data['proof_link'] ?: null,
         ':is_billable' => boolValue($data['is_billable'] ?? false),
@@ -101,6 +108,115 @@ function taskValues(array $data): array
     ];
 }
 
+function validateRecurrence(array $data): void
+{
+    if (!boolValue($data['is_recurring'] ?? false)) {
+        return;
+    }
+
+    if (!in_array($data['recurrence_type'] ?? '', ['daily', 'weekly', 'monthly'], true)) {
+        errorResponse('Recurring tasks require a valid recurrence_type.', 422);
+    }
+
+    if ((int) ($data['recurrence_interval'] ?? 0) < 1) {
+        errorResponse('recurrence_interval must be at least 1.', 422);
+    }
+
+    if (empty($data['next_occurrence_date'])) {
+        errorResponse('Recurring tasks require next_occurrence_date.', 422);
+    }
+
+    if (!empty($data['recurrence_end_date']) && $data['next_occurrence_date'] > $data['recurrence_end_date']) {
+        errorResponse('next_occurrence_date cannot be after recurrence_end_date.', 422);
+    }
+}
+
+function nextOccurrenceDate(string $date, string $type, int $interval): string
+{
+    $current = new DateTimeImmutable($date);
+    if ($type === 'daily') {
+        return $current->modify('+' . $interval . ' days')->format('Y-m-d');
+    }
+    if ($type === 'weekly') {
+        return $current->modify('+' . $interval . ' weeks')->format('Y-m-d');
+    }
+
+    $targetMonth = $current->modify('first day of +' . $interval . ' months');
+    $day = min((int) $current->format('d'), (int) $targetMonth->format('t'));
+    return $targetMonth->setDate(
+        (int) $targetMonth->format('Y'),
+        (int) $targetMonth->format('m'),
+        $day
+    )->format('Y-m-d');
+}
+
+function generateRecurringTasks(PDO $pdo): array
+{
+    $today = (new DateTimeImmutable('now', new DateTimeZone('Asia/Kathmandu')))->format('Y-m-d');
+    $statement = $pdo->prepare(
+        'SELECT *
+         FROM tasks
+         WHERE is_recurring = 1
+           AND next_occurrence_date IS NOT NULL
+           AND next_occurrence_date <= ?
+           AND (recurrence_end_date IS NULL OR next_occurrence_date <= recurrence_end_date)
+         ORDER BY next_occurrence_date ASC, id ASC
+         FOR UPDATE'
+    );
+    $statement->execute([$today]);
+    $templates = $statement->fetchAll();
+    $generatedIds = [];
+
+    $insert = $pdo->prepare(
+        'INSERT INTO tasks
+            (client_id, title, description, category, priority, deadline, reminder_date, reminder_note,
+             is_recurring, recurrence_type, recurrence_interval, recurrence_end_date, next_occurrence_date,
+             recurring_parent_id, status, proof_link, is_billable, billable_amount, payment_status,
+             invoice_status, completed_at)
+         VALUES
+            (:client_id, :title, :description, :category, :priority, :deadline, NULL, NULL,
+             0, NULL, 1, NULL, NULL, :recurring_parent_id, "New", NULL, :is_billable,
+             :billable_amount, "Unpaid", "Not invoiced", NULL)'
+    );
+    $advance = $pdo->prepare(
+        'UPDATE tasks
+         SET next_occurrence_date = :next_occurrence_date, is_recurring = :is_recurring
+         WHERE id = :id'
+    );
+
+    foreach ($templates as $template) {
+        $occurrenceDate = (string) $template['next_occurrence_date'];
+        $insert->execute([
+            ':client_id' => $template['client_id'],
+            ':title' => $template['title'],
+            ':description' => $template['description'] ?: null,
+            ':category' => $template['category'] ?: null,
+            ':priority' => $template['priority'],
+            ':deadline' => $occurrenceDate,
+            ':recurring_parent_id' => $template['id'],
+            ':is_billable' => (int) $template['is_billable'],
+            ':billable_amount' => (float) $template['billable_amount'],
+        ]);
+        $generatedId = (int) $pdo->lastInsertId();
+        $generatedIds[] = $generatedId;
+        syncBilling($pdo, findTask($pdo, $generatedId));
+
+        $nextDate = nextOccurrenceDate(
+            $occurrenceDate,
+            (string) $template['recurrence_type'],
+            max(1, (int) $template['recurrence_interval'])
+        );
+        $active = empty($template['recurrence_end_date']) || $nextDate <= $template['recurrence_end_date'];
+        $advance->execute([
+            ':next_occurrence_date' => $active ? $nextDate : null,
+            ':is_recurring' => $active ? 1 : 0,
+            ':id' => $template['id'],
+        ]);
+    }
+
+    return $generatedIds;
+}
+
 try {
     $pdo = Database::connect();
     $currentUser = requireAuth($pdo);
@@ -110,7 +226,7 @@ try {
         $where = [];
         $parameters = [];
 
-        foreach (['client_id', 'status', 'priority'] as $filter) {
+        foreach (['client_id', 'status', 'priority', 'is_recurring'] as $filter) {
             if (isset($_GET[$filter]) && $_GET[$filter] !== '') {
                 $where[] = 't.' . $filter . ' = :' . $filter;
                 $parameters[':' . $filter] = $_GET[$filter];
@@ -142,6 +258,16 @@ try {
     }
 
     if ($method === 'POST') {
+        if (($_GET['action'] ?? '') === 'generate_recurring') {
+            $pdo->beginTransaction();
+            $generatedIds = generateRecurringTasks($pdo);
+            $pdo->commit();
+            jsonResponse([
+                'generated_count' => count($generatedIds),
+                'generated_ids' => $generatedIds,
+            ], 200, count($generatedIds) . ' recurring task occurrence(s) generated.');
+        }
+
         $data = requestBody();
         requireFields($data, ['client_id', 'title']);
         $data = array_merge([
@@ -151,6 +277,12 @@ try {
             'deadline' => null,
             'reminder_date' => null,
             'reminder_note' => null,
+            'is_recurring' => false,
+            'recurrence_type' => null,
+            'recurrence_interval' => 1,
+            'recurrence_end_date' => null,
+            'next_occurrence_date' => null,
+            'recurring_parent_id' => null,
             'status' => 'New',
             'proof_link' => null,
             'is_billable' => false,
@@ -159,15 +291,20 @@ try {
             'invoice_status' => 'Not invoiced',
             'completed_at' => null,
         ], $data);
+        validateRecurrence($data);
 
         $pdo->beginTransaction();
 
         $statement = $pdo->prepare(
             'INSERT INTO tasks
-                (client_id, title, description, category, priority, deadline, reminder_date, reminder_note, status, proof_link,
+                (client_id, title, description, category, priority, deadline, reminder_date, reminder_note,
+                 is_recurring, recurrence_type, recurrence_interval, recurrence_end_date, next_occurrence_date,
+                 recurring_parent_id, status, proof_link,
                  is_billable, billable_amount, payment_status, invoice_status, completed_at)
              VALUES
-                (:client_id, :title, :description, :category, :priority, :deadline, :reminder_date, :reminder_note, :status, :proof_link,
+                (:client_id, :title, :description, :category, :priority, :deadline, :reminder_date, :reminder_note,
+                 :is_recurring, :recurrence_type, :recurrence_interval, :recurrence_end_date, :next_occurrence_date,
+                 :recurring_parent_id, :status, :proof_link,
                  :is_billable, :billable_amount, :payment_status, :invoice_status, :completed_at)'
         );
         $statement->execute(taskValues($data));
@@ -188,6 +325,7 @@ try {
         $current = findTask($pdo, $id);
         $data = array_merge($current, requestBody());
         requireFields($data, ['client_id', 'title']);
+        validateRecurrence($data);
 
         $pdo->beginTransaction();
 
@@ -203,6 +341,12 @@ try {
                 deadline = :deadline,
                 reminder_date = :reminder_date,
                 reminder_note = :reminder_note,
+                is_recurring = :is_recurring,
+                recurrence_type = :recurrence_type,
+                recurrence_interval = :recurrence_interval,
+                recurrence_end_date = :recurrence_end_date,
+                next_occurrence_date = :next_occurrence_date,
+                recurring_parent_id = :recurring_parent_id,
                 status = :status,
                 proof_link = :proof_link,
                 is_billable = :is_billable,

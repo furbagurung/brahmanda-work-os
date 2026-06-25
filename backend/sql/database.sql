@@ -43,6 +43,12 @@ CREATE TABLE tasks (
     deadline DATE NULL,
     reminder_date DATE NULL,
     reminder_note TEXT NULL,
+    is_recurring TINYINT(1) NOT NULL DEFAULT 0,
+    recurrence_type ENUM('daily', 'weekly', 'monthly') NULL,
+    recurrence_interval SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+    recurrence_end_date DATE NULL,
+    next_occurrence_date DATE NULL,
+    recurring_parent_id BIGINT UNSIGNED NULL,
     status ENUM('New', 'In Progress', 'Waiting for Client', 'Revision', 'Completed') NOT NULL DEFAULT 'New',
     proof_link VARCHAR(500) NULL,
     is_billable TINYINT(1) NOT NULL DEFAULT 0,
@@ -55,10 +61,15 @@ CREATE TABLE tasks (
     CONSTRAINT fk_tasks_client
         FOREIGN KEY (client_id) REFERENCES clients(id)
         ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_tasks_recurring_parent
+        FOREIGN KEY (recurring_parent_id) REFERENCES tasks(id)
+        ON UPDATE CASCADE ON DELETE SET NULL,
     INDEX idx_tasks_client (client_id),
     INDEX idx_tasks_status (status),
     INDEX idx_tasks_deadline (deadline),
     INDEX idx_tasks_reminder_date (reminder_date),
+    INDEX idx_tasks_recurring_due (is_recurring, next_occurrence_date),
+    INDEX idx_tasks_recurring_parent (recurring_parent_id),
     INDEX idx_tasks_billable (is_billable)
 ) ENGINE=InnoDB;
 
