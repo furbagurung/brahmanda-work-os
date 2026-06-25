@@ -26,6 +26,12 @@ For an existing database created before proof attachments were added, run:
 mysql -u root -p brahmanda_work_os < backend/sql/add_task_attachments.sql
 ```
 
+For an existing database created before task reminders were added, run:
+
+```bash
+mysql -u root -p brahmanda_work_os < backend/sql/add_task_reminders.sql
+```
+
 For an existing database created before token authentication was added, run:
 
 ```bash

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 
 import {
-  ActionMenu, Badge, BillingBadge, EmptyState, PriorityBadge, ProofLink,
+  ActionMenu, Badge, BillingBadge, DeadlineBadge, EmptyState, PriorityBadge, ProofLink,
   StatusBadge, Table,
 } from './components'
 import { PRIORITIES, TASK_STATUSES } from './data'
@@ -103,7 +103,7 @@ export default function ClientDetailPage({
   const taskColumns = [
     { key: 'title', label: 'Task', render: (task) => <div><p className="font-semibold">{task.title}</p><p className="mt-1 max-w-md text-xs text-zinc-500">{task.category || 'No category'}</p></div> },
     { key: 'priority', label: 'Priority', render: (task) => <PriorityBadge priority={task.priority} /> },
-    { key: 'deadline', label: 'Deadline', render: (task) => formatDate(task.deadline, { year: 'numeric', month: 'short', day: 'numeric' }) },
+    { key: 'deadline', label: 'Deadline', render: (task) => <div><p>{formatDate(task.deadline, { year: 'numeric', month: 'short', day: 'numeric' })}</p><div className="mt-1"><DeadlineBadge task={task} /></div></div> },
     { key: 'status', label: 'Status', render: (task) => <select className="border border-line bg-white px-2 py-1.5 text-xs font-semibold" value={task.status} onChange={(event) => updateTask(task.id, { status: event.target.value })}>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select> },
     { key: 'actions', label: '', render: (task) => <ActionMenu onEdit={() => onEditTask(task)} onDelete={() => onDeleteTask(task.id)} /> },
   ]
@@ -169,7 +169,7 @@ export default function ClientDetailPage({
 
     <div className="mt-5">
       {activeTab === 'Overview' && <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-        <section className="panel"><div className="flex items-center justify-between border-b border-line p-5"><div><h2 className="font-semibold">Recent tasks</h2><p className="mt-1 text-xs text-zinc-500">Latest work for this client</p></div><button className="button-secondary px-3 py-2" onClick={() => onNewTask({ clientId: client.id })}><Plus size={14} />Add task</button></div>{clientTasks.length ? <div className="divide-y divide-line">{clientTasks.slice(0, 6).map((task) => <div key={task.id} className="flex items-center justify-between gap-4 p-4"><div><p className="text-sm font-semibold">{task.title}</p><p className="mt-1 text-xs text-zinc-500">{formatDate(task.deadline)} · {task.priority}</p></div><StatusBadge status={task.status} /></div>)}</div> : <EmptyState title="No client tasks" description="Add the first task for this client." action="Add task" onAction={() => onNewTask({ clientId: client.id })} />}</section>
+        <section className="panel"><div className="flex items-center justify-between border-b border-line p-5"><div><h2 className="font-semibold">Recent tasks</h2><p className="mt-1 text-xs text-zinc-500">Latest work for this client</p></div><button className="button-secondary px-3 py-2" onClick={() => onNewTask({ clientId: client.id })}><Plus size={14} />Add task</button></div>{clientTasks.length ? <div className="divide-y divide-line">{clientTasks.slice(0, 6).map((task) => <div key={task.id} className="flex items-center justify-between gap-4 p-4"><div><p className="text-sm font-semibold">{task.title}</p><p className="mt-1 text-xs text-zinc-500">{formatDate(task.deadline)} · {task.priority}</p><div className="mt-2"><DeadlineBadge task={task} /></div></div><StatusBadge status={task.status} /></div>)}</div> : <EmptyState title="No client tasks" description="Add the first task for this client." action="Add task" onAction={() => onNewTask({ clientId: client.id })} />}</section>
         <section className="panel p-5"><h2 className="font-semibold">Account summary</h2><dl className="mt-5 space-y-4"><DetailItem label="Service package">{client.servicePackage}</DetailItem><DetailItem label="Monthly fee">{formatMoney(client.monthlyFee)}</DetailItem><DetailItem label="Start date">{client.startDate ? formatDate(client.startDate, { year: 'numeric', month: 'long', day: 'numeric' }) : 'Not added'}</DetailItem><DetailItem label="Billing status">{clientBillings.some((item) => item.paymentStatus !== 'Paid') ? 'Outstanding items' : clientBillings.length ? 'Paid' : 'No billable work'}</DetailItem></dl></section>
       </div>}
 

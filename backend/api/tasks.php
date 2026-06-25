@@ -87,6 +87,8 @@ function taskValues(array $data): array
         ':category' => $data['category'] ?: null,
         ':priority' => $data['priority'] ?: 'Medium',
         ':deadline' => $data['deadline'] ?: null,
+        ':reminder_date' => $data['reminder_date'] ?: null,
+        ':reminder_note' => $data['reminder_note'] ?: null,
         ':status' => $data['status'] ?: 'New',
         ':proof_link' => $data['proof_link'] ?: null,
         ':is_billable' => boolValue($data['is_billable'] ?? false),
@@ -147,6 +149,8 @@ try {
             'category' => null,
             'priority' => 'Medium',
             'deadline' => null,
+            'reminder_date' => null,
+            'reminder_note' => null,
             'status' => 'New',
             'proof_link' => null,
             'is_billable' => false,
@@ -160,10 +164,10 @@ try {
 
         $statement = $pdo->prepare(
             'INSERT INTO tasks
-                (client_id, title, description, category, priority, deadline, status, proof_link,
+                (client_id, title, description, category, priority, deadline, reminder_date, reminder_note, status, proof_link,
                  is_billable, billable_amount, payment_status, invoice_status, completed_at)
              VALUES
-                (:client_id, :title, :description, :category, :priority, :deadline, :status, :proof_link,
+                (:client_id, :title, :description, :category, :priority, :deadline, :reminder_date, :reminder_note, :status, :proof_link,
                  :is_billable, :billable_amount, :payment_status, :invoice_status, :completed_at)'
         );
         $statement->execute(taskValues($data));
@@ -197,6 +201,8 @@ try {
                 category = :category,
                 priority = :priority,
                 deadline = :deadline,
+                reminder_date = :reminder_date,
+                reminder_note = :reminder_note,
                 status = :status,
                 proof_link = :proof_link,
                 is_billable = :is_billable,

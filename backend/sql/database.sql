@@ -41,6 +41,8 @@ CREATE TABLE tasks (
     category VARCHAR(100) NULL,
     priority ENUM('Low', 'Medium', 'High', 'Urgent') NOT NULL DEFAULT 'Medium',
     deadline DATE NULL,
+    reminder_date DATE NULL,
+    reminder_note TEXT NULL,
     status ENUM('New', 'In Progress', 'Waiting for Client', 'Revision', 'Completed') NOT NULL DEFAULT 'New',
     proof_link VARCHAR(500) NULL,
     is_billable TINYINT(1) NOT NULL DEFAULT 0,
@@ -56,6 +58,7 @@ CREATE TABLE tasks (
     INDEX idx_tasks_client (client_id),
     INDEX idx_tasks_status (status),
     INDEX idx_tasks_deadline (deadline),
+    INDEX idx_tasks_reminder_date (reminder_date),
     INDEX idx_tasks_billable (is_billable)
 ) ENGINE=InnoDB;
 

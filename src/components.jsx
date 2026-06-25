@@ -4,7 +4,7 @@ import {
   ExternalLink, MoreHorizontal, Pencil, ReceiptText, Trash2, X,
 } from 'lucide-react'
 
-import { formatDate, formatMoney } from './utils'
+import { deadlineState, formatDate, formatMoney } from './utils'
 
 const statusStyle = {
   New: 'border-zinc-300 bg-zinc-50 text-zinc-700',
@@ -44,6 +44,18 @@ export function StatusBadge({ status }) {
 
 export function PriorityBadge({ priority }) {
   return <Badge className={priorityStyle[priority] || priorityStyle.Low}>{priority}</Badge>
+}
+
+export function DeadlineBadge({ task }) {
+  const state = deadlineState(task)
+  const styles = {
+    Overdue: 'border-red-200 bg-red-50 text-red-700',
+    'Due Today': 'border-orange-200 bg-orange-50 text-orange-800',
+    'Due Tomorrow': 'border-amber-200 bg-amber-50 text-amber-800',
+    'Due This Week': 'border-blue/20 bg-blue/5 text-blue',
+  }
+  if (!styles[state]) return null
+  return <Badge className={styles[state]}>{state}</Badge>
 }
 
 export function Modal({ open, title, description, children, onClose, size = 'max-w-2xl' }) {
@@ -97,6 +109,7 @@ export function TaskCard({ task, client, onEdit, onDelete, onStatusChange, statu
       <p className="mt-3 text-xs font-medium text-zinc-500">{client?.name || 'Deleted client'}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         <Badge className="border-zinc-200 bg-zinc-50 text-zinc-700"><CalendarDays size={12} className="mr-1" />{formatDate(task.deadline)}</Badge>
+        <DeadlineBadge task={task} />
         {task.billable && <Badge className="border-blue/20 bg-blue/5 text-blue"><CircleDollarSign size={12} className="mr-1" />{formatMoney(task.amount)}</Badge>}
       </div>
       <div className="mt-4 border-t border-line pt-3">

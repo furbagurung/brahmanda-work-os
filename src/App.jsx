@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import {
-  BarChart3, Bell, BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronDown,
+  AlertTriangle, BarChart3, Bell, BellRing, BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronDown,
   CircleDollarSign, ClipboardCopy, ClipboardList, Clock3, Command, FileText,
   LayoutDashboard, LogOut, Menu, Plus, ReceiptText, Search, Settings, Users, UsersRound, X,
 } from 'lucide-react'
 import {
-  ActionMenu, Badge, BillingBadge, ClientCard, EmptyState, Modal, PriorityBadge,
+  ActionMenu, Badge, BillingBadge, ClientCard, DeadlineBadge, EmptyState, Modal, PriorityBadge,
   ProofLink, ReportSection, StatCard, StatusBadge, Table, TaskCard,
 } from './components'
 import { CATEGORIES, initialClients, initialTasks, PRIORITIES, TASK_STATUSES } from './data'
@@ -18,21 +18,23 @@ import {
   updateBilling as updateBillingApi, attachmentFromApi,
   updateClient as updateClientApi, updateTask as updateTaskApi,
 } from './services/api'
-import { formatDate, formatMoney } from './utils'
+import { deadlineState, formatDate, formatMoney, todayDateString } from './utils'
 import LoginPage from './LoginPage'
 import MonthlyReportsPage from './ReportsPage'
 import TeamPage from './TeamPage'
 import ClientDetailPage from './ClientDetailPage'
+import RemindersPage from './RemindersPage'
 import { getCurrentUser, logout, updateCurrentUser } from './services/auth'
 
 const STORAGE_KEY = 'brahmanda-work-os-v2'
-const TODAY = '2026-06-25'
+const TODAY = todayDateString()
 const navigation = [
   { label: 'Dashboard', icon: LayoutDashboard },
   { label: 'Clients', icon: Users },
   { label: 'Tasks', icon: ClipboardList },
   { label: 'Kanban Board', icon: BriefcaseBusiness },
   { label: 'Daily Logs', icon: CalendarDays },
+  { label: 'Reminders', icon: BellRing },
   { label: 'Reports', icon: BarChart3 },
   { label: 'Billing', icon: ReceiptText },
   { label: 'Team', icon: UsersRound },
@@ -290,7 +292,7 @@ function Field({ label, children, className = '' }) {
   return <label className={`block ${className}`}><span className="mb-2 block text-sm font-semibold">{label}</span>{children}</label>
 }
 
-const blankTask = (clientId = '') => ({ id: '', clientId, title: '', description: '', category: 'Design', priority: 'Medium', deadline: TODAY, status: 'New', proofLink: '', attachments: [], billable: false, amount: 0, assignee: 'AS', completedAt: '', paymentStatus: 'Unpaid', invoiceStatus: 'Not invoiced' })
+const blankTask = (clientId = '') => ({ id: '', clientId, title: '', description: '', category: 'Design', priority: 'Medium', deadline: TODAY, reminderDate: '', reminderNote: '', status: 'New', proofLink: '', attachments: [], billable: false, amount: 0, assignee: 'AS', completedAt: '', paymentStatus: 'Unpaid', invoiceStatus: 'Not invoiced' })
 
 function TaskForm({ task, clients, onSave, onClose }) {
   const [form, setForm] = useState(() => {
@@ -323,7 +325,9 @@ function TaskForm({ task, clients, onSave, onClose }) {
         <Field label="Description" className="sm:col-span-2"><textarea className="field min-h-24 resize-y" value={form.description} onChange={(event) => change('description', event.target.value)} required /></Field>
         <Field label="Category"><select className="field" value={form.category} onChange={(event) => change('category', event.target.value)}>{CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></Field>
         <Field label="Priority"><select className="field" value={form.priority} onChange={(event) => change('priority', event.target.value)}>{PRIORITIES.map((item) => <option key={item}>{item}</option>)}</select></Field>
-        <Field label="Deadline"><input className="field" type="date" value={form.deadline} onChange={(event) => change('deadline', event.target.value)} required /></Field>
+        <Field label="Deadline"><input className="field" type="date" value={form.deadline} onChange={(event) => change('deadline', event.target.value)} /></Field>
+        <Field label="Reminder date"><input className="field" type="date" value={form.reminderDate || ''} onChange={(event) => change('reminderDate', event.target.value)} /></Field>
+        <Field label="Reminder note" className="sm:col-span-2"><textarea className="field min-h-20 resize-y" value={form.reminderNote || ''} onChange={(event) => change('reminderNote', event.target.value)} placeholder="What needs attention on the reminder date?" /></Field>
         <Field label="Status"><select className="field" value={form.status} onChange={(event) => change('status', event.target.value)}>{TASK_STATUSES.map((item) => <option key={item}>{item}</option>)}</select></Field>
         <Field label="Assignee initials"><input className="field" value={form.assignee} onChange={(event) => change('assignee', event.target.value.toUpperCase().slice(0, 3))} /></Field>
         <section className="border border-line p-4 sm:col-span-2">
@@ -356,10 +360,24 @@ function ClientForm({ client, onSave, onClose }) {
   return <form onSubmit={submit}><div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6"><Field label="Client name"><input className="field" required value={form.name} onChange={(event) => change('name', event.target.value)} /></Field><Field label="Contact person"><input className="field" required value={form.contact} onChange={(event) => change('contact', event.target.value)} /></Field><Field label="Email"><input className="field" type="email" value={form.email} onChange={(event) => change('email', event.target.value)} /></Field><Field label="Phone"><input className="field" value={form.phone} onChange={(event) => change('phone', event.target.value)} /></Field><Field label="Service package"><input className="field" value={form.servicePackage || ''} onChange={(event) => change('servicePackage', event.target.value)} /></Field><Field label="Monthly fee"><input className="field" type="number" min="0" value={form.monthlyFee || 0} onChange={(event) => change('monthlyFee', event.target.value)} /></Field><Field label="Start date"><input className="field" type="date" value={form.startDate || ''} onChange={(event) => change('startDate', event.target.value)} /></Field><Field label="Status"><select className="field" value={String(form.status || 'active').toLowerCase().replace(' ', '_')} onChange={(event) => change('status', event.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option><option value="on_hold">On hold</option></select></Field><Field label="Initials"><input className="field" maxLength="2" value={form.initials} onChange={(event) => change('initials', event.target.value.toUpperCase())} placeholder="Auto-generated" /></Field><Field label="Brand color"><input className="field h-11 p-1" type="color" value={form.color} onChange={(event) => change('color', event.target.value)} /></Field><Field label="Notes" className="sm:col-span-2"><textarea className="field min-h-24" value={form.notes} onChange={(event) => change('notes', event.target.value)} /></Field></div><div className="flex justify-end gap-3 border-t border-line bg-canvas p-4 sm:px-6"><button type="button" className="button-secondary" onClick={onClose}>Cancel</button><button className="button-primary" disabled={saving}>{saving ? 'Saving…' : client?.id ? 'Save changes' : 'Add client'}</button></div></form>
 }
 
+function DeadlineColumn({ title, description, tasks, clients, tone }) {
+  const toneClasses = {
+    red: 'border-t-red-600',
+    orange: 'border-t-orange-500',
+    blue: 'border-t-blue',
+  }
+  return <section className={`border border-line border-t-2 bg-white ${toneClasses[tone]}`}><div className="border-b border-line p-4"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">{title}</h3><span className="text-lg font-semibold">{tasks.length}</span></div><p className="mt-1 text-xs text-zinc-500">{description}</p></div><div className="divide-y divide-line">{tasks.slice(0, 4).map((task) => <div className="p-4" key={task.id}><p className="text-sm font-semibold">{task.title}</p><p className="mt-1 text-xs text-zinc-500">{clients.find((client) => client.id === task.clientId)?.name || 'Deleted client'} · {formatDate(task.deadline)}</p><div className="mt-2 flex flex-wrap gap-2"><PriorityBadge priority={task.priority} /><DeadlineBadge task={task} /></div></div>)}{!tasks.length && <p className="p-5 text-sm text-zinc-400">No tasks</p>}</div></section>
+}
+
 function Dashboard({ clients, tasks, connectionStatus, onNewTask, setActivePage, onEditTask, onDeleteTask, updateTask }) {
   const completed = tasks.filter((task) => task.status === 'Completed')
   const billable = tasks.filter((task) => task.billable)
   const todayTasks = tasks.filter((task) => task.deadline === TODAY)
+  const openTasks = tasks.filter((task) => task.status !== 'Completed')
+  const overdueTasks = openTasks.filter((task) => deadlineState(task) === 'Overdue').sort((a, b) => a.deadline.localeCompare(b.deadline))
+  const dueTodayTasks = openTasks.filter((task) => deadlineState(task) === 'Due Today')
+  const dueThisWeekTasks = openTasks.filter((task) => ['Due Tomorrow', 'Due This Week'].includes(deadlineState(task))).sort((a, b) => a.deadline.localeCompare(b.deadline))
+  const upcomingTasks = openTasks.filter((task) => deadlineState(task) === 'Upcoming').sort((a, b) => a.deadline.localeCompare(b.deadline))
   const stats = [
     ['Active Clients', String(clients.length).padStart(2, '0'), 'Client workspaces', Users],
     ['Today’s Tasks', String(todayTasks.length).padStart(2, '0'), `${todayTasks.filter((task) => task.status !== 'Completed').length} open`, ClipboardList],
@@ -375,6 +393,12 @@ function Dashboard({ clients, tasks, connectionStatus, onNewTask, setActivePage,
     <PageHeading number="01" title="Agency overview" description="Live workload, delivery, and billable activity from your local workspace." action="Create task" onAction={onNewTask} />
     <div className={`mb-5 flex items-center gap-2 border px-4 py-3 text-sm font-semibold ${statusClasses}`}><span className="h-2 w-2 rounded-full bg-current" />{statusLabel}</div>
     <div className="grid grid-cols-1 gap-px border border-line bg-line sm:grid-cols-2 xl:grid-cols-3">{stats.map(([label, value, change, Icon]) => <StatCard key={label} label={label} value={value} change={change} icon={Icon} />)}</div>
+    <div className="mt-6 grid gap-px border border-line bg-line sm:grid-cols-3">
+      <button className="flex items-center justify-between bg-red-50 p-5 text-left text-red-800 hover:bg-red-100" onClick={() => setActivePage('Tasks')}><div><p className="text-3xl font-semibold">{overdueTasks.length}</p><p className="mt-1 text-sm font-semibold">Overdue tasks</p></div><AlertTriangle size={22} /></button>
+      <button className="flex items-center justify-between bg-orange-50 p-5 text-left text-orange-800 hover:bg-orange-100" onClick={() => setActivePage('Tasks')}><div><p className="text-3xl font-semibold">{dueTodayTasks.length}</p><p className="mt-1 text-sm font-semibold">Due today</p></div><CalendarDays size={22} /></button>
+      <button className="flex items-center justify-between bg-blue/5 p-5 text-left text-blue hover:bg-blue/10" onClick={() => setActivePage('Tasks')}><div><p className="text-3xl font-semibold">{dueThisWeekTasks.length + upcomingTasks.length}</p><p className="mt-1 text-sm font-semibold">Upcoming deadlines</p></div><Clock3 size={22} /></button>
+    </div>
+    <section className="mt-8"><div className="mb-4 flex items-end justify-between border-b border-line pb-3"><div><h2 className="font-semibold">Deadline attention</h2><p className="mt-1 text-xs text-zinc-500">Open client work ordered by urgency</p></div><button className="text-sm font-semibold text-blue" onClick={() => setActivePage('Reminders')}>View reminders</button></div><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><DeadlineColumn title="Overdue Tasks" description="Past deadline" tasks={overdueTasks} clients={clients} tone="red" /><DeadlineColumn title="Due Today" description={formatDate(TODAY, { month: 'long', day: 'numeric' })} tasks={dueTodayTasks} clients={clients} tone="orange" /><DeadlineColumn title="Due This Week" description="Next seven days" tasks={dueThisWeekTasks} clients={clients} tone="blue" /><DeadlineColumn title="Upcoming Deadlines" description="Beyond seven days" tasks={upcomingTasks} clients={clients} tone="blue" /></div></section>
     <div className="mt-8 grid gap-8 xl:grid-cols-[1fr_340px]">
       <section className="panel"><div className="flex items-center justify-between border-b border-line p-5"><div><h2 className="font-semibold">Priority work</h2><p className="mt-1 text-xs text-zinc-500">Current tasks requiring attention</p></div><button className="text-sm font-semibold text-blue" onClick={() => setActivePage('Tasks')}>View all</button></div>{priorityTasks.length ? <div className="grid gap-px bg-line md:grid-cols-2">{priorityTasks.map((task) => <TaskCard key={task.id} task={task} client={clients.find((client) => client.id === task.clientId)} compact statuses={TASK_STATUSES} onEdit={() => onEditTask(task)} onDelete={() => onDeleteTask(task.id)} onStatusChange={(id, status) => updateTask(id, { status })} />)}</div> : <EmptyState title="No pending work" description="Create a task to start planning client work." action="Create task" onAction={onNewTask} />}</section>
       <aside className="panel"><div className="border-b border-line p-5"><h2 className="font-semibold">Delivery pulse</h2><p className="mt-1 text-xs text-zinc-500">{formatDate(TODAY, { weekday: 'long', month: 'long', day: 'numeric' })}</p></div><div className="divide-y divide-line">{clients.map((client) => { const clientTasks = tasks.filter((task) => task.clientId === client.id); const done = clientTasks.filter((task) => task.status === 'Completed').length; return <div key={client.id} className="p-4"><div className="flex justify-between gap-4"><p className="text-sm font-semibold">{client.name}</p><span className="text-xs text-zinc-500">{done}/{clientTasks.length}</span></div><div className="mt-3 h-1 bg-zinc-100"><div className="h-full bg-blue" style={{ width: `${clientTasks.length ? (done / clientTasks.length) * 100 : 0}%` }} /></div></div>})}</div></aside>
@@ -398,18 +422,24 @@ function TasksPage({ clients, tasks, onNewTask, onEditTask, onDeleteTask, update
   const [clientFilter, setClientFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All')
   const [priorityFilter, setPriorityFilter] = useState('All')
+  const [deadlineFilter, setDeadlineFilter] = useState('All')
   const filtered = tasks.filter((task) => {
     const client = clients.find((item) => item.id === task.clientId)
+    const deadline = deadlineState(task)
+    const matchesDeadline = deadlineFilter === 'All'
+      || deadline === deadlineFilter
+      || (deadlineFilter === 'Due This Week' && ['Due Tomorrow', 'Due This Week'].includes(deadline))
     return (!search || `${task.title} ${task.description} ${client?.name}`.toLowerCase().includes(search.toLowerCase()))
       && (clientFilter === 'All' || task.clientId === clientFilter)
       && (statusFilter === 'All' || task.status === statusFilter)
       && (priorityFilter === 'All' || task.priority === priorityFilter)
+      && matchesDeadline
   })
   const columns = [
     { key: 'title', label: 'Task', render: (task) => <div><p className="font-semibold">{task.title}</p><p className="mt-1 text-xs text-zinc-500">{task.category}</p></div> },
     { key: 'client', label: 'Client', render: (task) => clients.find((client) => client.id === task.clientId)?.name || 'Deleted client' },
     { key: 'priority', label: 'Priority', render: (task) => <PriorityBadge priority={task.priority} /> },
-    { key: 'deadline', label: 'Deadline', render: (task) => formatDate(task.deadline) },
+    { key: 'deadline', label: 'Deadline', render: (task) => <div><p>{formatDate(task.deadline)}</p><div className="mt-1"><DeadlineBadge task={task} /></div></div> },
     { key: 'status', label: 'Status', render: (task) => <select className="border border-line bg-white px-2 py-1.5 text-xs font-semibold" value={task.status} onChange={(event) => updateTask(task.id, { status: event.target.value })}>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select> },
     { key: 'billable', label: 'Billable', render: (task) => task.billable ? formatMoney(task.amount) : 'No' },
     { key: 'actions', label: '', render: (task) => <ActionMenu onEdit={() => onEditTask(task)} onDelete={() => onDeleteTask(task.id)} /> },
@@ -417,7 +447,7 @@ function TasksPage({ clients, tasks, onNewTask, onEditTask, onDeleteTask, update
   return <>
     <PageHeading number="03" title="Tasks" description="Create, filter, update, and complete all client work from one view." action="Create task" onAction={onNewTask} />
     {!tasks.length ? <EmptyState title="No tasks yet." description="Add your first task." action="Create task" onAction={onNewTask} /> : <div className="panel">
-      <div className="grid gap-3 border-b border-line p-4 md:grid-cols-[minmax(220px,1fr)_repeat(3,minmax(140px,180px))]"><div className="flex items-center border border-line px-3"><Search size={15} className="shrink-0 text-zinc-400" /><input className="w-full px-2 py-2.5 text-sm outline-none" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tasks" /></div><select className="field" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option>All</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select><select className="field" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>All</option>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select><select className="field" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option>All</option>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select></div>
+      <div className="grid gap-3 border-b border-line p-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_repeat(4,minmax(140px,180px))]"><div className="flex items-center border border-line px-3"><Search size={15} className="shrink-0 text-zinc-400" /><input className="w-full px-2 py-2.5 text-sm outline-none" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tasks" /></div><select className="field" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option>All</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select><select className="field" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>All</option>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select><select className="field" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option>All</option>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select><select className="field" value={deadlineFilter} onChange={(event) => setDeadlineFilter(event.target.value)}><option>All</option><option>Overdue</option><option>Due Today</option><option>Due This Week</option><option>No Deadline</option></select></div>
       <Table columns={columns} data={filtered} emptyMessage="No tasks match the current filters." />
     </div>}
   </>
@@ -568,6 +598,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     Tasks: <TasksPage {...shared} />,
     'Kanban Board': <KanbanPage {...shared} />,
     'Daily Logs': <DailyLogsPage clients={workspace.clients} logs={workspace.logs} />,
+    Reminders: <RemindersPage clients={workspace.clients} tasks={workspace.tasks} onEditTask={setTaskModal} />,
     Reports: <MonthlyReportsPage clients={workspace.clients} tasks={workspace.tasks} isFallback={workspace.isFallback} />,
     Billing: <BillingPage clients={workspace.clients} billings={workspace.billings} updateTask={workspace.updateTask} />,
     Team: <TeamPage currentUser={user} onCurrentUserUpdate={onUserUpdate} />,

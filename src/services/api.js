@@ -134,6 +134,8 @@ export function taskToApi(task) {
     category: task.category || null,
     priority: task.priority,
     deadline: task.deadline || null,
+    reminder_date: task.reminderDate || null,
+    reminder_note: task.reminderNote || null,
     status: task.status,
     proof_link: Array.isArray(task.attachments)
       ? task.attachments[0]?.url || null
@@ -155,6 +157,8 @@ export function taskFromApi(task) {
     category: task.category || '',
     priority: task.priority,
     deadline: task.deadline || '',
+    reminderDate: task.reminder_date || '',
+    reminderNote: task.reminder_note || '',
     status: task.status,
     proofLink: task.proof_link || '',
     billable: Number(task.is_billable) === 1,
