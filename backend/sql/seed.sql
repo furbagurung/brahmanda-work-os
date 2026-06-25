@@ -1,5 +1,18 @@
 USE brahmanda_work_os;
 
+-- Demo administrator. Password: change-me
+INSERT INTO users (name, email, password, role)
+VALUES (
+    'Brahmanda Admin',
+    'admin@brahmandatech.com',
+    '$2y$10$F4t0FMRMAisfC4U5Q3GpYeRDT75dh9gGV1KCtD3I8ZtOo5152DG3e',
+    'admin'
+)
+ON DUPLICATE KEY UPDATE
+    name = VALUES(name),
+    password = VALUES(password),
+    role = VALUES(role);
+
 -- Idempotent demo clients. Existing clients with the same name are preserved.
 INSERT INTO clients
     (name, contact_person, phone, email, service_package, monthly_fee, start_date, status, notes)

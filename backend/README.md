@@ -20,6 +20,15 @@ mysql -u root -p brahmanda_work_os < backend/sql/seed.sql
 
 The seed file is idempotent: running it again does not duplicate clients or tasks with the same names.
 
+Demo administrator:
+
+```text
+Email: admin@brahmandatech.com
+Password: change-me
+```
+
+Change this password before using the application outside local development.
+
 ### 2. Configure the PHP database connection
 
 Set environment variables or update the local defaults in `config/database.php`.

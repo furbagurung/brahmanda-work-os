@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   BarChart3, Bell, BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronDown,
   CircleDollarSign, ClipboardCopy, ClipboardList, Clock3, Command, FileText,
-  LayoutDashboard, Menu, Plus, ReceiptText, Search, Settings, Users, X,
+  LayoutDashboard, LogOut, Menu, Plus, ReceiptText, Search, Settings, Users, X,
 } from 'lucide-react'
 import {
   ActionMenu, Badge, BillingBadge, ClientCard, EmptyState, Modal, PriorityBadge,
@@ -17,6 +17,8 @@ import {
   updateClient as updateClientApi, updateTask as updateTaskApi,
 } from './services/api'
 import { formatDate, formatMoney } from './utils'
+import LoginPage from './LoginPage'
+import { getCurrentUser, logout } from './services/auth'
 
 const STORAGE_KEY = 'brahmanda-work-os-v2'
 const TODAY = '2026-06-25'
@@ -231,14 +233,16 @@ function Sidebar({ activePage, setActivePage, open, setOpen }) {
   )
 }
 
-function Topbar({ activePage, setOpen, onNewTask }) {
+function Topbar({ activePage, setOpen, onNewTask, user, onLogout }) {
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center border-b border-line bg-white/95 px-4 backdrop-blur md:px-7">
       <button className="mr-3 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu"><Menu size={22} /></button>
       <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{activePage}</p><p className="hidden text-xs text-zinc-500 sm:block">Brahmanda Tech / Internal workspace</p></div>
       <button className="button-primary hidden sm:inline-flex" onClick={onNewTask}><Plus size={15} />New task</button>
       <button className="relative ml-3 flex h-9 w-9 items-center justify-center border border-line" aria-label="Notifications"><Bell size={17} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 bg-blue" /></button>
-      <span className="ml-3 flex h-9 w-9 items-center justify-center bg-ink text-xs font-bold text-white">AS</span>
+      <div className="ml-3 hidden text-right md:block"><p className="text-xs font-semibold">{user.name}</p><p className="text-[11px] capitalize text-zinc-500">{user.role}</p></div>
+      <span className="ml-3 flex h-9 w-9 items-center justify-center bg-ink text-xs font-bold text-white">{user.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span>
+      <button className="ml-2 flex h-9 w-9 items-center justify-center border border-line text-zinc-500 hover:border-zinc-400 hover:text-ink" onClick={onLogout} aria-label="Log out"><LogOut size={16} /></button>
     </header>
   )
 }
@@ -463,7 +467,7 @@ function SettingsPage({ resetWorkspace }) {
   return <><PageHeading number="08" title="Settings" description="Workspace preferences and local fallback controls." /><div className="grid gap-6 lg:grid-cols-[240px_1fr]"><nav className="panel h-fit p-2">{['Workspace', 'Team members', 'Task fields', 'Notifications', 'Billing details'].map((item, index) => <button key={item} className={`w-full px-3 py-2.5 text-left text-sm font-medium ${index === 0 ? 'bg-blue text-white' : 'hover:bg-canvas'}`}>{item}</button>)}</nav><section className="panel"><div className="border-b border-line p-6"><h2 className="text-lg font-semibold">Workspace details</h2><p className="mt-1 text-sm text-zinc-500">API data is cached locally and used when the backend is unavailable.</p></div><div className="space-y-5 p-6"><Field label="Workspace name"><input className="field" defaultValue="Brahmanda Tech" /></Field><div className="grid gap-5 sm:grid-cols-2"><Field label="Timezone"><select className="field" defaultValue="Asia/Kathmandu"><option>Asia/Kathmandu</option></select></Field><Field label="Currency"><select className="field" defaultValue="NPR"><option>NPR — Nepalese Rupee</option></select></Field></div><div className="border-t border-line pt-5"><h3 className="font-semibold">Reset local fallback data</h3><p className="mt-1 text-sm text-zinc-500">Switch to demo mode and restore the original clients and tasks.</p><button className="button-secondary mt-4 text-red-700" onClick={() => window.confirm('Reset local fallback data?') && resetWorkspace()}>Reset dummy data</button></div></div></section></div></>
 }
 
-export default function App() {
+function WorkspaceApp({ user, onLogout }) {
   const workspace = useWorkspace()
   const [activePage, setActivePage] = useState('Dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -485,8 +489,23 @@ export default function App() {
     Settings: <SettingsPage resetWorkspace={workspace.resetWorkspace} />,
   }
 
-  return <div className="min-h-screen bg-canvas"><Sidebar activePage={activePage} setActivePage={setActivePage} open={sidebarOpen} setOpen={setSidebarOpen} /><div className="lg:pl-64"><Topbar activePage={activePage} setOpen={setSidebarOpen} onNewTask={() => newTask()} /><main className="mx-auto max-w-[1600px] p-4 md:p-7 lg:p-9">{workspace.error && <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{workspace.error}</div>}{workspace.loading ? <div className="panel flex min-h-64 items-center justify-center"><div className="text-center"><div className="mx-auto h-7 w-7 animate-spin border-2 border-zinc-200 border-t-blue" /><p className="mt-3 text-sm text-zinc-500">Loading workspace data…</p></div></div> : pages[activePage]}</main></div>
+  return <div className="min-h-screen bg-canvas"><Sidebar activePage={activePage} setActivePage={setActivePage} open={sidebarOpen} setOpen={setSidebarOpen} /><div className="lg:pl-64"><Topbar activePage={activePage} setOpen={setSidebarOpen} onNewTask={() => newTask()} user={user} onLogout={onLogout} /><main className="mx-auto max-w-[1600px] p-4 md:p-7 lg:p-9">{workspace.error && <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{workspace.error}</div>}{workspace.loading ? <div className="panel flex min-h-64 items-center justify-center"><div className="text-center"><div className="mx-auto h-7 w-7 animate-spin border-2 border-zinc-200 border-t-blue" /><p className="mt-3 text-sm text-zinc-500">Loading workspace data…</p></div></div> : pages[activePage]}</main></div>
     <Modal open={Boolean(taskModal)} onClose={() => setTaskModal(null)} title={taskModal?.id ? 'Edit task' : 'Create task'} description="Task changes update every workspace view.">{taskModal && <TaskForm task={taskModal} clients={workspace.clients} onSave={workspace.saveTask} onClose={() => setTaskModal(null)} />}</Modal>
     <Modal open={Boolean(clientModal)} onClose={() => setClientModal(null)} title={clientModal?.id ? 'Edit client' : 'Add client'} description="Create a client workspace for tasks, reports, and billing.">{clientModal && <ClientForm client={clientModal.id ? clientModal : null} onSave={workspace.saveClient} onClose={() => setClientModal(null)} />}</Modal>
   </div>
+}
+
+export default function App() {
+  const [user, setUser] = useState(() => getCurrentUser())
+
+  if (!user) {
+    return <LoginPage onLogin={setUser} />
+  }
+
+  const handleLogout = () => {
+    logout()
+    setUser(null)
+  }
+
+  return <WorkspaceApp user={user} onLogout={handleLogout} />
 }
