@@ -180,6 +180,7 @@ The React frontend stores the token in localStorage for now. For higher-security
 | PATCH | `api/billing.php?id=1` | Update payment or invoice status by task id |
 | GET | `api/reports.php?client_id=1&month=6&year=2026` | Generate monthly report data |
 | GET | `api/reports.php?client_id=1` | List saved reports for a client |
+| GET | `api/reports.php` | List saved reports across all clients |
 | POST | `api/reports.php` | Save or update a generated report |
 | POST | `api/auth.php` | Verify email and password |
 | POST | `api/auth.php?action=logout` | Invalidate the active bearer token |

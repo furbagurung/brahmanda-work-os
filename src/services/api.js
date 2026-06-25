@@ -213,3 +213,15 @@ export function billingFromApi(billing) {
     status: billing.task_status || '',
   }
 }
+
+export function reportFromApi(report) {
+  return {
+    id: String(report.id),
+    clientId: String(report.client_id),
+    clientName: report.client_name || '',
+    month: Number(report.report_month),
+    year: Number(report.report_year),
+    status: report.status || 'Draft',
+    createdAt: report.created_at || '',
+  }
+}

@@ -30,6 +30,17 @@ try {
         $listClientId = filter_input(INPUT_GET, 'client_id', FILTER_VALIDATE_INT);
         $hasPeriod = isset($_GET['month']) || isset($_GET['year']);
 
+        if (!$listClientId && !$hasPeriod) {
+            $statement = $pdo->query(
+                'SELECT r.id, r.client_id, c.name AS client_name, r.report_month, r.report_year,
+                        r.status, r.created_at
+                 FROM reports r
+                 INNER JOIN clients c ON c.id = r.client_id
+                 ORDER BY r.report_year DESC, r.report_month DESC, r.created_at DESC'
+            );
+            jsonResponse($statement->fetchAll());
+        }
+
         if ($listClientId && !$hasPeriod) {
             $statement = $pdo->prepare(
                 'SELECT id, client_id, report_month, report_year, report_content, status, created_at

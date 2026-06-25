@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   AlertTriangle, BarChart3, Bell, BellRing, BriefcaseBusiness, CalendarDays, CalendarRange, CheckCircle2, ChevronDown,
   CircleDollarSign, ClipboardCopy, ClipboardList, Clock3, Command, FileText,
@@ -13,9 +13,9 @@ import {
   billingFromApi, clientFromApi, clientToApi, createClient as createClientApi,
   createTask as createTaskApi, createTaskAttachment, deleteClient as deleteClientApi,
   deleteTask as deleteTaskApi, deleteTaskAttachment,
-  generateReport as generateReportApi, getBillings, getClients, getDailyLogs, getTasks,
+  generateReport as generateReportApi, getBillings, getClients, getDailyLogs, getReports, getTasks,
   getTaskAttachments, logFromApi, markTaskCompleted, taskFromApi, taskToApi,
-  updateBilling as updateBillingApi, attachmentFromApi,
+  updateBilling as updateBillingApi, attachmentFromApi, reportFromApi,
   updateClient as updateClientApi, updateTask as updateTaskApi,
 } from './services/api'
 import { deadlineState, formatDate, formatMoney, todayDateString } from './utils'
@@ -25,6 +25,8 @@ import TeamPage from './TeamPage'
 import ClientDetailPage from './ClientDetailPage'
 import RemindersPage from './RemindersPage'
 import CalendarPage from './CalendarPage'
+import GlobalSearch from './GlobalSearch'
+import { QuickAddMenu, QuickTaskForm } from './QuickAdd'
 import { getCurrentUser, logout, updateCurrentUser } from './services/auth'
 
 const STORAGE_KEY = 'brahmanda-work-os-v2'
@@ -53,9 +55,10 @@ function useWorkspace() {
         tasks: parsed.tasks || initialTasks,
         logs: parsed.logs || (parsed.tasks || initialTasks).filter((task) => task.status === 'Completed'),
         billings: parsed.billings || (parsed.tasks || initialTasks).filter((task) => task.billable),
+        reports: parsed.reports || [],
       }
     } catch {
-      return { clients: initialClients, tasks: initialTasks, logs: [], billings: [] }
+      return { clients: initialClients, tasks: initialTasks, logs: [], billings: [], reports: [] }
     }
   })
   const [loading, setLoading] = useState(true)
@@ -68,11 +71,12 @@ function useWorkspace() {
   }, [workspace])
 
   const loadApiData = async () => {
-    const [clients, taskRows, logs, billing] = await Promise.all([
+    const [clients, taskRows, logs, billing, reports] = await Promise.all([
       getClients(),
       getTasks(),
       getDailyLogs(),
       getBillings(),
+      getReports(),
     ])
     const attachments = await Promise.all(taskRows.map(async (task) => [
       String(task.id),
@@ -84,6 +88,7 @@ function useWorkspace() {
       tasks: taskRows.map((task) => taskFromApi({ ...task, attachments: attachmentsByTask[String(task.id)] || [] })),
       logs: logs.map(logFromApi),
       billings: (billing.items || []).map(billingFromApi),
+      reports: reports.map(reportFromApi),
     }
     setWorkspace(next)
     setIsFallback(false)
@@ -247,7 +252,7 @@ function useWorkspace() {
     setIsFallback(true)
     setConnectionStatus('fallback')
     setError('Demo mode enabled. Data is stored in this browser only.')
-    setWorkspace({ clients: initialClients, tasks: initialTasks, logs: initialTasks.filter((task) => task.status === 'Completed'), billings: initialTasks.filter((task) => task.billable) })
+    setWorkspace({ clients: initialClients, tasks: initialTasks, logs: initialTasks.filter((task) => task.status === 'Completed'), billings: initialTasks.filter((task) => task.billable), reports: [] })
   }
 
   return { ...workspace, loading, error, isFallback, connectionStatus, saveTask, updateTask, deleteTask, saveClient, deleteClient, resetWorkspace }
@@ -272,12 +277,13 @@ function Sidebar({ activePage, setActivePage, open, setOpen }) {
   )
 }
 
-function Topbar({ activePage, setOpen, onNewTask, user, onLogout }) {
+function Topbar({ activePage, setOpen, onOpenSearch, quickAddOpen, setQuickAddOpen, quickAddActions, user, onLogout }) {
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center border-b border-line bg-white/95 px-4 backdrop-blur md:px-7">
       <button className="mr-3 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu"><Menu size={22} /></button>
-      <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{activePage}</p><p className="hidden text-xs text-zinc-500 sm:block">Brahmanda Tech / Internal workspace</p></div>
-      <button className="button-primary hidden sm:inline-flex" onClick={onNewTask}><Plus size={15} />New task</button>
+      <div className="hidden min-w-0 flex-1 xl:block"><p className="truncate text-sm font-semibold">{activePage}</p><p className="hidden text-xs text-zinc-500 sm:block">Brahmanda Tech / Internal workspace</p></div>
+      <button className="flex min-w-0 flex-1 items-center gap-2 border border-line bg-canvas px-3 py-2 text-left text-sm text-zinc-500 hover:border-zinc-400 xl:mx-6 xl:max-w-xl" onClick={onOpenSearch}><Search size={15} className="shrink-0" /><span className="truncate">Search clients, tasks, reports, proofs</span><kbd className="ml-auto hidden border border-line bg-white px-1.5 py-0.5 text-[10px] font-semibold sm:block">Ctrl K</kbd></button>
+      <div className="relative ml-2 sm:ml-3"><button className="button-primary hidden sm:inline-flex" onClick={() => setQuickAddOpen((value) => !value)}><Plus size={15} />Quick Add<ChevronDown size={14} /></button><button className="flex h-9 w-9 items-center justify-center bg-blue text-white sm:hidden" onClick={() => setQuickAddOpen((value) => !value)} aria-label="Open Quick Add"><Plus size={17} /></button><QuickAddMenu open={quickAddOpen} onClose={() => setQuickAddOpen(false)} {...quickAddActions} /></div>
       <button className="relative ml-3 flex h-9 w-9 items-center justify-center border border-line" aria-label="Notifications"><Bell size={17} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 bg-blue" /></button>
       <div className="ml-3 hidden text-right md:block"><p className="text-xs font-semibold">{user.name}</p><p className="text-[11px] capitalize text-zinc-500">{user.role}</p></div>
       <span className="ml-3 flex h-9 w-9 items-center justify-center bg-ink text-xs font-bold text-white">{user.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span>
@@ -555,8 +561,18 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [taskModal, setTaskModal] = useState(null)
   const [clientModal, setClientModal] = useState(null)
+  const [quickTaskDefaults, setQuickTaskDefaults] = useState(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const [recentClientIds, setRecentClientIds] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('brahmanda-recent-clients') || '[]') } catch { return [] }
+  })
+  const [recentTaskIds, setRecentTaskIds] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('brahmanda-recent-tasks') || '[]') } catch { return [] }
+  })
 
   const newTask = (defaults = {}) => setTaskModal({ ...blankTask(workspace.clients[0]?.id), ...defaults })
+  const quickTask = useCallback((defaults = {}) => setQuickTaskDefaults({ clientId: selectedClientId || workspace.clients[0]?.id, ...defaults }), [selectedClientId, workspace.clients])
   const deleteTask = (id) => window.confirm('Delete this task? This cannot be undone.') && workspace.deleteTask(id)
   const deleteClient = (id) => window.confirm('Delete this client and all of its tasks?') && workspace.deleteClient(id)
   const navigatePage = (page) => {
@@ -567,6 +583,9 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     }
   }
   const openClient = (id) => {
+    const nextRecent = [id, ...recentClientIds.filter((item) => item !== id)].slice(0, 6)
+    setRecentClientIds(nextRecent)
+    localStorage.setItem('brahmanda-recent-clients', JSON.stringify(nextRecent))
     setSelectedClientId(id)
     setActivePage('Client Detail')
     window.history.pushState({ clientId: id }, '', `#clients/${encodeURIComponent(id)}`)
@@ -589,7 +608,51 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
       window.removeEventListener('hashchange', syncRoute)
     }
   }, [])
+  useEffect(() => {
+    const shortcuts = (event) => {
+      if (event.key === 'Escape') {
+        setSearchOpen(false)
+        setQuickAddOpen(false)
+        return
+      }
+      if (!(event.ctrlKey || event.metaKey)) return
+      if (event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setSearchOpen(true)
+        setQuickAddOpen(false)
+      }
+      if (event.key.toLowerCase() === 'n') {
+        event.preventDefault()
+        quickTask()
+        setSearchOpen(false)
+        setQuickAddOpen(false)
+      }
+    }
+    window.addEventListener('keydown', shortcuts)
+    return () => window.removeEventListener('keydown', shortcuts)
+  }, [quickTask])
   const selectedClient = workspace.clients.find((client) => client.id === selectedClientId)
+  const saveTaskWithRecent = async (task) => {
+    await workspace.saveTask(task)
+    if (task.id) {
+      const nextRecent = [task.id, ...recentTaskIds.filter((item) => item !== task.id)].slice(0, 6)
+      setRecentTaskIds(nextRecent)
+      localStorage.setItem('brahmanda-recent-tasks', JSON.stringify(nextRecent))
+    }
+  }
+  const selectSearchResult = (result) => {
+    setSearchOpen(false)
+    if (result.type === 'Client') openClient(result.id)
+    if (result.type === 'Task') setTaskModal(result.task)
+    if (result.type === 'Report') navigatePage('Reports')
+    if (result.type === 'Proof') window.open(result.url, '_blank', 'noopener,noreferrer')
+  }
+  const quickAddActions = {
+    onAddTask: () => quickTask({ modeTitle: 'Quick add task' }),
+    onAddClient: () => setClientModal({}),
+    onAddDailyLog: () => quickTask({ modeTitle: 'Add daily log', status: 'Completed', deadline: TODAY }),
+    onAddBilling: () => quickTask({ modeTitle: 'Add billing item', billable: true }),
+  }
   const shared = { clients: workspace.clients, tasks: workspace.tasks, connectionStatus: workspace.connectionStatus, onNewTask: newTask, onEditTask: setTaskModal, onDeleteTask: deleteTask, updateTask: workspace.updateTask, setActivePage: navigatePage }
   const pages = {
     Dashboard: <Dashboard {...shared} />,
@@ -608,9 +671,11 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     Settings: <SettingsPage resetWorkspace={workspace.resetWorkspace} />,
   }
 
-  return <div className="min-h-screen bg-canvas"><Sidebar activePage={activePage} setActivePage={navigatePage} open={sidebarOpen} setOpen={setSidebarOpen} /><div className="lg:pl-64"><Topbar activePage={activePage === 'Client Detail' ? selectedClient?.name || 'Client Detail' : activePage} setOpen={setSidebarOpen} onNewTask={() => newTask(selectedClient ? { clientId: selectedClient.id } : {})} user={user} onLogout={onLogout} /><main className="mx-auto max-w-[1600px] p-4 md:p-7 lg:p-9">{workspace.error && <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{workspace.error}</div>}{workspace.loading ? <div className="panel flex min-h-64 items-center justify-center"><div className="text-center"><div className="mx-auto h-7 w-7 animate-spin border-2 border-zinc-200 border-t-blue" /><p className="mt-3 text-sm text-zinc-500">Loading workspace data…</p></div></div> : pages[activePage]}</main></div>
-    <Modal open={Boolean(taskModal)} onClose={() => setTaskModal(null)} title={taskModal?.id ? 'Edit task' : 'Create task'} description="Task changes update every workspace view.">{taskModal && <TaskForm task={taskModal} clients={workspace.clients} onSave={workspace.saveTask} onClose={() => setTaskModal(null)} />}</Modal>
+  return <div className="min-h-screen bg-canvas"><Sidebar activePage={activePage} setActivePage={navigatePage} open={sidebarOpen} setOpen={setSidebarOpen} /><div className="lg:pl-64"><Topbar activePage={activePage === 'Client Detail' ? selectedClient?.name || 'Client Detail' : activePage} setOpen={setSidebarOpen} onOpenSearch={() => { setSearchOpen(true); setQuickAddOpen(false) }} quickAddOpen={quickAddOpen} setQuickAddOpen={setQuickAddOpen} quickAddActions={quickAddActions} user={user} onLogout={onLogout} /><main className="mx-auto max-w-[1600px] p-4 md:p-7 lg:p-9">{workspace.error && <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{workspace.error}</div>}{workspace.loading ? <div className="panel flex min-h-64 items-center justify-center"><div className="text-center"><div className="mx-auto h-7 w-7 animate-spin border-2 border-zinc-200 border-t-blue" /><p className="mt-3 text-sm text-zinc-500">Loading workspace data…</p></div></div> : pages[activePage]}</main></div>
+    <Modal open={Boolean(taskModal)} onClose={() => setTaskModal(null)} title={taskModal?.id ? 'Edit task' : 'Create task'} description="Task changes update every workspace view.">{taskModal && <TaskForm task={taskModal} clients={workspace.clients} onSave={saveTaskWithRecent} onClose={() => setTaskModal(null)} />}</Modal>
+    <Modal open={Boolean(quickTaskDefaults)} onClose={() => setQuickTaskDefaults(null)} title={quickTaskDefaults?.modeTitle || 'Quick add task'} description="Create essential daily work without opening the full task form.">{quickTaskDefaults && <QuickTaskForm clients={workspace.clients} defaults={quickTaskDefaults} onSave={saveTaskWithRecent} onClose={() => setQuickTaskDefaults(null)} />}</Modal>
     <Modal open={Boolean(clientModal)} onClose={() => setClientModal(null)} title={clientModal?.id ? 'Edit client' : 'Add client'} description="Create a client workspace for tasks, reports, and billing.">{clientModal && <ClientForm client={clientModal.id ? clientModal : null} onSave={workspace.saveClient} onClose={() => setClientModal(null)} />}</Modal>
+    <GlobalSearch open={searchOpen} clients={workspace.clients} tasks={workspace.tasks} reports={workspace.reports || []} recentClientIds={recentClientIds} recentTaskIds={recentTaskIds} onClose={() => setSearchOpen(false)} onSelect={selectSearchResult} />
   </div>
 }
 
