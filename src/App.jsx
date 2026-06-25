@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  AlertTriangle, BarChart3, Bell, BellRing, BriefcaseBusiness, CalendarDays, CheckCircle2, ChevronDown,
+  AlertTriangle, BarChart3, Bell, BellRing, BriefcaseBusiness, CalendarDays, CalendarRange, CheckCircle2, ChevronDown,
   CircleDollarSign, ClipboardCopy, ClipboardList, Clock3, Command, FileText,
   LayoutDashboard, LogOut, Menu, Plus, ReceiptText, Search, Settings, Users, UsersRound, X,
 } from 'lucide-react'
@@ -24,6 +24,7 @@ import MonthlyReportsPage from './ReportsPage'
 import TeamPage from './TeamPage'
 import ClientDetailPage from './ClientDetailPage'
 import RemindersPage from './RemindersPage'
+import CalendarPage from './CalendarPage'
 import { getCurrentUser, logout, updateCurrentUser } from './services/auth'
 
 const STORAGE_KEY = 'brahmanda-work-os-v2'
@@ -35,6 +36,7 @@ const navigation = [
   { label: 'Kanban Board', icon: BriefcaseBusiness },
   { label: 'Daily Logs', icon: CalendarDays },
   { label: 'Reminders', icon: BellRing },
+  { label: 'Calendar', icon: CalendarRange },
   { label: 'Reports', icon: BarChart3 },
   { label: 'Billing', icon: ReceiptText },
   { label: 'Team', icon: UsersRound },
@@ -599,6 +601,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     'Kanban Board': <KanbanPage {...shared} />,
     'Daily Logs': <DailyLogsPage clients={workspace.clients} logs={workspace.logs} />,
     Reminders: <RemindersPage clients={workspace.clients} tasks={workspace.tasks} onEditTask={setTaskModal} />,
+    Calendar: <CalendarPage clients={workspace.clients} tasks={workspace.tasks} onEditTask={setTaskModal} updateTask={workspace.updateTask} />,
     Reports: <MonthlyReportsPage clients={workspace.clients} tasks={workspace.tasks} isFallback={workspace.isFallback} />,
     Billing: <BillingPage clients={workspace.clients} billings={workspace.billings} updateTask={workspace.updateTask} />,
     Team: <TeamPage currentUser={user} onCurrentUserUpdate={onUserUpdate} />,
