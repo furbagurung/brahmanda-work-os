@@ -85,6 +85,9 @@ export const getActivityLogs = (params = {}) => {
   return request(`activity_logs.php${query.toString() ? `?${query}` : ''}`)
 }
 
+export const getSettings = () => request('settings.php')
+export const updateSettings = (settings) => request('settings.php', jsonOptions('PUT', { settings }))
+
 export const getUsers = async () => {
   const data = await request('users.php')
   return Array.isArray(data) ? data : [data]

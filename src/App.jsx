@@ -13,12 +13,13 @@ import {
   activityFromApi, billingFromApi, clientFromApi, clientToApi, createClient as createClientApi,
   createTask as createTaskApi, createTaskAttachment, deleteClient as deleteClientApi,
   deleteTask as deleteTaskApi, deleteTaskAttachment,
-  generateReport as generateReportApi, getActivityLogs, getBillings, getClients, getDailyLogs, getReports, getTasks,
+  generateReport as generateReportApi, getActivityLogs, getBillings, getClients, getDailyLogs, getReports, getSettings, getTasks,
   getTaskAttachments, logFromApi, markTaskCompleted, taskFromApi, taskToApi,
   updateBilling as updateBillingApi, attachmentFromApi, reportFromApi,
   updateClient as updateClientApi, updateTask as updateTaskApi, generateRecurringTasks as generateRecurringTasksApi,
+  updateSettings as updateSettingsApi,
 } from './services/api'
-import { deadlineState, formatDate, formatMoney, todayDateString } from './utils'
+import { deadlineState, formatDate, formatMoney, setWorkspaceCurrency, setWorkspaceDateFormat, todayDateString } from './utils'
 import LoginPage from './LoginPage'
 import MonthlyReportsPage from './ReportsPage'
 import TeamPage from './TeamPage'
@@ -30,10 +31,20 @@ import { QuickAddMenu, QuickTaskForm } from './QuickAdd'
 import RecurringTasksPage from './RecurringTasksPage'
 import { nextRecurrenceDate } from './recurrenceUtils'
 import ActivityPage, { ActivityFeed } from './ActivityPage'
+import SettingsPage from './SettingsPage'
 import { getCurrentUser, logout, updateCurrentUser } from './services/auth'
 
 const STORAGE_KEY = 'brahmanda-work-os-v2'
 const TODAY = todayDateString()
+const DEFAULT_SETTINGS = {
+  agency_name: 'Brahmanda Tech', legal_business_name: 'Kittik Enterprise', contact_person: 'Furba Gurung',
+  agency_email: 'brahmandatech@gmail.com', agency_phone: '9840006162', agency_address: '',
+  pan_number: '123252867', agency_website: '', agency_notes: '', report_title: 'Monthly Client Report',
+  prepared_by: 'Brahmanda Tech', report_footer_text: 'Prepared by Brahmanda Tech', brand_color: '#002FA7',
+  logo_url: '', default_report_note: '', currency: 'NPR', default_task_priority: 'Medium',
+  default_report_status: 'Draft', default_monthly_report_template: 'Standard Monthly Client Report',
+  date_format: 'MMM d, yyyy',
+}
 const navigation = [
   { label: 'Dashboard', icon: LayoutDashboard },
   { label: 'Clients', icon: Users },
@@ -62,9 +73,10 @@ function useWorkspace() {
         billings: parsed.billings || (parsed.tasks || initialTasks).filter((task) => task.billable),
         reports: parsed.reports || [],
         activities: parsed.activities || [],
+        settings: { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) },
       }
     } catch {
-      return { clients: initialClients, tasks: initialTasks, logs: [], billings: [], reports: [], activities: [] }
+      return { clients: initialClients, tasks: initialTasks, logs: [], billings: [], reports: [], activities: [], settings: DEFAULT_SETTINGS }
     }
   })
   const [loading, setLoading] = useState(true)
@@ -75,15 +87,20 @@ function useWorkspace() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(workspace))
   }, [workspace])
+  useEffect(() => {
+    setWorkspaceCurrency(workspace.settings?.currency || 'NPR')
+    setWorkspaceDateFormat(workspace.settings?.date_format || 'MMM d, yyyy')
+  }, [workspace.settings?.currency, workspace.settings?.date_format])
 
   const loadApiData = async () => {
-    const [clients, taskRows, logs, billing, reports, activities] = await Promise.all([
+    const [clients, taskRows, logs, billing, reports, activities, settings] = await Promise.all([
       getClients(),
       getTasks(),
       getDailyLogs(),
       getBillings(),
       getReports(),
       getActivityLogs({ limit: 200 }).catch(() => []),
+      getSettings().catch(() => DEFAULT_SETTINGS),
     ])
     const attachments = await Promise.all(taskRows.map(async (task) => [
       String(task.id),
@@ -97,8 +114,11 @@ function useWorkspace() {
       billings: (billing.items || []).map(billingFromApi),
       reports: reports.map(reportFromApi),
       activities: activities.map(activityFromApi),
+      settings: { ...DEFAULT_SETTINGS, ...settings },
     }
     setWorkspace(next)
+    setWorkspaceCurrency(next.settings.currency)
+    setWorkspaceDateFormat(next.settings.date_format)
     setIsFallback(false)
     setConnectionStatus('connected')
     setError('')
@@ -329,40 +349,57 @@ function useWorkspace() {
     }
   }
 
+  const saveSettings = async (settings) => {
+    if (isFallback) {
+      setWorkspace((current) => ({ ...current, settings }))
+      setWorkspaceCurrency(settings.currency)
+      setWorkspaceDateFormat(settings.date_format)
+      return settings
+    }
+    const saved = await updateSettingsApi(settings)
+    setWorkspace((current) => ({ ...current, settings: saved }))
+    setWorkspaceCurrency(saved.currency)
+    setWorkspaceDateFormat(saved.date_format)
+    await refreshActivities()
+    return saved
+  }
+
   const resetWorkspace = () => {
     setIsFallback(true)
     setConnectionStatus('fallback')
     setError('Demo mode enabled. Data is stored in this browser only.')
-    setWorkspace({ clients: initialClients, tasks: initialTasks, logs: initialTasks.filter((task) => task.status === 'Completed'), billings: initialTasks.filter((task) => task.billable), reports: [], activities: [] })
+    setWorkspace({ clients: initialClients, tasks: initialTasks, logs: initialTasks.filter((task) => task.status === 'Completed'), billings: initialTasks.filter((task) => task.billable), reports: [], activities: [], settings: DEFAULT_SETTINGS })
+    setWorkspaceCurrency(DEFAULT_SETTINGS.currency)
+    setWorkspaceDateFormat(DEFAULT_SETTINGS.date_format)
   }
 
-  return { ...workspace, loading, error, isFallback, connectionStatus, saveTask, updateTask, deleteTask, saveClient, deleteClient, generateRecurringTasks, refreshActivities, resetWorkspace }
+  return { ...workspace, loading, error, isFallback, connectionStatus, saveTask, updateTask, deleteTask, saveClient, deleteClient, generateRecurringTasks, refreshActivities, saveSettings, resetWorkspace }
 }
 
-function Sidebar({ activePage, setActivePage, open, setOpen }) {
+function Sidebar({ activePage, setActivePage, open, setOpen, settings }) {
   return (
     <>
       {open && <button className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu" />}
       <aside className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-line bg-white transition-transform lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-16 items-center justify-between border-b border-line px-5">
-          <button className="flex items-center gap-3" onClick={() => setActivePage('Dashboard')}><span className="flex h-8 w-8 items-center justify-center bg-blue text-white"><Command size={17} /></span><span className="text-sm font-bold tracking-tight">BRAHMANDA <span className="text-blue">OS</span></span></button>
+          <button className="flex items-center gap-3" onClick={() => setActivePage('Dashboard')}><span className="flex h-8 w-8 items-center justify-center text-white" style={{ backgroundColor: settings.brand_color }}><Command size={17} /></span><span className="truncate text-sm font-bold tracking-tight">{settings.agency_name} <span style={{ color: settings.brand_color }}>OS</span></span></button>
           <button className="lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu"><X size={20} /></button>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-5">
           <p className="px-3 pb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">Workspace</p>
           <div className="space-y-1">{navigation.map(({ label, icon: Icon }, index) => <button key={label} onClick={() => { setActivePage(label); setOpen(false) }} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition ${(activePage === label || (activePage === 'Client Detail' && label === 'Clients')) ? 'bg-blue text-white' : 'text-zinc-600 hover:bg-canvas hover:text-ink'}`}><span className="w-5 text-[10px] tabular-nums opacity-50">{String(index + 1).padStart(2, '0')}</span><Icon size={17} strokeWidth={1.8} /><span className="font-medium">{label}</span></button>)}</div>
         </nav>
-        <div className="border-t border-line p-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center bg-ink text-xs font-bold text-white">BT</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">Brahmanda Tech</p><p className="text-xs text-zinc-500">Agency workspace</p></div><ChevronDown size={15} className="text-zinc-400" /></div></div>
+        <div className="border-t border-line p-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center bg-ink text-xs font-bold text-white">{settings.agency_name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{settings.agency_name}</p><p className="truncate text-xs text-zinc-500">{settings.legal_business_name}</p></div><ChevronDown size={15} className="text-zinc-400" /></div></div>
       </aside>
     </>
   )
 }
 
-function Topbar({ activePage, setOpen, onOpenSearch, quickAddOpen, setQuickAddOpen, quickAddActions, user, onLogout }) {
+function Topbar({ activePage, setOpen, onOpenSearch, quickAddOpen, setQuickAddOpen, quickAddActions, settings, user, onLogout }) {
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center border-b border-line bg-white/95 px-4 backdrop-blur md:px-7">
       <button className="mr-3 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu"><Menu size={22} /></button>
-      <div className="hidden min-w-0 flex-1 xl:block"><p className="truncate text-sm font-semibold">{activePage}</p><p className="hidden text-xs text-zinc-500 sm:block">Brahmanda Tech / Internal workspace</p></div>
+      <div className="hidden min-w-0 flex-1 xl:block"><p className="truncate text-sm font-semibold">{activePage}</p><p className="hidden truncate text-xs text-zinc-500 sm:block">{settings.agency_name} / Internal workspace</p></div>
       <button className="flex min-w-0 flex-1 items-center gap-2 border border-line bg-canvas px-3 py-2 text-left text-sm text-zinc-500 hover:border-zinc-400 xl:mx-6 xl:max-w-xl" onClick={onOpenSearch}><Search size={15} className="shrink-0" /><span className="truncate">Search clients, tasks, reports, proofs</span><kbd className="ml-auto hidden border border-line bg-white px-1.5 py-0.5 text-[10px] font-semibold sm:block">Ctrl K</kbd></button>
       <div className="relative ml-2 sm:ml-3"><button className="button-primary hidden sm:inline-flex" onClick={() => setQuickAddOpen((value) => !value)}><Plus size={15} />Quick Add<ChevronDown size={14} /></button><button className="flex h-9 w-9 items-center justify-center bg-blue text-white sm:hidden" onClick={() => setQuickAddOpen((value) => !value)} aria-label="Open Quick Add"><Plus size={17} /></button><QuickAddMenu open={quickAddOpen} onClose={() => setQuickAddOpen(false)} {...quickAddActions} /></div>
       <button className="relative ml-3 flex h-9 w-9 items-center justify-center border border-line" aria-label="Notifications"><Bell size={17} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 bg-blue" /></button>
@@ -648,10 +685,6 @@ function BillingPage({ clients, billings, updateTask }) {
   return <><PageHeading number="07" title="Billing" description="Only billable tasks appear here. Payment and invoice status persist locally." /><div className="mb-6 grid gap-px border border-line bg-line sm:grid-cols-3"><StatCard label="Total billable" value={formatMoney(total)} change={`${billable.length} items`} icon={CircleDollarSign} /><StatCard label="Paid" value={formatMoney(paid)} change={`${billable.filter((task) => task.paymentStatus === 'Paid').length} settled`} icon={CheckCircle2} /><StatCard label="Outstanding" value={formatMoney(total - paid)} change={`${billable.filter((task) => task.paymentStatus !== 'Paid').length} unpaid`} icon={Clock3} /></div><div className="panel"><Table columns={columns} data={billable} emptyMessage="No billable tasks have been added." /></div></>
 }
 
-function SettingsPage({ resetWorkspace }) {
-  return <><PageHeading number="08" title="Settings" description="Workspace preferences and local fallback controls." /><div className="grid gap-6 lg:grid-cols-[240px_1fr]"><nav className="panel h-fit p-2">{['Workspace', 'Team members', 'Task fields', 'Notifications', 'Billing details'].map((item, index) => <button key={item} className={`w-full px-3 py-2.5 text-left text-sm font-medium ${index === 0 ? 'bg-blue text-white' : 'hover:bg-canvas'}`}>{item}</button>)}</nav><section className="panel"><div className="border-b border-line p-6"><h2 className="text-lg font-semibold">Workspace details</h2><p className="mt-1 text-sm text-zinc-500">API data is cached locally and used when the backend is unavailable.</p></div><div className="space-y-5 p-6"><Field label="Workspace name"><input className="field" defaultValue="Brahmanda Tech" /></Field><div className="grid gap-5 sm:grid-cols-2"><Field label="Timezone"><select className="field" defaultValue="Asia/Kathmandu"><option>Asia/Kathmandu</option></select></Field><Field label="Currency"><select className="field" defaultValue="NPR"><option>NPR — Nepalese Rupee</option></select></Field></div><div className="border-t border-line pt-5"><h3 className="font-semibold">Reset local fallback data</h3><p className="mt-1 text-sm text-zinc-500">Switch to demo mode and restore the original clients and tasks.</p><button className="button-secondary mt-4 text-red-700" onClick={() => window.confirm('Reset local fallback data?') && resetWorkspace()}>Reset dummy data</button></div></div></section></div></>
-}
-
 function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   const workspace = useWorkspace()
   const initialClientId = window.location.hash.match(/^#clients\/(.+)$/)?.[1] || ''
@@ -674,8 +707,8 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     try { return JSON.parse(localStorage.getItem('brahmanda-recent-tasks') || '[]') } catch { return [] }
   })
 
-  const newTask = (defaults = {}) => setTaskModal({ ...blankTask(workspace.clients[0]?.id), ...defaults })
-  const quickTask = useCallback((defaults = {}) => setQuickTaskDefaults({ clientId: selectedClientId || workspace.clients[0]?.id, ...defaults }), [selectedClientId, workspace.clients])
+  const newTask = (defaults = {}) => setTaskModal({ ...blankTask(workspace.clients[0]?.id), priority: workspace.settings?.default_task_priority || 'Medium', ...defaults })
+  const quickTask = useCallback((defaults = {}) => setQuickTaskDefaults({ clientId: selectedClientId || workspace.clients[0]?.id, priority: workspace.settings?.default_task_priority || 'Medium', ...defaults }), [selectedClientId, workspace.clients, workspace.settings?.default_task_priority])
   const deleteTask = (id) => window.confirm('Delete this task? This cannot be undone.') && workspace.deleteTask(id)
   const deleteClient = (id) => window.confirm('Delete this client and all of its tasks?') && workspace.deleteClient(id)
   const navigatePage = (page) => {
@@ -804,13 +837,13 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     Calendar: <CalendarPage clients={workspace.clients} tasks={workspace.tasks} onEditTask={setTaskModal} updateTask={workspace.updateTask} />,
     'Recurring Tasks': <RecurringTasksPage clients={workspace.clients} tasks={workspace.tasks} onEditTask={setTaskModal} updateTask={workspace.updateTask} onGenerate={generateDueRecurring} generating={generatingRecurring} generationMessage={recurringMessage} />,
     Activity: <ActivityPage activities={activityResults} sourceActivities={workspace.activities || []} clients={workspace.clients} filters={activityFilters} setFilters={setActivityFilters} />,
-    Reports: <MonthlyReportsPage clients={workspace.clients} tasks={workspace.tasks} isFallback={workspace.isFallback} onActivityRefresh={workspace.refreshActivities} />,
+    Reports: <MonthlyReportsPage clients={workspace.clients} tasks={workspace.tasks} settings={workspace.settings || DEFAULT_SETTINGS} isFallback={workspace.isFallback} onActivityRefresh={workspace.refreshActivities} />,
     Billing: <BillingPage clients={workspace.clients} billings={workspace.billings} updateTask={workspace.updateTask} />,
     Team: <TeamPage currentUser={user} onCurrentUserUpdate={onUserUpdate} onActivityRefresh={workspace.refreshActivities} />,
-    Settings: <SettingsPage resetWorkspace={workspace.resetWorkspace} />,
+    Settings: <SettingsPage settings={workspace.settings || DEFAULT_SETTINGS} currentUser={user} onSaveSettings={workspace.saveSettings} onCurrentUserUpdate={onUserUpdate} resetWorkspace={workspace.resetWorkspace} />,
   }
 
-  return <div className="min-h-screen bg-canvas"><Sidebar activePage={activePage} setActivePage={navigatePage} open={sidebarOpen} setOpen={setSidebarOpen} /><div className="lg:pl-64"><Topbar activePage={activePage === 'Client Detail' ? selectedClient?.name || 'Client Detail' : activePage} setOpen={setSidebarOpen} onOpenSearch={() => { setSearchOpen(true); setQuickAddOpen(false) }} quickAddOpen={quickAddOpen} setQuickAddOpen={setQuickAddOpen} quickAddActions={quickAddActions} user={user} onLogout={onLogout} /><main className="mx-auto max-w-[1600px] p-4 md:p-7 lg:p-9">{workspace.error && <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{workspace.error}</div>}{workspace.loading ? <div className="panel flex min-h-64 items-center justify-center"><div className="text-center"><div className="mx-auto h-7 w-7 animate-spin border-2 border-zinc-200 border-t-blue" /><p className="mt-3 text-sm text-zinc-500">Loading workspace data…</p></div></div> : pages[activePage]}</main></div>
+  return <div className="min-h-screen bg-canvas"><Sidebar activePage={activePage} setActivePage={navigatePage} open={sidebarOpen} setOpen={setSidebarOpen} settings={workspace.settings || DEFAULT_SETTINGS} /><div className="lg:pl-64"><Topbar activePage={activePage === 'Client Detail' ? selectedClient?.name || 'Client Detail' : activePage} setOpen={setSidebarOpen} onOpenSearch={() => { setSearchOpen(true); setQuickAddOpen(false) }} quickAddOpen={quickAddOpen} setQuickAddOpen={setQuickAddOpen} quickAddActions={quickAddActions} settings={workspace.settings || DEFAULT_SETTINGS} user={user} onLogout={onLogout} /><main className="mx-auto max-w-[1600px] p-4 md:p-7 lg:p-9">{workspace.error && <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{workspace.error}</div>}{workspace.loading ? <div className="panel flex min-h-64 items-center justify-center"><div className="text-center"><div className="mx-auto h-7 w-7 animate-spin border-2 border-zinc-200 border-t-blue" /><p className="mt-3 text-sm text-zinc-500">Loading workspace data…</p></div></div> : pages[activePage]}</main></div>
     <Modal open={Boolean(taskModal)} onClose={() => setTaskModal(null)} title={taskModal?.id ? 'Edit task' : 'Create task'} description="Task changes update every workspace view.">{taskModal && <TaskForm task={taskModal} clients={workspace.clients} onSave={saveTaskWithRecent} onClose={() => setTaskModal(null)} />}</Modal>
     <Modal open={Boolean(quickTaskDefaults)} onClose={() => setQuickTaskDefaults(null)} title={quickTaskDefaults?.modeTitle || 'Quick add task'} description="Create essential daily work without opening the full task form.">{quickTaskDefaults && <QuickTaskForm clients={workspace.clients} defaults={quickTaskDefaults} onSave={saveTaskWithRecent} onClose={() => setQuickTaskDefaults(null)} />}</Modal>
     <Modal open={Boolean(clientModal)} onClose={() => setClientModal(null)} title={clientModal?.id ? 'Edit client' : 'Add client'} description="Create a client workspace for tasks, reports, and billing.">{clientModal && <ClientForm client={clientModal.id ? clientModal : null} onSave={workspace.saveClient} onClose={() => setClientModal(null)} />}</Modal>

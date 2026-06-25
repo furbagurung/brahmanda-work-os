@@ -1,10 +1,33 @@
-export function formatMoney(value) {
-  return `Rs ${Number(value || 0).toLocaleString()}`
+let workspaceCurrency = 'NPR'
+let workspaceDateFormat = 'MMM d, yyyy'
+
+export function setWorkspaceCurrency(currency) {
+  workspaceCurrency = currency || 'NPR'
 }
 
-export function formatDate(value, options = { month: 'short', day: 'numeric' }) {
+export function setWorkspaceDateFormat(dateFormat) {
+  workspaceDateFormat = dateFormat || 'MMM d, yyyy'
+}
+
+export function formatMoney(value, currency = workspaceCurrency) {
+  const amount = Number(value || 0)
+  if (currency === 'NPR') return `Rs ${amount.toLocaleString()}`
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)
+  } catch {
+    return `${currency} ${amount.toLocaleString()}`
+  }
+}
+
+export function formatDate(value, options = null) {
   if (!value) return 'No date'
-  return new Intl.DateTimeFormat('en-US', { ...options, timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
+  const defaults = workspaceDateFormat === 'dd/MM/yyyy'
+    ? { day: '2-digit', month: '2-digit', year: 'numeric' }
+    : workspaceDateFormat === 'yyyy-MM-dd'
+      ? { year: 'numeric', month: '2-digit', day: '2-digit' }
+      : { month: 'short', day: 'numeric', year: 'numeric' }
+  const locale = workspaceDateFormat === 'yyyy-MM-dd' ? 'en-CA' : workspaceDateFormat === 'dd/MM/yyyy' ? 'en-GB' : 'en-US'
+  return new Intl.DateTimeFormat(locale, { ...(options || defaults), timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
 }
 
 export function todayDateString() {

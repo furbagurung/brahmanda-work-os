@@ -19,11 +19,11 @@ function PageHeading() {
   return <div className="mb-8 flex items-start gap-4 border-b border-line pb-7 sm:gap-5"><span className="text-4xl font-light leading-none text-zinc-200 sm:text-5xl">06</span><div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Reports</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">Generate, review, save, and export monthly client delivery reports.</p></div></div>
 }
 
-export default function ReportsPage({ clients, tasks, isFallback, onActivityRefresh }) {
+export default function ReportsPage({ clients, tasks, settings, isFallback, onActivityRefresh }) {
   const [clientId, setClientId] = useState(clients[0]?.id || '')
   const [month, setMonth] = useState(6)
   const [year, setYear] = useState(2026)
-  const [status, setStatus] = useState('Draft')
+  const [status, setStatus] = useState(settings.default_report_status || 'Draft')
   const [report, setReport] = useState(null)
   const [generating, setGenerating] = useState(false)
   const [savingStatus, setSavingStatus] = useState(false)
@@ -33,6 +33,9 @@ export default function ReportsPage({ clients, tasks, isFallback, onActivityRefr
   useEffect(() => {
     if (!clients.some((client) => client.id === clientId)) setClientId(clients[0]?.id || '')
   }, [clients, clientId])
+  useEffect(() => {
+    if (!report) setStatus(settings.default_report_status || 'Draft')
+  }, [report, settings.default_report_status])
 
   const client = clients.find((item) => item.id === clientId)
   const periodPrefix = `${year}-${String(month).padStart(2, '0')}`
@@ -55,8 +58,8 @@ export default function ReportsPage({ clients, tasks, isFallback, onActivityRefr
     return `- ${task.title}${proofs ? `\n${proofs}` : ''}`
   }).join('\n') || '- None recorded'
 
-  const reportText = `BRAHMANDA TECH
-MONTHLY CLIENT REPORT
+  const reportText = `${settings.agency_name.toUpperCase()}
+${settings.report_title.toUpperCase()}
 
 Client: ${client?.name || 'Client'}
 Period: ${monthLabel} ${year}
@@ -79,12 +82,16 @@ ${listText(pending, (task) => `${task.title} (${task.status})`)}
 
 Extra billable work:
 ${listText(billable, (task) => `${task.title}: ${formatMoney(amountFor(task))}`)}
-Total billable amount: ${formatMoney(billableTotal)}
+Total billable amount: ${formatMoney(billableTotal, settings.currency)}
 
 Next month plan:
 ${nextMonthPlan.map((item) => `- ${item}`).join('\n')}
 
-Prepared by Brahmanda Tech`
+${settings.default_report_note ? `Note:\n${settings.default_report_note}\n\n` : ''}${settings.report_footer_text}
+
+${settings.legal_business_name}
+Contact: ${settings.contact_person} · ${settings.agency_email} · ${settings.agency_phone}
+PAN: ${settings.pan_number}`
 
   const contentForSave = (nextStatus, sourceReport = report) => ({
     client: sourceReport?.client || client,
@@ -97,7 +104,8 @@ Prepared by Brahmanda Tech`
     pending_tasks: sourceReport?.pending_tasks || pending,
     extra_billable_work: sourceReport?.extra_billable_work || { items: billable, total: billableTotal },
     next_month_plan: sourceReport?.next_month_plan || nextMonthPlan,
-    prepared_by: 'Brahmanda Tech',
+    prepared_by: settings.prepared_by,
+    branding: settings,
   })
 
   const saveSnapshot = (nextStatus, sourceReport = report) => saveReport({
@@ -154,7 +162,7 @@ Prepared by Brahmanda Tech`
     const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[character])
     const listHtml = (items, formatter = (item) => item.title) => items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(formatter(item))}</li>`).join('')}</ul>` : '<p>None recorded.</p>'
     const completedHtml = completed.length ? `<ul>${completed.map((task) => `<li><strong>${escapeHtml(task.title)}</strong>${attachmentsFor(task).length ? `<ul>${attachmentsFor(task).map((attachment) => `<li><a href="${escapeHtml(attachment.url)}">${escapeHtml(attachment.title)}</a></li>`).join('')}</ul>` : ''}</li>`).join('')}</ul>` : '<p>None recorded.</p>'
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(client?.name || 'Client')} - ${monthLabel} ${year}</title><style>body{font-family:Helvetica,Arial,sans-serif;color:#18181b;max-width:800px;margin:48px auto;padding:0 24px;line-height:1.6}header{border-bottom:3px solid #002fa7;padding-bottom:24px;margin-bottom:24px}.brand{color:#002fa7;font-weight:700;letter-spacing:.12em;font-size:12px}h1{margin:8px 0 0;font-size:30px}h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#52525b;border-top:1px solid #e4e4e7;padding-top:18px;margin-top:22px}li{margin:5px 0}a{color:#002fa7}.total{display:flex;justify-content:space-between;border-top:1px solid #e4e4e7;padding-top:10px;font-weight:700}footer{margin-top:36px;border-top:1px solid #e4e4e7;padding-top:18px;color:#52525b}</style></head><body><header><div class="brand">BRAHMANDA TECH / WORK OS</div><h1>Monthly Client Report</h1><p>${escapeHtml(client?.name || '')} · ${monthLabel} ${year} · ${escapeHtml(status)}</p></header><h2>Work completed</h2>${completedHtml}<h2>Designs and content delivered</h2>${listHtml(deliverables)}<h2>Website and technical work</h2>${listHtml(technicalWork)}<h2>Revisions completed</h2>${listHtml(revisions)}<h2>Pending tasks</h2>${listHtml(pending, (task) => `${task.title} (${task.status})`)}<h2>Extra billable work</h2>${listHtml(billable, (task) => `${task.title}: ${formatMoney(amountFor(task))}`)}<p class="total"><span>Total billable amount</span><span>${escapeHtml(formatMoney(billableTotal))}</span></p><h2>Next month plan</h2>${listHtml(nextMonthPlan, (item) => item)}<footer>Prepared by Brahmanda Tech</footer></body></html>`
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(client?.name || 'Client')} - ${monthLabel} ${year}</title><style>body{font-family:Helvetica,Arial,sans-serif;color:#18181b;max-width:800px;margin:48px auto;padding:0 24px;line-height:1.6}header{border-bottom:3px solid ${escapeHtml(settings.brand_color)};padding-bottom:24px;margin-bottom:24px}.brand{color:${escapeHtml(settings.brand_color)};font-weight:700;letter-spacing:.12em;font-size:12px}h1{margin:8px 0 0;font-size:30px}h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#52525b;border-top:1px solid #e4e4e7;padding-top:18px;margin-top:22px}li{margin:5px 0}a{color:${escapeHtml(settings.brand_color)}}.total{display:flex;justify-content:space-between;border-top:1px solid #e4e4e7;padding-top:10px;font-weight:700}footer{margin-top:36px;border-top:1px solid #e4e4e7;padding-top:18px;color:#52525b}</style></head><body><header><div class="brand">${escapeHtml(settings.logo_url || `${settings.agency_name} / Work OS`)}</div><h1>${escapeHtml(settings.report_title)}</h1><p>${escapeHtml(client?.name || '')} · ${monthLabel} ${year} · ${escapeHtml(status)}</p></header><p><strong>${escapeHtml(settings.legal_business_name)}</strong><br>${escapeHtml(settings.contact_person)} · ${escapeHtml(settings.agency_email)} · ${escapeHtml(settings.agency_phone)}<br>PAN: ${escapeHtml(settings.pan_number)}${settings.agency_address ? `<br>${escapeHtml(settings.agency_address)}` : ''}</p><h2>Work completed</h2>${completedHtml}<h2>Designs and content delivered</h2>${listHtml(deliverables)}<h2>Website and technical work</h2>${listHtml(technicalWork)}<h2>Revisions completed</h2>${listHtml(revisions)}<h2>Pending tasks</h2>${listHtml(pending, (task) => `${task.title} (${task.status})`)}<h2>Extra billable work</h2>${listHtml(billable, (task) => `${task.title}: ${formatMoney(amountFor(task), settings.currency)}`)}<p class="total"><span>Total billable amount</span><span>${escapeHtml(formatMoney(billableTotal, settings.currency))}</span></p><h2>Next month plan</h2>${listHtml(nextMonthPlan, (item) => item)}${settings.default_report_note ? `<h2>Note</h2><p>${escapeHtml(settings.default_report_note)}</p>` : ''}<footer>${escapeHtml(settings.report_footer_text)}<br>${escapeHtml(settings.prepared_by)}</footer></body></html>`
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }))
     const link = document.createElement('a')
     link.href = url
@@ -177,9 +185,9 @@ Prepared by Brahmanda Tech`
     </div>
 
     {report ? <article id="report-preview" className="mx-auto mt-6 max-w-4xl border border-line bg-white">
-      <header className="border-b-4 border-blue p-6 sm:p-8">
+      <header className="border-b-4 p-6 sm:p-8" style={{ borderColor: settings.brand_color }}>
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-          <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-blue">Brahmanda Tech / Work OS</p><h2 className="mt-3 text-3xl font-semibold tracking-tight">Monthly Client Report</h2><p className="mt-2 text-lg">{client?.name}</p><p className="mt-1 text-sm text-zinc-500">{monthLabel} {year}</p></div>
+          <div><p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: settings.brand_color }}>{settings.logo_url || `${settings.agency_name} / Work OS`}</p><h2 className="mt-3 text-3xl font-semibold tracking-tight">{settings.report_title}</h2><p className="mt-2 text-lg">{client?.name}</p><p className="mt-1 text-sm text-zinc-500">{monthLabel} {year}</p></div>
           <span className="border border-line px-3 py-1.5 text-xs font-semibold">{status}</span>
         </div>
         <div className="no-print mt-6 flex flex-wrap gap-2 border-t border-line pt-5">
@@ -196,7 +204,8 @@ Prepared by Brahmanda Tech`
         <ReportSection title="Pending tasks">{pending.length ? <div className="space-y-2">{pending.map((task) => <div key={task.id} className="flex items-center justify-between gap-4 border-b border-line pb-2"><span>{task.title}</span><StatusBadge status={task.status} /></div>)}</div> : <p>No pending tasks.</p>}</ReportSection>
         <ReportSection title="Extra billable work">{billable.length ? <div className="space-y-2">{billable.map((task) => <div key={task.id} className="flex justify-between gap-4"><span>{task.title}</span><strong>{formatMoney(amountFor(task))}</strong></div>)}</div> : <p className="text-zinc-500">No extra billable work recorded.</p>}<div className="mt-3 flex justify-between border-t border-line pt-3 text-base"><span>Total billable amount</span><strong>{formatMoney(billableTotal)}</strong></div></ReportSection>
         <ReportSection title="Next month plan"><ul className="list-disc space-y-1 pl-5">{nextMonthPlan.map((item) => <li key={item}>{item}</li>)}</ul></ReportSection>
-        <footer className="mt-7 border-t border-line pt-5 text-sm text-zinc-500"><p className="font-semibold text-ink">Prepared by Brahmanda Tech</p><p className="mt-1">Brahmanda Work OS · {status}</p></footer>
+        {settings.default_report_note && <ReportSection title="Report note"><p>{settings.default_report_note}</p></ReportSection>}
+        <footer className="mt-7 border-t border-line pt-5 text-sm text-zinc-500"><p className="font-semibold text-ink">{settings.report_footer_text}</p><p className="mt-1">{settings.legal_business_name} · PAN {settings.pan_number}</p><p className="mt-1">{settings.contact_person} · {settings.agency_email} · {settings.agency_phone}</p></footer>
       </div>
     </article> : <div className="mt-6"><EmptyState title="Report preview is ready to generate" description="Choose a client, month, and year, then generate a report from PHP API data." /></div>}
   </>

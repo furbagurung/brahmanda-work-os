@@ -44,6 +44,12 @@ For an existing database created before activity history was added, run:
 mysql -u root -p brahmanda_work_os < backend/sql/add_activity_logs.sql
 ```
 
+For an existing database created before workspace settings were added, run:
+
+```bash
+mysql -u root -p brahmanda_work_os < backend/sql/add_settings.sql
+```
+
 For an existing database created before token authentication was added, run:
 
 ```bash
@@ -184,6 +190,8 @@ The React frontend stores the token in localStorage for now. For higher-security
 | PATCH | `api/tasks.php?id=1&action=complete` | Mark completed and create daily log |
 | POST | `api/tasks.php?action=generate_recurring` | Generate normal tasks from recurring templates due today or earlier |
 | GET | `api/activity_logs.php` | List activity logs; optional `user_id`, `client_id`, `module`, `action_type`, `date_from`, `date_to` filters |
+| GET | `api/settings.php` | Get workspace settings |
+| PUT | `api/settings.php` | Admin-only single or batch settings update |
 | DELETE | `api/tasks.php?id=1` | Delete task |
 | GET | `api/attachments.php?task_id=1` | List proof links for a task |
 | GET | `api/attachments.php?client_id=1` | List all proof links for a client, grouped by task data |
