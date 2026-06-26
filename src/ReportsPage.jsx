@@ -42,7 +42,7 @@ export default function ReportsPage({ clients, tasks, settings, isFallback, onAc
   const scopedTasks = tasks.filter((task) => task.clientId === clientId)
   const fallbackCompleted = scopedTasks.filter((task) => task.status === 'Completed' && (task.completedAt || task.deadline || '').startsWith(periodPrefix))
   const completed = report?.work_completed || fallbackCompleted
-  const deliverables = report?.deliverables || completed.filter((task) => ['Design', 'Content', 'Social Media', 'Campaign', 'Presentation'].includes(task.category))
+  const deliverables = report?.deliverables || completed.filter((task) => ['Reels', 'Print Design', 'Content', 'Campaign', 'Presentation'].includes(task.category))
   const technicalWork = report?.technical_work || completed.filter((task) => ['Web', 'Technical', 'Development', 'SEO', 'Digital'].includes(task.category))
   const revisions = report?.revisions_completed || completed.filter((task) => `${task.title} ${task.description || ''}`.toLowerCase().includes('revision'))
   const pending = report?.pending_tasks || scopedTasks.filter((task) => task.status !== 'Completed')

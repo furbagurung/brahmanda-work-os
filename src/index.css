@@ -9,13 +9,14 @@
 html {
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   color: #18181b;
-  background: #f7f7f8;
+  background: radial-gradient(circle at top, rgba(59, 130, 246, 0.12), transparent 35%), linear-gradient(180deg, #f8fbff 0%, #eef2ff 100%);
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: transparent;
 }
 
 button,
@@ -29,8 +30,8 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #002fa7;
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(0, 47, 167, 0.12);
 }
 
 ::-webkit-scrollbar {
@@ -44,19 +45,23 @@ textarea:focus-visible {
 
 @layer components {
   .panel {
-    @apply border border-line bg-white;
+    @apply overflow-hidden rounded-3xl border border-line bg-white shadow-sm;
   }
 
   .button-primary {
-    @apply inline-flex items-center justify-center gap-2 bg-blue px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#002680];
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-blue px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002680];
   }
 
   .button-secondary {
-    @apply inline-flex items-center justify-center gap-2 border border-line bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-zinc-400;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-line bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-zinc-400 hover:bg-zinc-50;
   }
 
   .field {
-    @apply w-full border border-line bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-zinc-400 focus:border-blue;
+    @apply w-full rounded-2xl border border-line bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-zinc-400;
+  }
+
+  .field:focus {
+    @apply border-blue bg-white shadow-[0_0_0_2px_rgba(0,47,167,0.16)];
   }
 }
 

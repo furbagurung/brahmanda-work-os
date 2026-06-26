@@ -1,7 +1,20 @@
 const AUTH_STORAGE_KEY = 'brahmanda-work-os-auth'
+const REMEMBER_EMAIL_KEY = 'brahmanda-work-os-remember-email'
 
 export function saveAuthSession(session) {
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session))
+}
+
+export function saveRememberedEmail(email) {
+  localStorage.setItem(REMEMBER_EMAIL_KEY, email)
+}
+
+export function getRememberedEmail() {
+  return localStorage.getItem(REMEMBER_EMAIL_KEY) || ''
+}
+
+export function clearRememberedEmail() {
+  localStorage.removeItem(REMEMBER_EMAIL_KEY)
 }
 
 export function getAuthSession() {

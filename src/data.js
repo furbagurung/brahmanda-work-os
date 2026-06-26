@@ -1,6 +1,6 @@
 export const TASK_STATUSES = ['New', 'In Progress', 'Waiting for Client', 'Revision', 'Completed']
 export const PRIORITIES = ['Urgent', 'High', 'Medium', 'Low']
-export const CATEGORIES = ['Design', 'Content', 'Social Media', 'Web', 'Campaign', 'Presentation', 'Reporting', 'Digital']
+export const CATEGORIES = ['Reels', 'Print Design', 'Content', 'Web', 'Campaign', 'Presentation', 'Reporting', 'Digital']
 
 export const initialClients = [
   { id: 'client-1', name: '20D Cinema', initials: '20', color: '#002FA7', contact: 'Marketing Team', email: 'marketing@20dcinema.example', phone: '+977 9800000001', status: 'Active', notes: 'Film promotion, social media, and campaign creative.' },
@@ -10,8 +10,8 @@ export const initialClients = [
 ]
 
 export const initialTasks = [
-  { id: 'task-1', clientId: 'client-1', title: 'June social media calendar', description: 'Finalize the monthly content calendar and secure internal approval.', category: 'Social Media', priority: 'High', deadline: '2026-06-25', status: 'In Progress', proofLink: 'https://drive.google.com', billable: false, amount: 0, assignee: 'AS', completedAt: '' },
-  { id: 'task-2', clientId: 'client-2', title: 'Product label revisions', description: 'Apply copy corrections to the final packaging files.', category: 'Design', priority: 'Urgent', deadline: '2026-06-25', status: 'Revision', proofLink: 'https://figma.com', billable: true, amount: 6500, assignee: 'NK', completedAt: '', paymentStatus: 'Unpaid', invoiceStatus: 'Not invoiced' },
+  { id: 'task-1', clientId: 'client-1', title: 'June reels calendar', description: 'Finalize the monthly content calendar and secure internal approval.', category: 'Reels', priority: 'High', deadline: '2026-06-25', status: 'In Progress', proofLink: 'https://drive.google.com', billable: false, amount: 0, assignee: 'AS', completedAt: '' },
+  { id: 'task-2', clientId: 'client-2', title: 'Product label revisions', description: 'Apply copy corrections to the final packaging files.', category: 'Print Design', priority: 'Urgent', deadline: '2026-06-25', status: 'Revision', proofLink: 'https://figma.com', billable: true, amount: 6500, assignee: 'NK', completedAt: '', paymentStatus: 'Unpaid', invoiceStatus: 'Not invoiced' },
   { id: 'task-3', clientId: 'client-3', title: 'Website performance review', description: 'Review Core Web Vitals and prepare the optimization checklist.', category: 'Web', priority: 'Medium', deadline: '2026-06-26', status: 'New', proofLink: '', billable: false, amount: 0, assignee: 'SB', completedAt: '' },
   { id: 'task-4', clientId: 'client-4', title: 'Company profile copy', description: 'Review the first draft with the client and collect feedback.', category: 'Content', priority: 'Medium', deadline: '2026-06-27', status: 'Waiting for Client', proofLink: 'https://docs.google.com', billable: false, amount: 0, assignee: 'AS', completedAt: '' },
   { id: 'task-5', clientId: 'client-1', title: 'Movie campaign key visual', description: 'Create the primary visual direction for the upcoming campaign.', category: 'Campaign', priority: 'High', deadline: '2026-06-28', status: 'In Progress', proofLink: 'https://figma.com', billable: true, amount: 12000, assignee: 'NK', completedAt: '', paymentStatus: 'Unpaid', invoiceStatus: 'Draft' },

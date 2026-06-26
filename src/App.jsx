@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   AlertTriangle, BarChart3, Bell, BellRing, BriefcaseBusiness, CalendarDays, CalendarRange, CheckCircle2, ChevronDown,
-  CircleDollarSign, ClipboardCopy, ClipboardList, Clock3, Command, FileText,
+  ChevronLeft, ChevronRight, CircleDollarSign, ClipboardCopy, ClipboardList, Clock3, Command, FileText,
   History, LayoutDashboard, LogOut, Menu, Plus, ReceiptText, Repeat2, Search, Settings, Users, UsersRound, X,
 } from 'lucide-react'
 import {
@@ -376,42 +376,94 @@ function useWorkspace() {
   return { ...workspace, loading, error, isFallback, connectionStatus, saveTask, updateTask, deleteTask, saveClient, deleteClient, generateRecurringTasks, refreshActivities, saveSettings, resetWorkspace }
 }
 
-function Sidebar({ activePage, setActivePage, open, setOpen, settings }) {
+function Sidebar({ activePage, setActivePage, open, setOpen, collapsed, settings }) {
+  const initials = settings.agency_name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
   return (
     <>
       {open && <button className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu" />}
-      <aside className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-line bg-white transition-transform lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex h-16 items-center justify-between border-b border-line px-5">
-          <button className="flex items-center gap-3" onClick={() => setActivePage('Dashboard')}><span className="flex h-8 w-8 items-center justify-center text-white" style={{ backgroundColor: settings.brand_color }}><Command size={17} /></span><span className="truncate text-sm font-bold tracking-tight">{settings.agency_name} <span style={{ color: settings.brand_color }}>OS</span></span></button>
-          <button className="lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu"><X size={20} /></button>
+      <aside className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-line bg-white/95 shadow-lg transition-all duration-300 ease-out backdrop-blur-xl ${collapsed ? 'w-20' : 'w-64'} ${open ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
+        <div className="flex h-16 items-center gap-3 border-b border-line px-4">
+          <button className="flex items-center gap-3 truncate" onClick={() => setActivePage('Dashboard')}>
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl text-white" style={{ backgroundColor: settings.brand_color }}><Command size={18} /></span>
+            {!collapsed && <span className="truncate text-sm font-bold tracking-tight">{settings.agency_name} <span style={{ color: settings.brand_color }}>OS</span></span>}
+          </button>
+          <button className="ml-auto rounded-2xl p-2 text-zinc-500 hover:bg-canvas lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu"><X size={20} /></button>
         </div>
-        <nav className="flex-1 overflow-y-auto px-3 py-5">
-          <p className="px-3 pb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">Workspace</p>
-          <div className="space-y-1">{navigation.map(({ label, icon: Icon }, index) => <button key={label} onClick={() => { setActivePage(label); setOpen(false) }} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition ${(activePage === label || (activePage === 'Client Detail' && label === 'Clients')) ? 'bg-blue text-white' : 'text-zinc-600 hover:bg-canvas hover:text-ink'}`}><span className="w-5 text-[10px] tabular-nums opacity-50">{String(index + 1).padStart(2, '0')}</span><Icon size={17} strokeWidth={1.8} /><span className="font-medium">{label}</span></button>)}</div>
+        <nav className="flex-1 overflow-y-auto px-2 py-5">
+          {!collapsed && <p className="px-3 pb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">Workspace</p>}
+          <div className="space-y-1">
+            {navigation.map(({ label, icon: Icon }) => {
+              const isActive = activePage === label || (activePage === 'Client Detail' && label === 'Clients')
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => { setActivePage(label); setOpen(false) }}
+                  title={collapsed ? label : undefined}
+                  aria-label={collapsed ? label : undefined}
+                  className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-2xl px-3 py-2.5 text-left text-sm transition duration-200 ${isActive ? 'bg-blue text-white shadow-sm' : 'text-zinc-600 hover:bg-canvas hover:text-ink'}`}
+                >
+                  <Icon size={17} strokeWidth={1.8} />
+                  {!collapsed && <span className="font-medium">{label}</span>}
+                </button>
+              )
+            })}
+          </div>
         </nav>
-        <div className="border-t border-line p-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center bg-ink text-xs font-bold text-white">{settings.agency_name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{settings.agency_name}</p><p className="truncate text-xs text-zinc-500">{settings.legal_business_name}</p></div><ChevronDown size={15} className="text-zinc-400" /></div></div>
+        <div className="border-t border-line p-4">
+          <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
+            <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-ink text-xs font-bold text-white">{initials}</span>
+            {!collapsed && <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{settings.agency_name}</p><p className="truncate text-xs text-zinc-500">{settings.legal_business_name}</p></div>}
+            {!collapsed && <ChevronDown size={15} className="text-zinc-400" />}
+          </div>
+        </div>
       </aside>
     </>
   )
 }
 
-function Topbar({ activePage, setOpen, onOpenSearch, quickAddOpen, setQuickAddOpen, quickAddActions, settings, user, onLogout }) {
+function Topbar({ activePage, setOpen, onToggleCollapse, collapsed, onOpenSearch, quickAddOpen, setQuickAddOpen, quickAddActions, settings, user, onLogout }) {
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center border-b border-line bg-white/95 px-4 backdrop-blur md:px-7">
-      <button className="mr-3 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu"><Menu size={22} /></button>
+    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-line bg-white/95 px-4 shadow-sm backdrop-blur-md md:px-7">
+      <button className="mr-3 rounded-2xl border border-line bg-white p-2 text-zinc-500 shadow-sm hover:border-zinc-400 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu"><Menu size={22} /></button>
+      <button className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-line bg-white text-zinc-500 transition hover:border-zinc-400 lg:inline-flex shadow-sm" onClick={onToggleCollapse} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+        {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+      </button>
       <div className="hidden min-w-0 flex-1 xl:block"><p className="truncate text-sm font-semibold">{activePage}</p><p className="hidden truncate text-xs text-zinc-500 sm:block">{settings.agency_name} / Internal workspace</p></div>
-      <button className="flex min-w-0 flex-1 items-center gap-2 border border-line bg-canvas px-3 py-2 text-left text-sm text-zinc-500 hover:border-zinc-400 xl:mx-6 xl:max-w-xl" onClick={onOpenSearch}><Search size={15} className="shrink-0" /><span className="truncate">Search clients, tasks, reports, proofs</span><kbd className="ml-auto hidden border border-line bg-white px-1.5 py-0.5 text-[10px] font-semibold sm:block">Ctrl K</kbd></button>
-      <div className="relative ml-2 sm:ml-3"><button className="button-primary hidden sm:inline-flex" onClick={() => setQuickAddOpen((value) => !value)}><Plus size={15} />Quick Add<ChevronDown size={14} /></button><button className="flex h-9 w-9 items-center justify-center bg-blue text-white sm:hidden" onClick={() => setQuickAddOpen((value) => !value)} aria-label="Open Quick Add"><Plus size={17} /></button><QuickAddMenu open={quickAddOpen} onClose={() => setQuickAddOpen(false)} {...quickAddActions} /></div>
-      <button className="relative ml-3 flex h-9 w-9 items-center justify-center border border-line" aria-label="Notifications"><Bell size={17} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 bg-blue" /></button>
-      <div className="ml-3 hidden text-right md:block"><p className="text-xs font-semibold">{user.name}</p><p className="text-[11px] capitalize text-zinc-500">{user.role}</p></div>
-      <span className="ml-3 flex h-9 w-9 items-center justify-center bg-ink text-xs font-bold text-white">{user.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span>
-      <button className="ml-2 flex h-9 w-9 items-center justify-center border border-line text-zinc-500 hover:border-zinc-400 hover:text-ink" onClick={onLogout} aria-label="Log out"><LogOut size={16} /></button>
+      <button className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-line bg-canvas px-3 py-2 text-left text-sm text-zinc-500 shadow-sm transition hover:border-zinc-400 hover:bg-white/80 xl:mx-6 xl:max-w-xl" onClick={onOpenSearch}>
+        <Search size={15} className="shrink-0" />
+        <span className="truncate">Search clients, tasks, reports, proofs</span>
+        <kbd className="ml-auto hidden rounded border border-line bg-white px-1.5 py-0.5 text-[10px] font-semibold sm:block">Ctrl K</kbd>
+      </button>
+      <div className="relative ml-2 sm:ml-3">
+        <button className="button-primary hidden sm:inline-flex" onClick={() => setQuickAddOpen((value) => !value)}><Plus size={15} />Quick Add<ChevronDown size={14} /></button>
+        <button className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue text-white shadow-sm sm:hidden" onClick={() => setQuickAddOpen((value) => !value)} aria-label="Open Quick Add"><Plus size={17} /></button>
+        <QuickAddMenu open={quickAddOpen} onClose={() => setQuickAddOpen(false)} {...quickAddActions} />
+      </div>
+      <button className="relative ml-3 flex h-9 w-9 items-center justify-center rounded-2xl border border-line bg-white text-zinc-500 shadow-sm" aria-label="Notifications"><Bell size={17} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-blue" /></button>
+      <div className="ml-3 hidden text-right md:block">
+        <p className="text-xs font-semibold">{user.name}</p>
+        <p className="text-[11px] capitalize text-zinc-500">{user.role}</p>
+      </div>
+      <span className="ml-3 flex h-9 w-9 items-center justify-center rounded-2xl bg-ink text-xs font-bold text-white">{user.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span>
+      <button className="ml-2 flex h-9 w-9 items-center justify-center rounded-2xl border border-line text-zinc-500 hover:border-zinc-400 hover:text-ink" onClick={onLogout} aria-label="Log out"><LogOut size={16} /></button>
     </header>
   )
 }
 
 function PageHeading({ number, title, description, action, onAction }) {
-  return <div className="mb-8 flex flex-col gap-5 border-b border-line pb-7 sm:flex-row sm:items-end sm:justify-between"><div className="flex items-start gap-4 sm:gap-5"><span className="text-4xl font-light leading-none text-zinc-200 sm:text-5xl">{number}</span><div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{title}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">{description}</p></div></div>{action && <button className="button-primary self-start sm:self-auto" onClick={onAction}><Plus size={16} />{action}</button>}</div>
+  return (
+    <div className="mb-8 rounded-[2rem] border border-line bg-white/90 px-6 py-6 shadow-sm sm:flex sm:items-end sm:justify-between sm:gap-6">
+      <div className="flex items-start gap-4 sm:gap-5">
+        <span className="text-4xl font-light leading-none text-zinc-200 sm:text-5xl">{number}</span>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{title}</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">{description}</p>
+        </div>
+      </div>
+      {action && <button className="button-primary self-start sm:self-auto" onClick={onAction}><Plus size={16} />{action}</button>}
+    </div>
+  )
 }
 
 function Field({ label, children, className = '' }) {
@@ -634,7 +686,7 @@ export function LegacyReportsPage({ clients, tasks, isFallback }) {
   const completed = apiReport?.work_completed || fallbackCompleted
   const pending = apiReport?.pending_tasks || fallbackPending
   const billable = apiReport?.extra_billable_work?.items || fallbackBillable
-  const deliverables = apiReport?.deliverables || completed.filter((task) => ['Design', 'Content', 'Social Media', 'Campaign', 'Presentation'].includes(task.category))
+  const deliverables = apiReport?.deliverables || completed.filter((task) => ['Reels', 'Print Design', 'Content', 'Campaign', 'Presentation'].includes(task.category))
   const monthLabel = month ? new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${month}-01T00:00:00Z`)) : ''
   const amountFor = (task) => Number(task.billable_amount ?? task.amount ?? 0)
   const reportText = `${client?.name || 'Client'} — ${monthLabel}\n\nWork completed:\n${completed.map((task) => `- ${task.title}`).join('\n') || '- No completed work recorded'}\n\nDesigns/content delivered:\n${deliverables.map((task) => `- ${task.title}`).join('\n') || '- No design or content deliverables recorded'}\n\nPending tasks:\n${pending.map((task) => `- ${task.title} (${task.status})`).join('\n') || '- No pending tasks'}\n\nExtra billable work:\n${billable.map((task) => `- ${task.title}: ${formatMoney(amountFor(task))}`).join('\n') || '- No extra billable work'}\n\nNext month plan:\n- Complete pending deliverables\n- Review campaign performance\n- Confirm next month priorities with the client`
@@ -691,6 +743,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   const [activePage, setActivePage] = useState(initialClientId ? 'Client Detail' : 'Dashboard')
   const [selectedClientId, setSelectedClientId] = useState(initialClientId ? decodeURIComponent(initialClientId) : '')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [taskModal, setTaskModal] = useState(null)
   const [clientModal, setClientModal] = useState(null)
   const [quickTaskDefaults, setQuickTaskDefaults] = useState(null)
@@ -843,7 +896,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     Settings: <SettingsPage settings={workspace.settings || DEFAULT_SETTINGS} currentUser={user} onSaveSettings={workspace.saveSettings} onCurrentUserUpdate={onUserUpdate} resetWorkspace={workspace.resetWorkspace} />,
   }
 
-  return <div className="min-h-screen bg-canvas"><Sidebar activePage={activePage} setActivePage={navigatePage} open={sidebarOpen} setOpen={setSidebarOpen} settings={workspace.settings || DEFAULT_SETTINGS} /><div className="lg:pl-64"><Topbar activePage={activePage === 'Client Detail' ? selectedClient?.name || 'Client Detail' : activePage} setOpen={setSidebarOpen} onOpenSearch={() => { setSearchOpen(true); setQuickAddOpen(false) }} quickAddOpen={quickAddOpen} setQuickAddOpen={setQuickAddOpen} quickAddActions={quickAddActions} settings={workspace.settings || DEFAULT_SETTINGS} user={user} onLogout={onLogout} /><main className="mx-auto max-w-[1600px] p-4 md:p-7 lg:p-9">{workspace.error && <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{workspace.error}</div>}{workspace.loading ? <div className="panel flex min-h-64 items-center justify-center"><div className="text-center"><div className="mx-auto h-7 w-7 animate-spin border-2 border-zinc-200 border-t-blue" /><p className="mt-3 text-sm text-zinc-500">Loading workspace data…</p></div></div> : pages[activePage]}</main></div>
+  return <div className="min-h-screen bg-canvas"><Sidebar activePage={activePage} setActivePage={navigatePage} open={sidebarOpen} setOpen={setSidebarOpen} collapsed={sidebarCollapsed} settings={workspace.settings || DEFAULT_SETTINGS} /><div className={sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'}><Topbar activePage={activePage === 'Client Detail' ? selectedClient?.name || 'Client Detail' : activePage} setOpen={setSidebarOpen} onToggleCollapse={() => setSidebarCollapsed((value) => !value)} collapsed={sidebarCollapsed} onOpenSearch={() => { setSearchOpen(true); setQuickAddOpen(false) }} quickAddOpen={quickAddOpen} setQuickAddOpen={setQuickAddOpen} quickAddActions={quickAddActions} settings={workspace.settings || DEFAULT_SETTINGS} user={user} onLogout={onLogout} /><main className="mx-auto max-w-[1600px] p-4 md:p-7 lg:p-9">{workspace.error && <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{workspace.error}</div>}{workspace.loading ? <div className="panel flex min-h-64 items-center justify-center"><div className="text-center"><div className="mx-auto h-7 w-7 animate-spin border-2 border-zinc-200 border-t-blue" /><p className="mt-3 text-sm text-zinc-500">Loading workspace data…</p></div></div> : pages[activePage]}</main></div>
     <Modal open={Boolean(taskModal)} onClose={() => setTaskModal(null)} title={taskModal?.id ? 'Edit task' : 'Create task'} description="Task changes update every workspace view.">{taskModal && <TaskForm task={taskModal} clients={workspace.clients} onSave={saveTaskWithRecent} onClose={() => setTaskModal(null)} />}</Modal>
     <Modal open={Boolean(quickTaskDefaults)} onClose={() => setQuickTaskDefaults(null)} title={quickTaskDefaults?.modeTitle || 'Quick add task'} description="Create essential daily work without opening the full task form.">{quickTaskDefaults && <QuickTaskForm clients={workspace.clients} defaults={quickTaskDefaults} onSave={saveTaskWithRecent} onClose={() => setQuickTaskDefaults(null)} />}</Modal>
     <Modal open={Boolean(clientModal)} onClose={() => setClientModal(null)} title={clientModal?.id ? 'Edit client' : 'Add client'} description="Create a client workspace for tasks, reports, and billing.">{clientModal && <ClientForm client={clientModal.id ? clientModal : null} onSave={workspace.saveClient} onClose={() => setClientModal(null)} />}</Modal>
