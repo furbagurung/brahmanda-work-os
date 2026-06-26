@@ -2,9 +2,26 @@
 
 declare(strict_types=1);
 
+function appConfig(string $key, $default = null)
+{
+    static $config = null;
+    if ($config === null) {
+        $file = __DIR__ . '/../config/app.php';
+        $config = is_file($file) ? require $file : [];
+        if (!is_array($config)) {
+            $config = [];
+        }
+    }
+
+    $environmentKey = strtoupper($key);
+    $environmentValue = getenv($environmentKey);
+    return $environmentValue !== false ? $environmentValue : ($config[$key] ?? $default);
+}
+
 function bootstrapApi(): void
 {
-    $origin = getenv('CORS_ORIGIN') ?: '*';
+    $origin = appConfig('cors_origin', '*');
+    date_default_timezone_set((string) appConfig('timezone', 'Asia/Kathmandu'));
 
     header('Access-Control-Allow-Origin: ' . $origin);
     header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -98,7 +115,7 @@ function boolValue($value): int
 
 function handleException(Throwable $exception): void
 {
-    $isDevelopment = (getenv('APP_ENV') ?: 'production') === 'development';
+    $isDevelopment = appConfig('app_env', 'production') === 'development';
     $message = $isDevelopment ? $exception->getMessage() : 'An unexpected server error occurred.';
 
     errorResponse($message, 500);

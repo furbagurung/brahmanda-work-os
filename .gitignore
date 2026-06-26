@@ -1,4 +1,13 @@
 node_modules
 dist
 .env
+.env.*
+!.env.example
 backend/config/database.php
+backend/config/app.php
+backend/config/*.local.php
+*.pem
+*.key
+*.log
+credentials*.json
+secrets*.json

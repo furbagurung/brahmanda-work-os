@@ -73,7 +73,9 @@ Change this password before using the application outside local development.
 
 ### 2. Configure the PHP database connection
 
-Set environment variables or update the local defaults in `config/database.php`.
+Copy `config/database.example.php` to `config/database.php` and
+`config/app.example.php` to `config/app.php`. Set environment variables or
+update the local defaults in those ignored files.
 
 Supported environment variables:
 
@@ -122,7 +124,8 @@ The frontend displays `Connected to API` when all initial requests succeed. If t
 
 ## cPanel or VPS setup
 
-Point the web server document root at `backend/`, or upload the folder beneath an existing public root. Set `CORS_ORIGIN` to the deployed React application origin.
+Follow the root `DEPLOYMENT.md` for the recommended public-directory layout,
+permissions, CORS, Apache/Nginx configuration, and production checks.
 
 All request bodies use JSON. All responses have this shape:
 
@@ -179,6 +182,7 @@ The React frontend stores the token in localStorage for now. For higher-security
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
+| GET | `api/health.php` | Public API and database health check |
 | GET | `api/clients.php` | List clients |
 | GET | `api/clients.php?id=1` | Get one client with task totals |
 | POST | `api/clients.php` | Add client |
