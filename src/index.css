@@ -9,7 +9,7 @@
 html {
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   color: #18181b;
-  background: #f5f6f8;
+  background: #f7f7f8;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -57,7 +57,7 @@ textarea:focus-visible,
 a:focus-visible,
 [role="button"]:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(0, 47, 167, 0.18);
+  box-shadow: 0 0 0 2px rgba(0, 47, 167, 0.14);
 }
 
 ::-webkit-scrollbar {
@@ -74,23 +74,23 @@ a:focus-visible,
 
 @layer components {
   .panel {
-    @apply overflow-hidden rounded-2xl border border-white/70 bg-white shadow-[0_6px_24px_rgba(24,24,27,0.045)] ring-1 ring-zinc-200/80;
+    @apply overflow-hidden rounded-xl border border-zinc-200 bg-white;
   }
 
   .button-primary {
-    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-blue px-4 py-2.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(0,47,167,0.22)] transition duration-150 hover:-translate-y-px hover:bg-[#002680] hover:shadow-[0_7px_16px_rgba(0,47,167,0.24)] active:translate-y-0;
+    @apply inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-blue px-3.5 py-2 text-sm font-semibold text-white transition duration-150 hover:bg-[#002680];
   }
 
   .button-secondary {
-    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-ink shadow-[0_2px_7px_rgba(24,24,27,0.04)] transition duration-150 hover:-translate-y-px hover:border-zinc-300 hover:bg-zinc-50 hover:shadow-md active:translate-y-0;
+    @apply inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-3.5 py-2 text-sm font-semibold text-ink transition duration-150 hover:border-zinc-300 hover:bg-zinc-50;
   }
 
   .field {
-    @apply min-h-10 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-ink shadow-[0_1px_2px_rgba(24,24,27,0.025)] outline-none transition duration-150 placeholder:text-zinc-400 hover:border-zinc-300;
+    @apply min-h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-ink outline-none transition duration-150 placeholder:text-zinc-400 hover:border-zinc-300;
   }
 
   .field:focus {
-    @apply border-blue bg-white shadow-[0_0_0_3px_rgba(0,47,167,0.12)];
+    @apply border-zinc-400 bg-white shadow-[0_0_0_2px_rgba(0,47,167,0.08)];
   }
 
   .section-header {
@@ -108,6 +108,19 @@ a:focus-visible,
   .alert-warning {
     @apply rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900;
   }
+}
+
+/* Keep legacy page-local utility combinations inside the restrained product system. */
+[class*="rounded-3xl"] {
+  border-radius: 0.75rem !important;
+}
+
+[class*="rounded-2xl"] {
+  border-radius: 0.75rem !important;
+}
+
+[class*="shadow-["] {
+  box-shadow: 0 1px 2px rgba(24, 24, 27, 0.035) !important;
 }
 
 ::selection {

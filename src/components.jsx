@@ -24,8 +24,8 @@ const priorityStyle = {
 const buttonStyles = {
   primary: 'button-primary',
   secondary: 'button-secondary',
-  ghost: 'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100 hover:text-ink',
-  danger: 'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 hover:border-red-300',
+  ghost: 'inline-flex min-h-9 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100 hover:text-ink',
+  danger: 'inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3.5 py-2 text-sm font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-50',
 }
 
 const badgeVariants = {
@@ -37,7 +37,7 @@ const badgeVariants = {
 }
 
 export function Card({ children, className = '', interactive = false }) {
-  return <section className={`panel ${interactive ? 'transition duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-lg' : ''} ${className}`}>{children}</section>
+  return <section className={`panel ${interactive ? 'transition duration-150 hover:border-zinc-300 hover:bg-zinc-50/30' : ''} ${className}`}>{children}</section>
 }
 
 export const Button = forwardRef(function Button({ children, variant = 'primary', className = '', type = 'button', ...props }, ref) {
@@ -52,13 +52,14 @@ export const Select = forwardRef(function Select({ children, className = '', ...
   return <select ref={ref} className={`field ${className}`} {...props}>{children}</select>
 })
 
-export function PageHeader({ number, title, description, actions, action, onAction }) {
-  return <header className="mb-8 flex flex-col gap-5 rounded-2xl border border-white/70 bg-white px-5 py-5 shadow-[0_8px_28px_rgba(24,24,27,0.055)] ring-1 ring-zinc-200/80 sm:flex-row sm:items-end sm:justify-between sm:px-7 sm:py-6">
-    <div className="flex items-start gap-4 sm:gap-5">
-      {number && <span className="select-none text-4xl font-light leading-none tracking-[-0.06em] text-zinc-200 tabular-nums sm:text-5xl">{number}</span>}
-      <div><h1 className="text-2xl font-semibold tracking-[-0.025em] text-ink md:text-[2rem]">{title}</h1>{description && <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">{description}</p>}</div>
+export function PageHeader({ number, eyebrow, title, description, actions, action, onAction }) {
+  const headerAction = actions || (typeof action === 'string' ? <Button onClick={onAction}>{action}</Button> : action)
+  return <header className="mb-7 flex flex-col gap-4 border-b border-zinc-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex items-start gap-3">
+      {number && <span className="select-none pt-1 text-xs font-semibold text-zinc-400 tabular-nums">{number}</span>}
+      <div>{eyebrow && <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-400">{eyebrow}</p>}<h1 className="text-2xl font-semibold tracking-[-0.02em] text-ink md:text-[1.75rem]">{title}</h1>{description && <p className="mt-1.5 max-w-2xl text-sm leading-6 text-zinc-500">{description}</p>}</div>
     </div>
-    {actions || (action && <Button onClick={onAction}>{action}</Button>)}
+    {headerAction}
   </header>
 }
 
@@ -67,7 +68,7 @@ export function SectionHeader({ title, description, action, className = '' }) {
 }
 
 export function TableWrapper({ children, className = '' }) {
-  return <div className={`overflow-hidden rounded-2xl border border-line bg-white shadow-[0_4px_18px_rgba(24,24,27,0.035)] ${className}`}>{children}</div>
+  return <div className={`overflow-hidden rounded-xl border border-zinc-200 bg-white ${className}`}>{children}</div>
 }
 
 export function Skeleton({ className = '' }) {
@@ -76,19 +77,19 @@ export function Skeleton({ className = '' }) {
 
 export function StatCard({ label, value, change, trend = 'up', icon: Icon }) {
   return (
-    <div className="panel group p-5 transition duration-150 hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md">
+    <div className="panel group p-4 transition duration-150 hover:border-zinc-300">
       <div className="flex items-start justify-between">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-blue/15 bg-blue/5 text-blue"><Icon size={18} strokeWidth={1.8} /></div>
         {change && <span className={`flex items-center gap-1 text-xs font-medium ${trend === 'up' ? 'text-emerald-700' : 'text-zinc-500'}`}>{trend === 'up' ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}{change}</span>}
       </div>
-      <div className="mt-6 text-3xl font-semibold tracking-[-0.03em] tabular-nums">{value}</div>
+      <div className="mt-5 text-2xl font-semibold tracking-[-0.03em] tabular-nums">{value}</div>
       <div className="mt-1 text-sm text-zinc-500">{label}</div>
     </div>
   )
 }
 
 export function Badge({ children, className = '', variant = 'neutral' }) {
-  return <span className={`inline-flex items-center whitespace-nowrap rounded-lg border px-2.5 py-1 text-[11px] font-semibold leading-none ${badgeVariants[variant] || ''} ${className}`}>{children}</span>
+  return <span className={`inline-flex items-center whitespace-nowrap rounded-md border px-2 py-0.5 text-[10px] font-semibold leading-4 ${badgeVariants[variant] || ''} ${className}`}>{children}</span>
 }
 
 export function StatusBadge({ status }) {
@@ -133,11 +134,11 @@ export function Modal({ open, title, description, children, onClose, size = 'max
 
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-950/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-5" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section role="dialog" aria-modal="true" aria-labelledby="modal-title" className={`max-h-[96dvh] w-full overflow-y-auto rounded-t-2xl border border-zinc-300 bg-white shadow-2xl sm:max-h-[92vh] sm:rounded-2xl ${size}`}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-950/35 p-0 backdrop-blur-[1px] sm:items-center sm:p-5" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section role="dialog" aria-modal="true" aria-labelledby="modal-title" className={`max-h-[96dvh] w-full overflow-y-auto rounded-t-xl border border-zinc-200 bg-white shadow-xl sm:max-h-[92vh] sm:rounded-xl ${size}`}>
         <div className="sticky top-0 z-10 flex items-start justify-between border-b border-line bg-white/95 p-5 backdrop-blur sm:p-6">
           <div><h2 id="modal-title" className="text-xl font-semibold tracking-tight">{title}</h2>{description && <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-500">{description}</p>}</div>
-          <button ref={closeButtonRef} className="ml-4 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line text-zinc-500 hover:bg-canvas hover:text-ink" onClick={onClose} aria-label="Close modal"><X size={18} /></button>
+          <button ref={closeButtonRef} className="ml-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line text-zinc-500 hover:bg-canvas hover:text-ink" onClick={onClose} aria-label="Close modal"><X size={17} /></button>
         </div>
         {children}
       </section>
@@ -200,13 +201,13 @@ export function ClientCard({ client, metrics, onView, onEdit, onDelete }) {
 }
 
 export function EmptyState({ title, description, action, onAction }) {
-  return <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-canvas"><Check className="text-zinc-400" size={24} /></span><h3 className="mt-4 font-semibold tracking-tight">{title}</h3><p className="mt-1 max-w-sm text-sm leading-6 text-zinc-500">{description}</p>{action && <button className="button-primary mt-5" onClick={onAction}>{action}</button>}</div>
+  return <div className="flex min-h-44 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-white p-6 text-center"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-100"><Check className="text-zinc-400" size={18} /></span><h3 className="mt-3 text-sm font-semibold tracking-tight">{title}</h3><p className="mt-1 max-w-sm text-sm leading-6 text-zinc-500">{description}</p>{action && <button className="button-primary mt-4" onClick={onAction}>{action}</button>}</div>
 }
 
 export function Table({ columns, data, emptyMessage = 'No records found.' }) {
   if (!data.length) return <div className="p-10 text-center text-sm text-zinc-500">{emptyMessage}</div>
   return (
-    <div className="overflow-x-auto overscroll-x-contain"><table className="w-full min-w-[900px] border-separate border-spacing-0 text-left"><thead className="sticky top-0 z-[1]"><tr className="bg-zinc-50/95 backdrop-blur">{columns.map((column) => <th key={column.key} className="border-b border-line px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-500 first:pl-6 last:pr-6">{column.label}</th>)}</tr></thead><tbody>{data.map((row, index) => <tr key={row.id || index} className="group transition-colors hover:bg-blue/[0.025]">{columns.map((column) => <td key={column.key} className="border-b border-line px-5 py-4 text-sm align-middle group-last:border-0 first:pl-6 last:pr-6">{column.render ? column.render(row) : row[column.key]}</td>)}</tr>)}</tbody></table></div>
+    <div className="overflow-x-auto overscroll-x-contain"><table className="w-full min-w-[900px] border-separate border-spacing-0 text-left"><thead className="sticky top-0 z-[1]"><tr className="bg-zinc-50/95 backdrop-blur">{columns.map((column) => <th key={column.key} className="border-b border-line px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-zinc-500 first:pl-5 last:pr-5">{column.label}</th>)}</tr></thead><tbody>{data.map((row, index) => <tr key={row.id || index} className="group transition-colors hover:bg-zinc-50/80">{columns.map((column) => <td key={column.key} className="border-b border-line px-4 py-3.5 text-sm align-middle group-last:border-0 first:pl-5 last:pr-5">{column.render ? column.render(row) : row[column.key]}</td>)}</tr>)}</tbody></table></div>
   )
 }
 

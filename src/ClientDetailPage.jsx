@@ -26,11 +26,11 @@ const monthName = (month) => new Intl.DateTimeFormat('en-US', {
 }).format(new Date(`2026-${String(month).padStart(2, '0')}-01T00:00:00Z`))
 
 function DetailItem({ label, children }) {
-  return <div className="border-t border-line pt-3"><dt className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">{label}</dt><dd className="mt-1.5 text-sm font-medium text-zinc-700">{children || 'Not added'}</dd></div>
+  return <div className="border-t border-zinc-100 pt-3"><dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">{label}</dt><dd className="mt-1.5 text-sm font-semibold text-zinc-700">{children || 'Not added'}</dd></div>
 }
 
 function SummaryCard({ label, value, icon: Icon }) {
-  return <div className="bg-white p-4 transition hover:bg-zinc-50 sm:p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-2xl font-semibold tracking-[-0.03em] tabular-nums">{value}</p><p className="mt-1 text-xs text-zinc-500">{label}</p></div><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue/5 text-blue"><Icon size={15} strokeWidth={1.8} /></span></div></div>
+  return <div className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-[0_5px_18px_rgba(24,24,27,0.035)] transition hover:-translate-y-0.5 hover:shadow-md sm:p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-2xl font-semibold tracking-[-0.03em] tabular-nums text-zinc-900">{value}</p><p className="mt-1 text-xs font-semibold text-zinc-500">{label}</p></div><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue/10 text-blue"><Icon size={16} strokeWidth={1.8} /></span></div></div>
 }
 
 function ProofList({ task }) {
@@ -136,13 +136,13 @@ export default function ClientDetailPage({
   ]
 
   return <>
-    <button className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-zinc-600 hover:text-blue" onClick={onBack}><ArrowLeft size={16} />Back to clients</button>
+    <button className="mb-5 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-600 shadow-sm transition hover:border-blue/20 hover:text-blue" onClick={onBack}><ArrowLeft size={16} />Back to clients</button>
 
-    <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-[0_1px_2px_rgba(24,24,27,0.04)]">
+    <section className="overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-[0_14px_40px_rgba(24,24,27,0.06)]">
       <div className="grid lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
         <div className="border-b border-line p-5 sm:p-7 lg:border-b-0 lg:border-r">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-            <span className="flex h-16 w-16 shrink-0 items-center justify-center text-lg font-bold text-white" style={{ backgroundColor: client.color }}>{client.initials}</span>
+            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-lg font-bold text-white shadow-lg" style={{ backgroundColor: client.color }}>{client.initials}</span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3"><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{client.name}</h1><Badge className="border-blue/20 bg-blue/5 text-blue">{displayStatus(client.status)}</Badge></div>
               <p className="mt-2 text-sm text-zinc-500">{client.servicePackage || 'No service package added'}</p>
@@ -164,10 +164,10 @@ export default function ClientDetailPage({
       </div>
     </section>
 
-    <div className="mt-5 grid overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 sm:gap-px xl:grid-cols-6">{summary.map(([label, value, icon]) => <SummaryCard key={label} label={label} value={value} icon={icon} />)}</div>
+    <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">{summary.map(([label, value, icon]) => <SummaryCard key={label} label={label} value={value} icon={icon} />)}</div>
 
-    <div className="mt-7 overflow-x-auto rounded-xl border border-line bg-white p-1">
-      <div className="flex min-w-max gap-1">{TABS.map((tab) => <button key={tab} className={`rounded-lg px-4 py-2.5 text-sm font-semibold transition ${activeTab === tab ? 'bg-blue text-white shadow-sm' : 'text-zinc-500 hover:bg-canvas hover:text-ink'}`} onClick={() => setActiveTab(tab)}>{tab}</button>)}</div>
+    <div className="mt-7 overflow-x-auto rounded-2xl border border-zinc-200/80 bg-white p-1.5 shadow-sm">
+      <div className="flex min-w-max gap-1">{TABS.map((tab) => <button key={tab} className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${activeTab === tab ? 'bg-blue text-white shadow-[0_5px_16px_rgba(0,47,167,0.18)]' : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'}`} onClick={() => setActiveTab(tab)}>{tab}</button>)}</div>
     </div>
 
     <div className="mt-5">

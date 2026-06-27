@@ -21,7 +21,7 @@ const roleStyles = {
 }
 
 function Field({ label, children }) {
-  return <label className="block"><span className="mb-2 block text-sm font-semibold">{label}</span>{children}</label>
+  return <label className="block"><span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">{label}</span>{children}</label>
 }
 
 function UserForm({ user, onSave, onClose }) {
@@ -120,17 +120,17 @@ export default function TeamPage({ currentUser, onCurrentUserUpdate, onActivityR
   }
 
   const columns = [
-    { key: 'name', label: 'User', render: (user) => <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center bg-ink text-xs font-bold text-white">{user.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span><div><p className="font-semibold">{user.name}</p><p className="mt-1 text-xs text-zinc-500">{user.email}</p></div></div> },
+    { key: 'name', label: 'User', render: (user) => <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-full bg-blue/10 text-xs font-bold text-blue">{user.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span><div><p className="font-semibold text-zinc-900">{user.name}</p><p className="mt-1 text-xs text-zinc-500">{user.email}</p></div></div> },
     { key: 'role', label: 'Role', render: (user) => <Badge className={roleStyles[user.role]}>{user.role}</Badge> },
     { key: 'status', label: 'Status', render: (user) => <Badge className={user.status === 'active' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-zinc-200 bg-zinc-50 text-zinc-500'}>{user.status}</Badge> },
     { key: 'created_at', label: 'Added', render: (user) => new Date(user.created_at.replace(' ', 'T')).toLocaleDateString() },
-    ...(isAdmin ? [{ key: 'actions', label: '', render: (user) => <div className="flex justify-end gap-2"><button className="flex h-8 items-center gap-1.5 border border-line px-2.5 text-xs font-semibold hover:border-zinc-400" onClick={() => setEditing({ ...user, password: '' })}><Pencil size={13} />Edit</button><button className="flex h-8 items-center gap-1.5 border border-line px-2.5 text-xs font-semibold text-red-700 hover:border-red-300" onClick={() => handleDeactivate(user)} disabled={String(user.id) === String(currentUser.id) || user.status === 'inactive'}><UserX size={13} />Deactivate</button></div> }] : []),
+    ...(isAdmin ? [{ key: 'actions', label: '', render: (user) => <div className="flex justify-end gap-2"><button className="flex h-8 items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 text-xs font-semibold transition hover:border-blue/30 hover:text-blue" onClick={() => setEditing({ ...user, password: '' })}><Pencil size={13} />Edit</button><button className="flex h-8 items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 text-xs font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-50" onClick={() => handleDeactivate(user)} disabled={String(user.id) === String(currentUser.id) || user.status === 'inactive'}><UserX size={13} />Deactivate</button></div> }] : []),
   ]
 
   return <>
-    <PageHeader number="08" title="Team" description={isAdmin ? 'Manage workspace users, roles, account status, and passwords.' : 'View your Brahmanda Work OS profile.'} actions={isAdmin ? <Button onClick={() => setEditing(emptyUser)}><Plus size={16} />Add user</Button> : null} />
+    <PageHeader eyebrow="Workspace access" title="Team" description={isAdmin ? 'Manage workspace users, roles, account status, and passwords.' : 'View your Brahmanda Work OS profile.'} action={isAdmin ? <Button onClick={() => setEditing(emptyUser)}><Plus size={16} />Add user</Button> : null} />
 
-    {error && <p className="mb-5 border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+    {error && <p className="mb-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {loading ? <div className="panel flex min-h-52 items-center justify-center text-sm text-zinc-500">Loading team…</div> : users.length ? <div className="panel"><Table columns={columns} data={users} /></div> : <EmptyState title="No users found" description="Add the first workspace user." />}
 
     {!isAdmin && users[0] && <div className="mt-6 panel p-5"><div className="flex items-start gap-4"><UserRoundCog className="text-blue" /><div><h2 className="font-semibold">Profile access</h2><p className="mt-1 text-sm text-zinc-500">Your {users[0].role} account can view this profile. User management requires an administrator.</p></div></div></div>}

@@ -12,7 +12,7 @@ const sections = [
 ]
 
 function Field({ label, children, className = '' }) {
-  return <label className={className}><span className="mb-2 block text-sm font-semibold">{label}</span>{children}</label>
+  return <label className={className}><span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">{label}</span>{children}</label>
 }
 
 export default function SettingsPage({
@@ -63,11 +63,11 @@ export default function SettingsPage({
   }
 
   return <>
-    <PageHeader number="10" title="Settings" description="Agency identity, report branding, workspace defaults, and your profile." />
-    <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
-      <nav className="panel h-fit p-2">{sections.map(([section, Icon]) => <button key={section} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${activeSection === section ? 'bg-blue text-white shadow-sm' : 'text-zinc-600 hover:bg-canvas hover:text-ink'}`} onClick={() => { setActiveSection(section); setMessage('') }}><Icon size={16} />{section}</button>)}</nav>
-      <section className="panel">
-        <header className="flex flex-col gap-3 border-b border-line p-5 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-lg font-semibold">{activeSection}</h2><p className="mt-1 text-sm text-zinc-500">{isAdmin ? 'Update saved workspace information.' : 'You have read-only access. Administrator access is required for updates.'}</p></div><Badge className={isAdmin ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-zinc-200 bg-zinc-50 text-zinc-600'}>{isAdmin ? 'Admin access' : 'Read only'}</Badge></header>
+    <PageHeader eyebrow="Workspace configuration" title="Settings" description="Agency identity, report branding, workspace defaults, and your profile." />
+    <div className="grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
+      <nav className="h-fit rounded-3xl border border-zinc-200/80 bg-white p-2 shadow-[0_8px_28px_rgba(24,24,27,0.04)]">{sections.map(([section, Icon], index) => <button key={section} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition ${activeSection === section ? 'bg-blue text-white shadow-[0_6px_18px_rgba(0,47,167,0.2)]' : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'}`} onClick={() => { setActiveSection(section); setMessage('') }}><span className={`flex h-8 w-8 items-center justify-center rounded-xl ${activeSection === section ? 'bg-white/15' : 'bg-zinc-100 text-zinc-500'}`}><Icon size={15} /></span><span className="flex-1">{section}</span><span className={`text-[10px] ${activeSection === section ? 'text-white/60' : 'text-zinc-300'}`}>{String(index + 1).padStart(2, '0')}</span></button>)}</nav>
+      <section className="overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.05)]">
+        <header className="flex flex-col gap-3 border-b border-zinc-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6"><div><h2 className="text-lg font-semibold tracking-tight text-zinc-900">{activeSection}</h2><p className="mt-1 text-sm text-zinc-500">{isAdmin ? 'Update saved workspace information.' : 'You have read-only access. Administrator access is required for updates.'}</p></div><Badge className={isAdmin ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-zinc-200 bg-zinc-50 text-zinc-600'}>{isAdmin ? 'Admin access' : 'Read only'}</Badge></header>
         <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
           {activeSection === 'Agency Profile' && <>
             <Field label="Agency name"><input className="field" value={form.agency_name || ''} onChange={(event) => change('agency_name', event.target.value)} disabled={!isAdmin} /></Field>
