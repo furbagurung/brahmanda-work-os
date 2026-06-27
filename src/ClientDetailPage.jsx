@@ -12,6 +12,7 @@ import { PRIORITIES, TASK_STATUSES } from './data'
 import { getReports } from './services/api'
 import { formatDate, formatMoney } from './utils'
 import { ActivityFeed } from './ActivityPage'
+import ReportShareManager from './ReportShareManager'
 
 const TABS = ['Overview', 'Tasks', 'Completed Work', 'Billing', 'Reports', 'Proof Links', 'Activity']
 
@@ -185,6 +186,7 @@ export default function ClientDetailPage({
         <div className="flex items-center justify-between border-b border-line p-5"><div><h2 className="font-semibold">Generated reports</h2><p className="mt-1 text-xs text-zinc-500">Saved monthly client reports</p></div><button className="button-secondary px-3 py-2" onClick={loadReports} disabled={reportsLoading}><RefreshCw size={14} className={reportsLoading ? 'animate-spin' : ''} />Refresh</button></div>
         {reportsError && <p className="m-4 border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{reportsError}</p>}
         {reports.length ? <div className="divide-y divide-line">{reports.map((report) => <div key={report.id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{monthName(report.report_month)} {report.report_year}</p><div className="mt-2 flex items-center gap-2"><BillingBadge value={report.status} /><span className="text-xs text-zinc-500">Created {formatDate(String(report.created_at).slice(0, 10), { year: 'numeric', month: 'short', day: 'numeric' })}</span></div></div><div className="flex gap-2"><button className="button-secondary px-3 py-2" onClick={() => setViewingReport(report)}><FileText size={14} />View report</button>{report.report_content && <button className="button-secondary px-3 py-2" onClick={() => downloadReport(report)}><Download size={14} />Download</button>}</div></div>)}</div> : !reportsLoading && <EmptyState title="No generated reports" description={isFallback ? 'Saved report history is unavailable in fallback mode.' : 'Generate and save a report from the Reports page.'} />}
+        {!isFallback && <div className="border-t border-line"><div className="p-5"><h3 className="font-semibold">Report share links</h3><p className="mt-1 text-xs text-zinc-500">Active, inactive, and expired client portal links.</p></div><ReportShareManager clientId={client.id} allowCreate={false} /></div>}
       </section>}
 
       {activeTab === 'Proof Links' && <section className="panel">{clientTasks.some((task) => task.attachments?.length || task.proofLink) ? <div className="divide-y divide-line">{clientTasks.filter((task) => task.attachments?.length || task.proofLink).map((task) => <div key={task.id} className="grid gap-3 p-5 sm:grid-cols-[minmax(220px,0.7fr)_1fr]"><div><h3 className="text-sm font-semibold">{task.title}</h3><p className="mt-1 text-xs text-zinc-500">{task.status}</p></div><ProofList task={task} /></div>)}</div> : <EmptyState title="No proof links" description="Proof links added to this client's tasks will appear here." />}</section>}

@@ -57,6 +57,13 @@ checklists were added, run:
 mysql -u root -p brahmanda_work_os < backend/sql/add_task_assignment.sql
 ```
 
+For an existing database created before client portal report sharing was
+added, run:
+
+```bash
+mysql -u root -p brahmanda_work_os < backend/sql/add_client_portal_shares.sql
+```
+
 For an existing database created before token authentication was added, run:
 
 ```bash
@@ -206,6 +213,8 @@ The React frontend stores the token in localStorage for now. For higher-security
 | DELETE | `api/tasks.php?id=1` | Delete task |
 | GET/POST/DELETE | `api/task_comments.php` | List, add, or delete task comments |
 | GET/POST/PATCH/DELETE | `api/task_checklists.php` | Manage task checklist items |
+| GET/POST/PATCH | `api/client_portal.php` | Manage authenticated report share links |
+| GET | `api/client_portal.php?action=public&token=...` | Public view-only report snapshot |
 | GET | `api/attachments.php?task_id=1` | List proof links for a task |
 | GET | `api/attachments.php?client_id=1` | List all proof links for a client, grouped by task data |
 | POST | `api/attachments.php` | Add a proof link |

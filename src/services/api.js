@@ -34,6 +34,17 @@ async function request(endpoint, options = {}) {
   return payload.data
 }
 
+async function publicRequest(endpoint) {
+  const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
+    headers: { Accept: 'application/json' },
+  })
+  const payload = await response.json().catch(() => null)
+  if (!response.ok || !payload || payload.success === false) {
+    throw new Error(payload?.message || 'This report link is expired or unavailable.')
+  }
+  return payload.data
+}
+
 const jsonOptions = (method, data) => ({
   method,
   body: JSON.stringify(data),
@@ -86,6 +97,15 @@ export const generateReport = (clientId, month, year) => getReports({
 })
 
 export const saveReport = (data) => request('reports.php', jsonOptions('POST', data))
+export const getPortalShares = (params = {}) => {
+  const query = new URLSearchParams(params)
+  return request(`client_portal.php${query.toString() ? `?${query}` : ''}`)
+}
+export const createPortalShare = (data) => request('client_portal.php', jsonOptions('POST', data))
+export const regeneratePortalShare = (id, data = {}) => request(`client_portal.php?action=regenerate&id=${encodeURIComponent(id)}`, jsonOptions('POST', data))
+export const deactivatePortalShare = (id) => request(`client_portal.php?action=deactivate&id=${encodeURIComponent(id)}`, { method: 'PATCH' })
+export const recordPortalShareCopy = (id) => request(`client_portal.php?action=copy&id=${encodeURIComponent(id)}`, { method: 'PATCH' })
+export const getPublicPortalReport = (token) => publicRequest(`client_portal.php?action=public&token=${encodeURIComponent(token)}`)
 
 export const getActivityLogs = (params = {}) => {
   const query = new URLSearchParams(params)

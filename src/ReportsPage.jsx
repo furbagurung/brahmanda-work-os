@@ -3,6 +3,7 @@ import { ClipboardCopy, Download, FileText, Printer } from 'lucide-react'
 import { EmptyState, ReportSection, StatusBadge } from './components'
 import { generateReport, saveReport } from './services/api'
 import { formatMoney } from './utils'
+import ReportShareManager from './ReportShareManager'
 
 const MONTHS = Array.from({ length: 12 }, (_, index) => ({
   value: index + 1,
@@ -29,6 +30,7 @@ export default function ReportsPage({ clients, tasks, settings, isFallback, onAc
   const [savingStatus, setSavingStatus] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
+  const [savedReportId, setSavedReportId] = useState('')
 
   useEffect(() => {
     if (!clients.some((client) => client.id === clientId)) setClientId(clients[0]?.id || '')
@@ -127,7 +129,8 @@ PAN: ${settings.pan_number}`
       const savedStatus = generatedReport.saved_report?.status || 'Draft'
       setStatus(savedStatus)
       setReport(generatedReport)
-      await saveSnapshot(savedStatus, generatedReport)
+      const saved = await saveSnapshot(savedStatus, generatedReport)
+      setSavedReportId(String(saved.id || generatedReport.saved_report?.id || ''))
       await onActivityRefresh?.()
     } catch (requestError) {
       setError(requestError.message)
@@ -143,7 +146,8 @@ PAN: ${settings.pan_number}`
     setSavingStatus(true)
     setError('')
     try {
-      await saveSnapshot(nextStatus)
+      const saved = await saveSnapshot(nextStatus)
+      setSavedReportId(String(saved.id || savedReportId))
       await onActivityRefresh?.()
     } catch (requestError) {
       setError(`Could not save report status. ${requestError.message}`)
@@ -183,6 +187,8 @@ PAN: ${settings.pan_number}`
       </div>
       {error && <p className="mt-4 border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     </div>
+
+    {report && savedReportId && <section className="mx-auto mt-6 max-w-4xl border border-line bg-white"><div className="border-b border-line p-4"><h2 className="font-semibold">Client portal share</h2><p className="mt-1 text-xs text-zinc-500">Generate a view-only link for this saved report.</p></div><ReportShareManager reportId={savedReportId} clientId={clientId} onActivityRefresh={onActivityRefresh} /></section>}
 
     {report ? <article id="report-preview" className="mx-auto mt-6 max-w-4xl border border-line bg-white">
       <header className="border-b-4 p-6 sm:p-8" style={{ borderColor: settings.brand_color }}>

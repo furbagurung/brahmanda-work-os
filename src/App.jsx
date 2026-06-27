@@ -34,6 +34,7 @@ import RecurringTasksPage from './RecurringTasksPage'
 import { nextRecurrenceDate } from './recurrenceUtils'
 import ActivityPage, { ActivityFeed } from './ActivityPage'
 import SettingsPage from './SettingsPage'
+import ClientPortalPage from './ClientPortalPage'
 import { getCurrentUser, logout, updateCurrentUser } from './services/auth'
 
 const STORAGE_KEY = 'brahmanda-work-os-v2'
@@ -990,6 +991,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
 }
 
 export default function App() {
+  const portalMatch = window.location.pathname.match(/^\/portal\/([^/]+)\/?$/i)
   const [user, setUser] = useState(() => getCurrentUser())
 
   useEffect(() => {
@@ -997,6 +999,10 @@ export default function App() {
     window.addEventListener('auth:unauthorized', handleUnauthorized)
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized)
   }, [])
+
+  if (portalMatch) {
+    return <ClientPortalPage token={portalMatch[1]} />
+  }
 
   if (!user) {
     return <LoginPage onLogin={setUser} />
