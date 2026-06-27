@@ -492,7 +492,7 @@ function FormSection({ icon: Icon, title, description, children }) {
   return <section className="overflow-hidden rounded-xl border border-line bg-white"><header className="flex items-start gap-3 border-b border-line bg-canvas/70 px-4 py-3.5"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-blue/10 bg-blue/5 text-blue"><Icon size={15} /></span><div><h3 className="text-sm font-semibold">{title}</h3>{description && <p className="mt-0.5 text-xs leading-5 text-zinc-500">{description}</p>}</div></header><div className="grid gap-4 p-4 sm:grid-cols-2">{children}</div></section>
 }
 
-function TaskForm({ task, clients, users, onSave, onClose }) {
+function TaskForm({ task, clients, users, onSave, onClose, onNotificationsRefresh }) {
   const [form, setForm] = useState(() => {
     const initial = task || blankTask(clients[0]?.id)
     const attachments = initial.attachments?.length
@@ -527,6 +527,7 @@ function TaskForm({ task, clients, users, onSave, onClose }) {
       await createTaskComment({ task_id: Number(task.id), comment: commentText.trim() })
       setComments(await getTaskComments(task.id))
       setCommentText('')
+      await onNotificationsRefresh?.()
     } catch (error) { setCollaborationError(error.message) }
   }
   const removeComment = async (id) => {
@@ -1067,7 +1068,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   }
 
   return <div className="min-h-screen bg-canvas"><Sidebar activePage={activePage} setActivePage={navigatePage} open={sidebarOpen} setOpen={setSidebarOpen} collapsed={sidebarCollapsed} settings={workspace.settings || DEFAULT_SETTINGS} /><div className={sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'}><Topbar activePage={activePage === 'Client Detail' ? selectedClient?.name || 'Client Detail' : activePage} setOpen={setSidebarOpen} onToggleCollapse={() => setSidebarCollapsed((value) => !value)} collapsed={sidebarCollapsed} onOpenSearch={() => { setSearchOpen(true); setQuickAddOpen(false); setNotificationsOpen(false) }} quickAddOpen={quickAddOpen} setQuickAddOpen={setQuickAddOpen} quickAddActions={quickAddActions} settings={workspace.settings || DEFAULT_SETTINGS} user={user} onLogout={onLogout} notifications={notifications} notificationsOpen={notificationsOpen} setNotificationsOpen={setNotificationsOpen} onOpenNotification={openNotification} onReadAllNotifications={readAllNotifications} onViewNotifications={() => navigatePage('Notifications')} /><main className="mx-auto max-w-[1600px] p-4 md:p-7 lg:p-9">{workspace.error && <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{workspace.error}</div>}{workspace.loading ? <div className="panel flex min-h-64 items-center justify-center"><div className="text-center"><div className="mx-auto h-7 w-7 animate-spin border-2 border-zinc-200 border-t-blue" /><p className="mt-3 text-sm text-zinc-500">Loading workspace data…</p></div></div> : pages[activePage]}</main></div>
-    <Modal open={Boolean(taskModal)} onClose={() => setTaskModal(null)} title={taskModal?.id ? 'Edit task' : 'Create task'} description="Task changes update every workspace view." size="max-w-5xl">{taskModal && <TaskForm task={taskModal} clients={workspace.clients} users={workspace.users || []} onSave={saveTaskWithRecent} onClose={() => setTaskModal(null)} />}</Modal>
+    <Modal open={Boolean(taskModal)} onClose={() => setTaskModal(null)} title={taskModal?.id ? 'Edit task' : 'Create task'} description="Task changes update every workspace view." size="max-w-5xl">{taskModal && <TaskForm task={taskModal} clients={workspace.clients} users={workspace.users || []} onSave={saveTaskWithRecent} onClose={() => setTaskModal(null)} onNotificationsRefresh={loadNotifications} />}</Modal>
     <Modal open={Boolean(quickTaskDefaults)} onClose={() => setQuickTaskDefaults(null)} title={quickTaskDefaults?.modeTitle || 'Quick add task'} description="Create essential daily work without opening the full task form.">{quickTaskDefaults && <QuickTaskForm clients={workspace.clients} defaults={quickTaskDefaults} onSave={saveTaskWithRecent} onClose={() => setQuickTaskDefaults(null)} />}</Modal>
     <Modal open={Boolean(clientModal)} onClose={() => setClientModal(null)} title={clientModal?.id ? 'Edit client' : 'Add client'} description="Create a client workspace for tasks, reports, and billing.">{clientModal && <ClientForm client={clientModal.id ? clientModal : null} onSave={workspace.saveClient} onClose={() => setClientModal(null)} />}</Modal>
     <GlobalSearch open={searchOpen} clients={workspace.clients} tasks={workspace.tasks} reports={workspace.reports || []} recentClientIds={recentClientIds} recentTaskIds={recentTaskIds} onClose={() => setSearchOpen(false)} onSelect={selectSearchResult} />

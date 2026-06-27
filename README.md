@@ -134,6 +134,19 @@ npm run build
 php -l backend/api/health.php
 ```
 
+## Stabilization checks
+
+Before merging application changes, run the lint, build, and PHP syntax checks
+above. With the local PHP server and database running, open:
+
+```text
+http://localhost:8000/api/health.php
+```
+
+The response should report `status: ok` and `database: connected`. If a
+feature reports a missing table or column, compare the local database against
+`backend/sql/MIGRATION_ORDER.md` before debugging the frontend.
+
 ## Deployment verification
 
 Use [DEPLOYMENT_TEST_CHECKLIST.md](DEPLOYMENT_TEST_CHECKLIST.md) after deployment. At minimum verify:
