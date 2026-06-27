@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { ClipboardCopy, Download, FileText, Printer } from 'lucide-react'
-import { EmptyState, PageHeader, ReportSection, StatusBadge } from './components'
+import { CheckCircle2, ClipboardCopy, Download, FileText, Link2, Printer, ReceiptText } from 'lucide-react'
+import { Badge, EmptyState, PageHeader, ReportSection, StatusBadge } from './components'
 import { generateReport, saveReport } from './services/api'
 import { formatMoney } from './utils'
 import ReportShareManager from './ReportShareManager'
@@ -13,11 +13,15 @@ const MONTHS = Array.from({ length: 12 }, (_, index) => ({
 }))
 
 function Field({ label, children }) {
-  return <label className="block"><span className="mb-2 block text-sm font-semibold">{label}</span>{children}</label>
+  return <label className="block"><span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">{label}</span>{children}</label>
 }
 
 function PageHeading() {
-  return <PageHeader number="06" title="Reports" description="Generate, review, save, and export monthly client delivery reports." />
+  return <PageHeader eyebrow="Client reporting" title="Reports" description="Generate, review, and share a branded record of monthly client delivery." />
+}
+
+function ReportCard({ number, title, icon: Icon, children, className = '' }) {
+  return <section className={`rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-[0_5px_20px_rgba(24,24,27,0.035)] sm:p-6 ${className}`}><div className="flex items-center justify-between border-b border-zinc-100 pb-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue/10 text-blue"><Icon size={16} /></span><h3 className="text-sm font-semibold tracking-tight text-zinc-900">{title}</h3></div><span className="text-2xl font-light text-zinc-200">{number}</span></div><div className="mt-5 text-sm leading-6 text-zinc-600">{children}</div></section>
 }
 
 export default function ReportsPage({ clients, tasks, settings, isFallback, onActivityRefresh }) {
@@ -177,20 +181,21 @@ PAN: ${settings.pan_number}`
 
   return <>
     <PageHeading />
-    <div className="panel p-4 sm:p-6">
-      <div className="grid gap-4 md:grid-cols-[minmax(180px,1fr)_150px_150px_180px_auto]">
-        <Field label="Client"><select className="field" value={clientId} onChange={(event) => { setClientId(event.target.value); setReport(null) }}>{clients.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
-        <Field label="Month"><select className="field" value={month} onChange={(event) => { setMonth(Number(event.target.value)); setReport(null) }}>{MONTHS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field>
-        <Field label="Year"><select className="field" value={year} onChange={(event) => { setYear(Number(event.target.value)); setReport(null) }}>{[2025, 2026, 2027].map((item) => <option key={item}>{item}</option>)}</select></Field>
-        <Field label="Report status"><select className="field" value={status} onChange={(event) => handleStatusChange(event.target.value)} disabled={savingStatus}>{['Draft', 'Pending Review', 'Sent'].map((item) => <option key={item}>{item}</option>)}</select></Field>
+    <div className="rounded-3xl border border-zinc-200/80 bg-zinc-50/70 p-4 shadow-[0_8px_30px_rgba(24,24,27,0.035)] sm:p-5">
+      <div className="mb-4"><h2 className="text-sm font-semibold text-zinc-900">Report generator</h2><p className="mt-1 text-xs text-zinc-400">Select the client workspace and reporting period.</p></div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_150px_130px_180px_auto]">
+        <Field label="Client"><select className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm font-semibold text-zinc-700 shadow-sm outline-none focus:border-blue/50 focus:ring-4 focus:ring-blue/10" value={clientId} onChange={(event) => { setClientId(event.target.value); setReport(null) }}>{clients.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+        <Field label="Month"><select className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm font-semibold text-zinc-700 shadow-sm outline-none focus:border-blue/50 focus:ring-4 focus:ring-blue/10" value={month} onChange={(event) => { setMonth(Number(event.target.value)); setReport(null) }}>{MONTHS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field>
+        <Field label="Year"><select className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm font-semibold text-zinc-700 shadow-sm outline-none focus:border-blue/50 focus:ring-4 focus:ring-blue/10" value={year} onChange={(event) => { setYear(Number(event.target.value)); setReport(null) }}>{[2025, 2026, 2027].map((item) => <option key={item}>{item}</option>)}</select></Field>
+        <Field label="Report status"><select className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm font-semibold text-zinc-700 shadow-sm outline-none focus:border-blue/50 focus:ring-4 focus:ring-blue/10" value={status} onChange={(event) => handleStatusChange(event.target.value)} disabled={savingStatus}>{['Draft', 'Pending Review', 'Sent'].map((item) => <option key={item}>{item}</option>)}</select></Field>
         <button className="button-primary self-end" disabled={!clientId || generating} onClick={handleGenerate}><FileText size={16} />{generating ? 'Generating…' : 'Generate report'}</button>
       </div>
-      {error && <p className="mt-4 border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     </div>
 
-    {report && savedReportId && <section className="mx-auto mt-6 max-w-4xl overflow-hidden rounded-2xl border border-line bg-white shadow-sm"><div className="border-b border-line p-4"><h2 className="font-semibold">Client portal share</h2><p className="mt-1 text-xs text-zinc-500">Generate a view-only link for this saved report.</p></div><ReportShareManager reportId={savedReportId} clientId={clientId} onActivityRefresh={onActivityRefresh} /></section>}
+    {report && savedReportId && <section className="mx-auto mt-6 max-w-5xl overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.05)]"><div className="flex items-center gap-3 border-b border-zinc-100 px-5 py-4"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue/10 text-blue"><Link2 size={16} /></span><div><h2 className="text-sm font-semibold text-zinc-900">Client portal share</h2><p className="mt-1 text-xs text-zinc-400">Manage secure view-only access to this report.</p></div></div><ReportShareManager reportId={savedReportId} clientId={clientId} onActivityRefresh={onActivityRefresh} /></section>}
 
-    {report ? <article id="report-preview" className="mx-auto mt-6 max-w-4xl overflow-hidden rounded-2xl border border-line bg-white shadow-[0_10px_30px_rgba(24,24,27,0.06)]">
+    {report ? <article id="report-preview" className="mx-auto mt-6 max-w-5xl overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-[0_20px_55px_rgba(24,24,27,0.08)]">
       <header className="border-b-4 p-6 sm:p-8" style={{ borderColor: settings.brand_color }}>
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div><p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: settings.brand_color }}>{settings.logo_url || `${settings.agency_name} / Work OS`}</p><h2 className="mt-3 text-3xl font-semibold tracking-tight">{settings.report_title}</h2><p className="mt-2 text-lg">{client?.name}</p><p className="mt-1 text-sm text-zinc-500">{monthLabel} {year}</p></div>
@@ -203,16 +208,16 @@ PAN: ${settings.pan_number}`
         </div>
       </header>
       <div className="p-6 sm:p-8">
-        <ReportSection title="Work completed">{completed.length ? <ul className="space-y-4">{completed.map((task) => <li key={task.id} className="border-b border-line pb-3"><div className="flex justify-between gap-4"><span className="font-medium">{task.title}</span><span className="text-zinc-500">{task.category}</span></div>{attachmentsFor(task).length > 0 && <div className="mt-2 flex flex-wrap gap-2">{attachmentsFor(task).map((attachment) => <a key={attachment.id || attachment.url} href={attachment.url} target="_blank" rel="noreferrer" className="border border-blue/20 bg-blue/5 px-2 py-1 text-xs font-semibold text-blue hover:underline">{attachment.title}</a>)}</div>}</li>)}</ul> : <p className="text-zinc-500">No completed work recorded for this month.</p>}</ReportSection>
+        <ReportCard number="01" title="Work completed" icon={CheckCircle2}>{completed.length ? <ul className="space-y-4">{completed.map((task) => <li key={task.id} className="border-b border-zinc-100 pb-3 last:border-0"><div className="flex justify-between gap-4"><span className="font-semibold text-zinc-800">{task.title}</span><Badge className="border-zinc-200 bg-zinc-50 text-zinc-500">{task.category}</Badge></div>{attachmentsFor(task).length > 0 && <div className="mt-2 flex flex-wrap gap-2">{attachmentsFor(task).map((attachment) => <a key={attachment.id || attachment.url} href={attachment.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-blue/15 bg-blue/5 px-2 py-1 text-xs font-semibold text-blue"><Link2 size={11} />{attachment.title}</a>)}</div>}</li>)}</ul> : <p className="text-zinc-500">No completed work recorded for this month.</p>}</ReportCard>
         <ReportSection title="Designs and content delivered">{deliverables.length ? <ul className="space-y-2">{deliverables.map((task) => <li key={task.id}>{task.title}</li>)}</ul> : <p className="text-zinc-500">No design or content deliverables recorded.</p>}</ReportSection>
         <ReportSection title="Website and technical work">{technicalWork.length ? <ul className="space-y-2">{technicalWork.map((task) => <li key={task.id}>{task.title}</li>)}</ul> : <p className="text-zinc-500">No website or technical work recorded.</p>}</ReportSection>
         <ReportSection title="Revisions completed">{revisions.length ? <ul className="space-y-2">{revisions.map((task) => <li key={task.id}>{task.title}</li>)}</ul> : <p className="text-zinc-500">No completed revisions recorded.</p>}</ReportSection>
-        <ReportSection title="Pending tasks">{pending.length ? <div className="space-y-2">{pending.map((task) => <div key={task.id} className="flex items-center justify-between gap-4 border-b border-line pb-2"><span>{task.title}</span><StatusBadge status={task.status} /></div>)}</div> : <p>No pending tasks.</p>}</ReportSection>
-        <ReportSection title="Extra billable work">{billable.length ? <div className="space-y-2">{billable.map((task) => <div key={task.id} className="flex justify-between gap-4"><span>{task.title}</span><strong>{formatMoney(amountFor(task))}</strong></div>)}</div> : <p className="text-zinc-500">No extra billable work recorded.</p>}<div className="mt-3 flex justify-between border-t border-line pt-3 text-base"><span>Total billable amount</span><strong>{formatMoney(billableTotal)}</strong></div></ReportSection>
-        <ReportSection title="Next month plan"><ul className="list-disc space-y-1 pl-5">{nextMonthPlan.map((item) => <li key={item}>{item}</li>)}</ul></ReportSection>
+        <ReportCard number="02" title="Pending tasks" icon={FileText}>{pending.length ? <div className="space-y-2">{pending.map((task) => <div key={task.id} className="flex items-center justify-between gap-4 border-b border-zinc-100 pb-2"><span>{task.title}</span><StatusBadge status={task.status} /></div>)}</div> : <p>No pending tasks.</p>}</ReportCard>
+        <ReportCard number="03" title="Billable extras" icon={ReceiptText}>{billable.length ? <div className="space-y-2">{billable.map((task) => <div key={task.id} className="flex justify-between gap-4"><span>{task.title}</span><strong>{formatMoney(amountFor(task))}</strong></div>)}</div> : <p className="text-zinc-500">No extra billable work recorded.</p>}<div className="mt-3 flex justify-between border-t border-zinc-900 pt-3 text-base"><span>Total billable amount</span><strong>{formatMoney(billableTotal)}</strong></div></ReportCard>
+        <ReportCard number="04" title="Next month plan" icon={FileText}><ol className="space-y-2">{nextMonthPlan.map((item, index) => <li className="flex gap-3" key={item}><span className="text-xs font-bold text-blue">{String(index + 1).padStart(2, '0')}</span><span>{item}</span></li>)}</ol></ReportCard>
         {settings.default_report_note && <ReportSection title="Report note"><p>{settings.default_report_note}</p></ReportSection>}
         <footer className="mt-7 border-t border-line pt-5 text-sm text-zinc-500"><p className="font-semibold text-ink">{settings.report_footer_text}</p><p className="mt-1">{settings.legal_business_name} · PAN {settings.pan_number}</p><p className="mt-1">{settings.contact_person} · {settings.agency_email} · {settings.agency_phone}</p></footer>
       </div>
-    </article> : <div className="mt-6"><EmptyState title="Report preview is ready to generate" description="Choose a client, month, and year, then generate a report from PHP API data." /></div>}
+    </article> : <div className="mt-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-sm"><EmptyState title="Your report preview will appear here" description="Choose a client and reporting period, then generate a branded delivery report." /></div>}
   </>
 }

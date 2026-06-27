@@ -21,7 +21,7 @@ export default function ClientPortalPage({ token }) {
     getPublicPortalReport(token).then(setData).catch(() => setError('This report link is expired or unavailable.'))
   }, [token])
 
-  if (error) return <main className="flex min-h-screen items-center justify-center bg-[#F7F7F8] p-6"><section className="w-full max-w-lg rounded-3xl border border-zinc-200 bg-white p-8 text-left shadow-xl"><FileText size={28} className="text-zinc-300" /><h1 className="mt-6 text-2xl font-semibold tracking-tight">Report unavailable</h1><p className="mt-3 text-sm leading-6 text-zinc-500">{error}</p></section></main>
+  if (error) return <main className="flex min-h-screen items-center justify-center bg-[#F7F7F8] p-6"><section className="w-full max-w-lg overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_20px_60px_rgba(24,24,27,0.08)]"><div className="h-1.5 bg-[#002FA7]" /><div className="p-8 sm:p-10"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-100"><FileText size={22} className="text-zinc-400" /></div><p className="mt-8 text-xs font-bold uppercase tracking-[0.16em] text-[#002FA7]">Brahmanda Tech</p><h1 className="mt-3 text-2xl font-semibold tracking-tight">Report unavailable</h1><p className="mt-3 text-sm leading-6 text-zinc-500">{error}</p><p className="mt-8 border-t border-zinc-100 pt-5 text-xs text-zinc-400">Contact Brahmanda Tech if you need a new report link.</p></div></section></main>
   if (!data) return <main className="flex min-h-screen items-center justify-center bg-[#F7F7F8]"><div className="h-8 w-8 animate-spin border-2 border-zinc-200 border-t-[#002FA7]" aria-label="Loading report" /></main>
 
   const { report, client, branding } = data
@@ -46,6 +46,12 @@ export default function ClientPortalPage({ token }) {
           <div className="mt-10"><p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Report status</p><p className="mt-2 inline-flex border border-zinc-200 px-2.5 py-1 text-xs font-semibold">{report.status}</p></div>
         </div>
       </header>
+
+      <div className="grid border-b border-zinc-200 bg-[#F7F7F8] sm:grid-cols-3">
+        <div className="border-b border-zinc-200 p-5 sm:border-b-0 sm:border-r"><p className="text-2xl font-semibold tracking-tight">{completed.length}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">Completed items</p></div>
+        <div className="border-b border-zinc-200 p-5 sm:border-b-0 sm:border-r"><p className="text-2xl font-semibold tracking-tight">{pending.length}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">Pending items</p></div>
+        <div className="p-5"><p className="text-2xl font-semibold tracking-tight">{money(total, branding.currency)}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">Billable extras</p></div>
+      </div>
 
       <div className="px-6 sm:px-10">
         <PortalSection number="01" title="Work completed">{completed.length ? <div className="space-y-5">{completed.map((task) => <article key={task.id || task.title} className="border-b border-zinc-100 pb-5 last:border-0"><div className="flex items-start gap-3"><CheckCircle2 size={16} className="mt-1 shrink-0" style={{ color: accent }} /><div><h3 className="font-semibold text-zinc-900">{task.title}</h3>{task.description && <p className="mt-1 text-zinc-500">{task.description}</p>}<div className="mt-3 flex flex-wrap gap-2">{(task.attachments || []).map((proof) => <a key={proof.id || proof.url} href={proof.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 border border-zinc-200 px-2.5 py-1 text-xs font-semibold hover:border-zinc-400" style={{ color: accent }}>{proof.title}<ExternalLink size={11} /></a>)}</div></div></div></article>)}</div> : <p className="text-zinc-500">No completed work was recorded for this period.</p>}</PortalSection>

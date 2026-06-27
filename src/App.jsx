@@ -891,15 +891,37 @@ function KanbanPage({ clients, tasks, onNewTask, onEditTask, onDeleteTask, updat
 
 function DailyLogsPage({ clients, logs }) {
   const completed = [...logs].sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''))
-  const columns = [
-    { key: 'date', label: 'Date', render: (task) => formatDate(task.completedAt || task.deadline, { year: 'numeric', month: 'short', day: 'numeric' }) },
-    { key: 'client', label: 'Client', render: (task) => clients.find((client) => client.id === task.clientId)?.name || 'Deleted client' },
-    { key: 'title', label: 'Work done', render: (task) => <div><p className="font-semibold">{task.title}</p><p className="mt-1 max-w-md text-xs text-zinc-500">{task.description}</p></div> },
-    { key: 'category', label: 'Category' },
-    { key: 'proof', label: 'Proof', render: (task) => task.attachments?.length ? <div className="space-y-1">{task.attachments.map((attachment) => <a key={attachment.id || attachment.url} className="block font-medium text-blue hover:underline" href={attachment.url} target="_blank" rel="noreferrer">{attachment.title}</a>)}</div> : <ProofLink href={task.proofLink} /> },
-    { key: 'billable', label: 'Billable', render: (task) => task.billable ? <Badge className="border-blue/20 bg-blue/5 text-blue">{formatMoney(task.amount)}</Badge> : <span className="text-zinc-500">No</span> },
+  const groups = completed.reduce((result, task) => {
+    const date = task.completedAt || task.deadline || 'Undated'
+    if (!result[date]) result[date] = []
+    result[date].push(task)
+    return result
+  }, {})
+  const metrics = [
+    { label: 'Completed entries', value: String(completed.length).padStart(2, '0'), detail: 'Generated from completed work', icon: CheckCircle2, tone: 'bg-emerald-50 text-emerald-700' },
+    { label: 'Clients delivered', value: String(new Set(completed.map((task) => task.clientId)).size).padStart(2, '0'), detail: 'Unique client workspaces', icon: Users, tone: 'bg-blue/10 text-blue' },
+    { label: 'Proof-backed work', value: String(completed.filter((task) => task.attachments?.length || task.proofLink).length).padStart(2, '0'), detail: 'Entries with evidence', icon: Link2, tone: 'bg-violet-50 text-violet-700' },
+    { label: 'Billable delivered', value: formatMoney(completed.filter((task) => task.billable).reduce((sum, task) => sum + Number(task.amount), 0)), detail: 'Completed billable value', icon: CircleDollarSign, tone: 'bg-orange-50 text-orange-700' },
   ]
-  return <><PageHeading number="05" title="Daily Logs" description="Completed tasks are recorded here automatically when their status changes." /><div className="mb-6 grid gap-px border border-line bg-line sm:grid-cols-3"><StatCard label="Completed entries" value={String(completed.length).padStart(2, '0')} change="Auto-generated" icon={CheckCircle2} /><StatCard label="Clients delivered" value={String(new Set(completed.map((task) => task.clientId)).size).padStart(2, '0')} change="In completed work" icon={Users} /><StatCard label="Billable delivered" value={formatMoney(completed.filter((task) => task.billable).reduce((sum, task) => sum + Number(task.amount), 0))} change="Completed only" icon={CircleDollarSign} /></div><div className="panel"><Table columns={columns} data={completed} emptyMessage="Completed tasks will appear here automatically." /></div></>
+  return <>
+    <PageHeader eyebrow="Delivery record" title="Daily Logs" description="A chronological record of completed client work, proof, and billable delivery." />
+    <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{metrics.map((metric) => <article key={metric.label} className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-[0_6px_22px_rgba(24,24,27,0.04)] sm:p-5"><div className={`flex h-9 w-9 items-center justify-center rounded-xl ${metric.tone}`}><metric.icon size={17} /></div><p className="mt-5 text-2xl font-semibold tracking-tight text-zinc-900">{metric.value}</p><p className="mt-1 text-xs font-bold text-zinc-700">{metric.label}</p><p className="mt-1 text-[11px] text-zinc-400">{metric.detail}</p></article>)}</div>
+    {completed.length ? <section className="overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.05)]">
+      <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4"><div><h2 className="text-sm font-semibold text-zinc-900">Completed work ledger</h2><p className="mt-1 text-xs text-zinc-400">Grouped by completion date</p></div><Badge className="border-blue/15 bg-blue/5 text-blue">{completed.length} entries</Badge></div>
+      <div className="divide-y divide-zinc-100">{Object.entries(groups).map(([date, entries]) => <section key={date} className="grid lg:grid-cols-[160px_1fr]">
+        <div className="border-b border-zinc-100 bg-zinc-50/70 px-5 py-5 lg:border-b-0 lg:border-r"><p className="text-2xl font-light tracking-tight text-zinc-900">{date === 'Undated' ? '—' : new Date(`${date.slice(0, 10)}T00:00:00`).getDate().toString().padStart(2, '0')}</p><p className="mt-1 text-xs font-semibold text-zinc-500">{date === 'Undated' ? 'Undated' : formatDate(date, { year: 'numeric', month: 'long', day: 'numeric' })}</p><p className="mt-2 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">{entries.length} deliverable{entries.length === 1 ? '' : 's'}</p></div>
+        <div className="divide-y divide-zinc-100">{entries.map((task) => {
+          const proofs = task.attachments?.length ? task.attachments : task.proofLink ? [{ title: 'View proof', url: task.proofLink }] : []
+          return <article key={task.id} className="grid gap-4 px-5 py-5 transition hover:bg-blue/[0.02] md:grid-cols-[minmax(240px,1fr)_150px_minmax(150px,.7fr)_120px] md:items-center">
+            <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-zinc-900">{task.title}</h3><Badge className="border-zinc-200 bg-zinc-50 text-zinc-600">{task.category}</Badge></div><p className="mt-1.5 line-clamp-2 text-xs leading-5 text-zinc-500">{task.description || 'No additional delivery notes.'}</p></div>
+            <div><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Client</p><p className="mt-1 text-xs font-semibold text-zinc-700">{clients.find((client) => client.id === task.clientId)?.name || 'Deleted client'}</p></div>
+            <div><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Proof</p><div className="mt-1.5 flex flex-wrap gap-1.5">{proofs.length ? proofs.map((proof) => <a key={proof.id || proof.url} className="inline-flex items-center gap-1 rounded-lg border border-blue/15 bg-blue/5 px-2 py-1 text-[11px] font-semibold text-blue transition hover:bg-blue/10" href={proof.url} target="_blank" rel="noreferrer"><Link2 size={11} />{proof.title}</a>) : <span className="text-xs text-zinc-400">No proof attached</span>}</div></div>
+            <div className="md:text-right">{task.billable ? <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">{formatMoney(task.amount)}</Badge> : <span className="text-[11px] font-medium text-zinc-400">Non-billable</span>}</div>
+          </article>
+        })}</div>
+      </section>)}</div>
+    </section> : <div className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-sm"><EmptyState title="No completed work yet" description="Completed tasks will appear here automatically with their client, proof, and billing details." /></div>}
+  </>
 }
 
 export function LegacyReportsPage({ clients, tasks, isFallback }) {
@@ -960,14 +982,28 @@ function BillingPage({ clients, billings, updateTask }) {
   const billable = billings
   const total = billable.reduce((sum, task) => sum + Number(task.amount), 0)
   const paid = billable.filter((task) => task.paymentStatus === 'Paid').reduce((sum, task) => sum + Number(task.amount), 0)
-  const columns = [
-    { key: 'title', label: 'Billable work', render: (task) => <div><p className="font-semibold">{task.title}</p><p className="mt-1 text-xs text-zinc-500">{task.clientName || clients.find((client) => client.id === task.clientId)?.name}</p></div> },
-    { key: 'amount', label: 'Amount', render: (task) => <span className="font-semibold">{formatMoney(task.amount)}</span> },
-    { key: 'payment', label: 'Payment', render: (task) => <select className="border border-line bg-white px-2 py-1.5 text-xs font-semibold" value={task.paymentStatus || 'Unpaid'} onChange={(event) => updateTask(task.id, { paymentStatus: event.target.value })}><option>Unpaid</option><option>Paid</option></select> },
-    { key: 'invoice', label: 'Invoice', render: (task) => <select className="border border-line bg-white px-2 py-1.5 text-xs font-semibold" value={task.invoiceStatus || 'Not invoiced'} onChange={(event) => updateTask(task.id, { invoiceStatus: event.target.value })}><option>Not invoiced</option><option>Draft</option><option>Sent</option></select> },
-    { key: 'status', label: 'Status', render: (task) => <div className="flex flex-wrap gap-2"><BillingBadge value={task.paymentStatus || 'Unpaid'} /><BillingBadge type="invoice" value={task.invoiceStatus || 'Not invoiced'} /></div> },
+  const unpaidCount = billable.filter((task) => task.paymentStatus !== 'Paid').length
+  const metrics = [
+    { label: 'Total billable', value: formatMoney(total), detail: `${billable.length} work items`, icon: CircleDollarSign, tone: 'bg-blue/10 text-blue' },
+    { label: 'Paid', value: formatMoney(paid), detail: `${billable.filter((task) => task.paymentStatus === 'Paid').length} settled`, icon: CheckCircle2, tone: 'bg-emerald-50 text-emerald-700' },
+    { label: 'Outstanding', value: formatMoney(total - paid), detail: 'Awaiting payment', icon: Clock3, tone: 'bg-orange-50 text-orange-700' },
+    { label: 'Unpaid items', value: String(unpaidCount).padStart(2, '0'), detail: unpaidCount ? 'Requires follow-up' : 'Nothing outstanding', icon: ReceiptText, tone: 'bg-red-50 text-red-700' },
   ]
-  return <><PageHeading number="07" title="Billing" description="Only billable tasks appear here. Payment and invoice status persist locally." /><div className="mb-6 grid gap-px border border-line bg-line sm:grid-cols-3"><StatCard label="Total billable" value={formatMoney(total)} change={`${billable.length} items`} icon={CircleDollarSign} /><StatCard label="Paid" value={formatMoney(paid)} change={`${billable.filter((task) => task.paymentStatus === 'Paid').length} settled`} icon={CheckCircle2} /><StatCard label="Outstanding" value={formatMoney(total - paid)} change={`${billable.filter((task) => task.paymentStatus !== 'Paid').length} unpaid`} icon={Clock3} /></div><div className="panel"><Table columns={columns} data={billable} emptyMessage="No billable tasks have been added." /></div></>
+  return <>
+    <PageHeader eyebrow="Revenue operations" title="Billing" description="Track billable client work, invoice progress, and payment collection in one ledger." />
+    <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{metrics.map((metric) => <article key={metric.label} className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-[0_6px_22px_rgba(24,24,27,0.04)] sm:p-5"><div className="flex items-start justify-between"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${metric.tone}`}><metric.icon size={17} /></span><span className="text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-300">NPR</span></div><p className="mt-5 text-2xl font-semibold tracking-tight text-zinc-900">{metric.value}</p><p className="mt-1 text-xs font-bold text-zinc-700">{metric.label}</p><p className="mt-1 text-[11px] text-zinc-400">{metric.detail}</p></article>)}</div>
+    {billable.length ? <section className="overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.05)]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-5 py-4"><div><h2 className="text-sm font-semibold text-zinc-900">Billable work ledger</h2><p className="mt-1 text-xs text-zinc-400">Payment and invoice status update immediately</p></div><Badge className="border-zinc-200 bg-zinc-50 text-zinc-600">{billable.length} items</Badge></div>
+      <div className="hidden grid-cols-[minmax(260px,1.4fr)_150px_130px_150px_150px] gap-4 border-b border-zinc-100 bg-zinc-50/70 px-5 py-3 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400 lg:grid"><span>Client work</span><span>Date</span><span>Amount</span><span>Payment</span><span>Invoice</span></div>
+      <div className="divide-y divide-zinc-100">{billable.map((task) => <article key={task.id} className="grid gap-4 px-5 py-5 transition hover:bg-blue/[0.02] lg:grid-cols-[minmax(260px,1.4fr)_150px_130px_150px_150px] lg:items-center">
+        <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-zinc-900">{task.title}</h3><StatusBadge status={task.status} /></div><p className="mt-1.5 text-xs font-medium text-zinc-500">{task.clientName || clients.find((client) => client.id === task.clientId)?.name || 'Deleted client'}</p><p className="mt-1 text-[11px] text-zinc-400">Related task #{task.id}</p></div>
+        <div><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 lg:hidden">Date</p><p className="mt-1 text-xs font-semibold text-zinc-600">{task.completedAt || task.deadline ? formatDate(task.completedAt || task.deadline) : 'No date'}</p></div>
+        <div><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 lg:hidden">Amount</p><p className="mt-1 text-sm font-bold text-zinc-900">{formatMoney(task.amount)}</p></div>
+        <label><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-zinc-400 lg:hidden">Payment</span><select className={`w-full rounded-xl border px-3 py-2 text-xs font-bold outline-none transition focus:ring-4 focus:ring-blue/10 ${task.paymentStatus === 'Paid' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-orange-200 bg-orange-50 text-orange-700'}`} value={task.paymentStatus || 'Unpaid'} onChange={(event) => updateTask(task.id, { paymentStatus: event.target.value })}><option>Unpaid</option><option>Paid</option></select></label>
+        <label><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-zinc-400 lg:hidden">Invoice</span><select className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-bold text-zinc-600 outline-none transition focus:border-blue/40 focus:ring-4 focus:ring-blue/10" value={task.invoiceStatus || 'Not invoiced'} onChange={(event) => updateTask(task.id, { invoiceStatus: event.target.value })}><option>Not invoiced</option><option>Draft</option><option>Sent</option></select></label>
+      </article>)}</div>
+    </section> : <div className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-sm"><EmptyState title="No billable work yet" description="Tasks marked as billable will appear here with payment and invoice tracking." /></div>}
+  </>
 }
 
 function WorkspaceApp({ user, onLogout, onUserUpdate }) {
