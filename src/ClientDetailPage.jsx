@@ -30,7 +30,7 @@ function DetailItem({ label, children }) {
 }
 
 function SummaryCard({ label, value, icon: Icon }) {
-  return <div className="bg-white p-4 sm:p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-2xl font-semibold tracking-tight">{value}</p><p className="mt-1 text-xs text-zinc-500">{label}</p></div><Icon size={17} className="text-blue" strokeWidth={1.8} /></div></div>
+  return <div className="bg-white p-4 transition hover:bg-zinc-50 sm:p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-2xl font-semibold tracking-[-0.03em] tabular-nums">{value}</p><p className="mt-1 text-xs text-zinc-500">{label}</p></div><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue/5 text-blue"><Icon size={15} strokeWidth={1.8} /></span></div></div>
 }
 
 function ProofList({ task }) {
@@ -167,7 +167,7 @@ export default function ClientDetailPage({
     <div className="mt-5 grid overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 sm:gap-px xl:grid-cols-6">{summary.map(([label, value, icon]) => <SummaryCard key={label} label={label} value={value} icon={icon} />)}</div>
 
     <div className="mt-7 overflow-x-auto rounded-xl border border-line bg-white p-1">
-      <div className="flex min-w-max">{TABS.map((tab) => <button key={tab} className={`border-b-2 px-4 py-3 text-sm font-semibold transition ${activeTab === tab ? 'border-blue text-blue' : 'border-transparent text-zinc-500 hover:text-ink'}`} onClick={() => setActiveTab(tab)}>{tab}</button>)}</div>
+      <div className="flex min-w-max gap-1">{TABS.map((tab) => <button key={tab} className={`rounded-lg px-4 py-2.5 text-sm font-semibold transition ${activeTab === tab ? 'bg-blue text-white shadow-sm' : 'text-zinc-500 hover:bg-canvas hover:text-ink'}`} onClick={() => setActiveTab(tab)}>{tab}</button>)}</div>
     </div>
 
     <div className="mt-5">

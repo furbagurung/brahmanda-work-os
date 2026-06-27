@@ -3,7 +3,7 @@ import {
   BellRing, CalendarDays, ChevronLeft, ChevronRight, Pencil, UserRound, X,
 } from 'lucide-react'
 
-import { Badge, DeadlineBadge, PriorityBadge, StatusBadge } from './components'
+import { Badge, DeadlineBadge, PageHeader, PriorityBadge, StatusBadge } from './components'
 import { PRIORITIES, TASK_STATUSES } from './data'
 import { formatDate, todayDateString } from './utils'
 import { calendarDays } from './calendarUtils'
@@ -87,12 +87,9 @@ export default function CalendarPage({ clients, tasks, onEditTask, updateTask })
   const selectedEvents = selectedDate ? eventsByDate[selectedDate] || [] : []
 
   return <>
-    <div className="mb-7 flex flex-col gap-5 border-b border-line pb-6 lg:flex-row lg:items-end lg:justify-between">
-      <div className="flex items-start gap-4 sm:gap-5"><span className="text-4xl font-light leading-none text-zinc-200 sm:text-5xl">07</span><div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Calendar</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">Task deadlines and reminders across all client work.</p></div></div>
-      <div className="flex items-center self-start border border-line bg-white"><button className="flex h-10 w-10 items-center justify-center border-r border-line hover:bg-canvas" onClick={() => moveMonth(-1)} aria-label="Previous month"><ChevronLeft size={18} /></button><h2 className="min-w-48 px-4 text-center text-sm font-semibold">{title}</h2><button className="flex h-10 w-10 items-center justify-center border-l border-line hover:bg-canvas" onClick={() => moveMonth(1)} aria-label="Next month"><ChevronRight size={18} /></button></div>
-    </div>
+    <PageHeader number="07" title="Calendar" description="Task deadlines and reminders across all client work." actions={<div className="flex items-center self-start overflow-hidden rounded-xl border border-line bg-white shadow-sm"><button className="flex h-10 w-10 items-center justify-center border-r border-line hover:bg-canvas" onClick={() => moveMonth(-1)} aria-label="Previous month"><ChevronLeft size={18} /></button><h2 className="min-w-48 px-4 text-center text-sm font-semibold">{title}</h2><button className="flex h-10 w-10 items-center justify-center border-l border-line hover:bg-canvas" onClick={() => moveMonth(1)} aria-label="Next month"><ChevronRight size={18} /></button></div>} />
 
-    <div className="mb-5 grid gap-3 border border-line bg-white p-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="panel mb-5 grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
       <select className="field" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option>All</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select>
       <select className="field" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option>All</option>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select>
       <select className="field" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>All</option>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select>
@@ -107,8 +104,8 @@ export default function CalendarPage({ clients, tasks, onEditTask, updateTask })
         <div className="grid grid-cols-7 gap-px bg-line">{days.map((day) => {
           const events = eventsByDate[day.key] || []
           const visibleEvents = events.slice(0, 3)
-          return <div className={`min-h-40 cursor-pointer bg-white p-2.5 text-left align-top transition hover:bg-zinc-50 ${day.currentMonth ? '' : 'text-zinc-300'} ${day.key === today ? 'ring-2 ring-inset ring-blue' : ''}`} key={day.key} onClick={() => setSelectedDate(day.key)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setSelectedDate(day.key) }} role="button" tabIndex={0} aria-label={`Open ${formatDate(day.key, { year: 'numeric', month: 'long', day: 'numeric' })}`}>
-            <span className={`flex h-7 w-7 items-center justify-center text-xs font-semibold ${day.key === today ? 'bg-blue text-white' : ''}`}>{day.date.getUTCDate()}</span>
+          return <div className={`min-h-40 cursor-pointer bg-white p-2.5 text-left align-top transition hover:bg-blue/[0.025] ${day.currentMonth ? '' : 'text-zinc-300'} ${day.key === today ? 'ring-2 ring-inset ring-blue' : ''}`} key={day.key} onClick={() => setSelectedDate(day.key)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setSelectedDate(day.key) }} role="button" tabIndex={0} aria-label={`Open ${formatDate(day.key, { year: 'numeric', month: 'long', day: 'numeric' })}`}>
+            <span className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-semibold ${day.key === today ? 'bg-blue text-white shadow-sm' : ''}`}>{day.date.getUTCDate()}</span>
             <span className="mt-2 block space-y-1.5">{visibleEvents.map((event) => <EventMarker key={`${event.type}-${event.task.id}`} event={event} client={clients.find((client) => client.id === event.task.clientId)} onClick={() => setSelectedDate(day.key)} />)}{events.length > visibleEvents.length && <span className="block px-2 text-[10px] font-semibold text-zinc-500">+{events.length - visibleEvents.length} more</span>}</span>
           </div>
         })}</div>

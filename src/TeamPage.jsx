@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { KeyRound, Pencil, Plus, UserRoundCog, UserX } from 'lucide-react'
-import { Badge, EmptyState, Modal, Table } from './components'
+import { Badge, Button, EmptyState, Modal, PageHeader, Table } from './components'
 import {
   changeUserPassword, createUser, deactivateUser, getUsers, updateUser,
 } from './services/api'
@@ -128,10 +128,7 @@ export default function TeamPage({ currentUser, onCurrentUserUpdate, onActivityR
   ]
 
   return <>
-    <div className="mb-8 flex flex-col gap-5 border-b border-line pb-7 sm:flex-row sm:items-end sm:justify-between">
-      <div className="flex items-start gap-4 sm:gap-5"><span className="text-4xl font-light leading-none text-zinc-200 sm:text-5xl">08</span><div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Team</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">{isAdmin ? 'Manage workspace users, roles, account status, and passwords.' : 'View your Brahmanda Work OS profile.'}</p></div></div>
-      {isAdmin && <button className="button-primary self-start sm:self-auto" onClick={() => setEditing(emptyUser)}><Plus size={16} />Add user</button>}
-    </div>
+    <PageHeader number="08" title="Team" description={isAdmin ? 'Manage workspace users, roles, account status, and passwords.' : 'View your Brahmanda Work OS profile.'} actions={isAdmin ? <Button onClick={() => setEditing(emptyUser)}><Plus size={16} />Add user</Button> : null} />
 
     {error && <p className="mb-5 border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {loading ? <div className="panel flex min-h-52 items-center justify-center text-sm text-zinc-500">Loading team…</div> : users.length ? <div className="panel"><Table columns={columns} data={users} /></div> : <EmptyState title="No users found" description="Add the first workspace user." />}

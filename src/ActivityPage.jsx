@@ -1,6 +1,6 @@
 import { Activity, Filter } from 'lucide-react'
 
-import { Badge, EmptyState } from './components'
+import { Badge, EmptyState, PageHeader } from './components'
 import { formatActivityDate } from './activityUtils'
 
 const actionStyles = {
@@ -37,8 +37,8 @@ export default function ActivityPage({ activities, sourceActivities = activities
   const change = (key, value) => setFilters((current) => ({ ...current, [key]: value }))
 
   return <>
-    <div className="mb-8 flex items-start gap-4 border-b border-line pb-7 sm:gap-5"><span className="text-4xl font-light leading-none text-zinc-200 sm:text-5xl">09</span><div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Activity</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">Audit history for important workspace actions.</p></div></div>
-    <section className="mb-5 border border-line bg-white"><div className="flex items-center gap-2 border-b border-line px-4 py-3"><Filter size={15} className="text-blue" /><h2 className="text-sm font-semibold">Filters</h2></div><div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-6">
+    <PageHeader number="09" title="Activity" description="Audit history for important workspace actions." />
+    <section className="panel mb-5"><div className="flex items-center gap-2 border-b border-line px-4 py-3"><Filter size={15} className="text-blue" /><h2 className="text-sm font-semibold">Filters</h2></div><div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-6">
       <select className="field" value={filters.user_id} onChange={(event) => change('user_id', event.target.value)}><option value="">All users</option>{users.map((user) => <option key={user.id || user.name} value={user.id}>{user.name}</option>)}</select>
       <select className="field" value={filters.client_id} onChange={(event) => change('client_id', event.target.value)}><option value="">All clients</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select>
       <select className="field" value={filters.module} onChange={(event) => change('module', event.target.value)}><option value="">All modules</option>{modules.map((module) => <option key={module}>{module}</option>)}</select>

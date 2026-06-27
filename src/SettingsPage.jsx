@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Building2, FileText, Save, Settings2, UserRound } from 'lucide-react'
 
-import { Badge } from './components'
+import { Badge, PageHeader } from './components'
 import { updateUser } from './services/api'
 
 const sections = [
@@ -63,9 +63,9 @@ export default function SettingsPage({
   }
 
   return <>
-    <div className="mb-8 flex items-start gap-4 border-b border-line pb-7 sm:gap-5"><span className="text-4xl font-light leading-none text-zinc-200 sm:text-5xl">10</span><div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Settings</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">Agency identity, report branding, workspace defaults, and your profile.</p></div></div>
+    <PageHeader number="10" title="Settings" description="Agency identity, report branding, workspace defaults, and your profile." />
     <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
-      <nav className="panel h-fit p-2">{sections.map(([section, Icon]) => <button key={section} className={`flex w-full items-center gap-3 px-3 py-3 text-left text-sm font-medium ${activeSection === section ? 'bg-blue text-white' : 'hover:bg-canvas'}`} onClick={() => { setActiveSection(section); setMessage('') }}><Icon size={16} />{section}</button>)}</nav>
+      <nav className="panel h-fit p-2">{sections.map(([section, Icon]) => <button key={section} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${activeSection === section ? 'bg-blue text-white shadow-sm' : 'text-zinc-600 hover:bg-canvas hover:text-ink'}`} onClick={() => { setActiveSection(section); setMessage('') }}><Icon size={16} />{section}</button>)}</nav>
       <section className="panel">
         <header className="flex flex-col gap-3 border-b border-line p-5 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-lg font-semibold">{activeSection}</h2><p className="mt-1 text-sm text-zinc-500">{isAdmin ? 'Update saved workspace information.' : 'You have read-only access. Administrator access is required for updates.'}</p></div><Badge className={isAdmin ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-zinc-200 bg-zinc-50 text-zinc-600'}>{isAdmin ? 'Admin access' : 'Read only'}</Badge></header>
         <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">

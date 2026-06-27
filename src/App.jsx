@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  AlertTriangle, BarChart3, BellRing, BriefcaseBusiness, CalendarDays, CalendarRange, CheckCircle2, ChevronDown,
+  BarChart3, BellRing, BriefcaseBusiness, CalendarDays, CalendarRange, CheckCircle2, ChevronDown,
   ChevronLeft, ChevronRight, CircleDollarSign, ClipboardCopy, ClipboardList, Clock3, Command, FileText,
-  History, LayoutDashboard, ListChecks, LogOut, Menu, MessageSquare, Plus, ReceiptText, Repeat2, Search, Settings, Trash2, UserRound, Users, UsersRound, X,
+  History, LayoutDashboard, Link2, ListChecks, LogOut, Menu, MessageSquare, Plus, ReceiptText, Repeat2, Search, Settings, Trash2, UserRound, Users, UsersRound, X,
 } from 'lucide-react'
 import {
-  ActionMenu, Badge, BillingBadge, ClientCard, DeadlineBadge, EmptyState, Modal, PriorityBadge,
-  ProofLink, ReportSection, StatCard, StatusBadge, Table, TaskCard,
+  ActionMenu, Badge, BillingBadge, Button, ClientCard, DeadlineBadge, EmptyState, Modal, PageHeader, PriorityBadge,
+  ProofLink, ReportSection, StatCard, StatusBadge, Table,
 } from './components'
 import { CATEGORIES, initialClients, initialTasks, PRIORITIES, TASK_STATUSES } from './data'
 import {
@@ -439,6 +439,14 @@ function Sidebar({ activePage, setActivePage, open, setOpen, collapsed, settings
 }
 
 function Topbar({ activePage, setOpen, onToggleCollapse, collapsed, onOpenSearch, quickAddOpen, setQuickAddOpen, quickAddActions, settings, user, onLogout, notifications, notificationsOpen, setNotificationsOpen, onOpenNotification, onReadAllNotifications, onViewNotifications }) {
+  const [profileOpen, setProfileOpen] = useState(false)
+  const profileRef = useRef(null)
+  useEffect(() => {
+    const close = (event) => !profileRef.current?.contains(event.target) && setProfileOpen(false)
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [])
+  const initials = user.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-line bg-white/90 px-3 backdrop-blur-xl sm:gap-3 md:px-6">
       <button className="mr-1 rounded-xl border border-line bg-white p-2 text-zinc-500 shadow-sm hover:border-zinc-400 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu"><Menu size={22} /></button>
@@ -457,29 +465,16 @@ function Topbar({ activePage, setOpen, onToggleCollapse, collapsed, onOpenSearch
         <QuickAddMenu open={quickAddOpen} onClose={() => setQuickAddOpen(false)} {...quickAddActions} />
       </div>
       <NotificationBell notifications={notifications} open={notificationsOpen} setOpen={setNotificationsOpen} onOpen={onOpenNotification} onReadAll={onReadAllNotifications} onViewAll={onViewNotifications} />
-      <div className="ml-3 hidden text-right md:block">
-        <p className="text-xs font-semibold">{user.name}</p>
-        <p className="text-[11px] capitalize text-zinc-500">{user.role}</p>
+      <div className="relative ml-1" ref={profileRef}>
+        <button className="flex h-10 items-center gap-2 rounded-xl border border-line bg-white p-1 pr-2 shadow-sm transition hover:border-zinc-300 hover:shadow-md" onClick={() => setProfileOpen((value) => !value)} aria-label="Open profile menu" aria-expanded={profileOpen}><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ink text-[11px] font-bold text-white">{initials}</span><span className="hidden max-w-28 text-left lg:block"><span className="block truncate text-xs font-semibold">{user.name}</span><span className="block text-[10px] capitalize text-zinc-500">{user.role}</span></span><ChevronDown size={13} className="hidden text-zinc-400 lg:block" /></button>
+        {profileOpen && <div className="absolute right-0 top-12 z-50 w-56 rounded-2xl border border-line bg-white p-2 shadow-2xl"><div className="border-b border-line px-3 py-3"><p className="truncate text-sm font-semibold">{user.name}</p><p className="mt-0.5 truncate text-xs text-zinc-500">{user.email}</p><Badge className="mt-2 capitalize" variant="info">{user.role}</Badge></div><button className="mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-700 hover:bg-red-50" onClick={onLogout}><LogOut size={15} />Log out</button></div>}
       </div>
-      <span className="ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ink text-xs font-bold text-white">{user.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span>
-      <button className="flex h-10 w-10 items-center justify-center rounded-xl border border-line text-zinc-500 hover:border-zinc-400 hover:text-ink" onClick={onLogout} aria-label="Log out"><LogOut size={16} /></button>
     </header>
   )
 }
 
 function PageHeading({ number, title, description, action, onAction }) {
-  return (
-    <div className="mb-7 rounded-2xl border border-line bg-white px-5 py-5 shadow-[0_1px_2px_rgba(24,24,27,0.04)] sm:flex sm:items-end sm:justify-between sm:gap-6 sm:px-6 sm:py-6">
-      <div className="flex items-start gap-4 sm:gap-5">
-        <span className="text-4xl font-light leading-none tracking-[-0.05em] text-zinc-200 tabular-nums sm:text-5xl">{number}</span>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{title}</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">{description}</p>
-        </div>
-      </div>
-      {action && <button className="button-primary self-start sm:self-auto" onClick={onAction}><Plus size={16} />{action}</button>}
-    </div>
-  )
+  return <PageHeader number={number} title={title} description={description} actions={action ? <Button onClick={onAction}><Plus size={16} />{action}</Button> : null} />
 }
 
 function Field({ label, children, className = '' }) {
@@ -620,14 +615,28 @@ function ClientForm({ client, onSave, onClose }) {
 
 function DeadlineColumn({ title, description, tasks, clients, tone }) {
   const toneClasses = {
-    red: 'border-t-red-600',
-    orange: 'border-t-orange-500',
-    blue: 'border-t-blue',
+    red: ['bg-red-50 text-red-700', 'bg-red-600'],
+    orange: ['bg-orange-50 text-orange-700', 'bg-orange-500'],
+    blue: ['bg-blue/5 text-blue', 'bg-blue'],
   }
-  return <section className={`border border-line border-t-2 bg-white ${toneClasses[tone]}`}><div className="border-b border-line p-4"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">{title}</h3><span className="text-lg font-semibold">{tasks.length}</span></div><p className="mt-1 text-xs text-zinc-500">{description}</p></div><div className="divide-y divide-line">{tasks.slice(0, 4).map((task) => <div className="p-4" key={task.id}><p className="text-sm font-semibold">{task.title}</p><p className="mt-1 text-xs text-zinc-500">{clients.find((client) => client.id === task.clientId)?.name || 'Deleted client'} · {formatDate(task.deadline)}</p><div className="mt-2 flex flex-wrap gap-2"><PriorityBadge priority={task.priority} /><DeadlineBadge task={task} /></div></div>)}{!tasks.length && <p className="p-5 text-sm text-zinc-400">No tasks</p>}</div></section>
+  const [toneSurface, toneBar] = toneClasses[tone]
+  return <section className="overflow-hidden rounded-2xl border border-white/70 bg-white shadow-[0_8px_24px_rgba(24,24,27,0.045)] ring-1 ring-zinc-200/80"><div className={`h-1 ${toneBar}`} /><div className="p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold tracking-tight">{title}</h3><p className="mt-1 text-xs text-zinc-500">{description}</p></div><span className={`flex h-9 min-w-9 items-center justify-center rounded-xl px-2 text-sm font-bold tabular-nums ${toneSurface}`}>{tasks.length}</span></div>{tasks.length ? <div className="mt-4 space-y-2">{tasks.slice(0, 2).map((task) => <div className="rounded-xl bg-canvas/80 p-3" key={task.id}><p className="truncate text-xs font-semibold text-zinc-800">{task.title}</p><p className="mt-1 truncate text-[11px] text-zinc-500">{clients.find((client) => client.id === task.clientId)?.name || 'Deleted client'} · {formatDate(task.deadline)}</p></div>)}</div> : <div className="mt-4 rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-center text-xs text-zinc-400">No tasks</div>}</div></section>
 }
 
-function Dashboard({ clients, tasks, activities, notifications = [], connectionStatus, onNewTask, setActivePage, onEditTask, onDeleteTask, updateTask, onOpenNotification }) {
+function DashboardMetricCard({ label, value, detail, icon: Icon, accent = 'blue' }) {
+  const accents = { blue: 'bg-blue/5 text-blue', emerald: 'bg-emerald-50 text-emerald-700', orange: 'bg-orange-50 text-orange-700', violet: 'bg-violet-50 text-violet-700' }
+  return <article className="group rounded-2xl border border-white/70 bg-white p-5 shadow-[0_8px_24px_rgba(24,24,27,0.045)] ring-1 ring-zinc-200/80 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(24,24,27,0.075)]"><div className="flex items-start justify-between gap-4"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${accents[accent]}`}><Icon size={18} strokeWidth={1.8} /></span><span className="text-[11px] font-medium text-zinc-400">{detail}</span></div><p className="mt-6 text-[1.8rem] font-semibold leading-none tracking-[-0.04em] text-ink tabular-nums">{value}</p><p className="mt-2 text-sm font-medium text-zinc-500">{label}</p></article>
+}
+
+function DashboardTaskCard({ task, client, onEdit, updateTask }) {
+  const completed = Number(task.checklistCompleted || 0)
+  const total = Number(task.checklistTotal || 0)
+  const progress = total ? Math.round((completed / total) * 100) : 0
+  const initials = task.assignedUserName ? task.assignedUserName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() : ''
+  return <article className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-[0_4px_16px_rgba(24,24,27,0.035)] transition duration-200 hover:border-zinc-300 hover:shadow-md"><div className="flex items-start justify-between gap-4"><button className="min-w-0 text-left" onClick={() => onEdit(task)}><h3 className="truncate text-sm font-semibold tracking-tight hover:text-blue">{task.title}</h3><p className="mt-1 truncate text-xs text-zinc-500">{client?.name || 'Deleted client'}</p></button><PriorityBadge priority={task.priority} /></div><div className="mt-4 flex flex-wrap items-center gap-2"><DeadlineBadge task={task} /><Badge variant="neutral"><CalendarDays size={11} className="mr-1" />{formatDate(task.deadline)}</Badge><span className="ml-auto flex items-center gap-1.5 text-[11px] text-zinc-500">{initials ? <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-ink text-[9px] font-bold text-white">{initials}</span> : <UserRound size={13} />}{task.assignedUserName || 'Unassigned'}</span></div>{total > 0 && <div className="mt-4 rounded-xl bg-canvas p-3"><div className="mb-2 flex items-center justify-between text-[10px] text-zinc-500"><span>Checklist progress</span><span className="font-semibold tabular-nums">{completed}/{total}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-zinc-200"><div className="h-full rounded-full bg-blue" style={{ width: `${progress}%` }} /></div></div>}<div className="mt-4 border-t border-line pt-3"><select className="w-full rounded-lg bg-canvas px-2 py-2 text-xs font-semibold outline-none hover:bg-zinc-100" value={task.status} onChange={(event) => updateTask(task.id, { status: event.target.value })}>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></div></article>
+}
+
+function Dashboard({ clients, tasks, activities, notifications = [], connectionStatus, onNewTask, setActivePage, onEditTask, updateTask, onOpenNotification }) {
   const completed = tasks.filter((task) => task.status === 'Completed')
   const billable = tasks.filter((task) => task.billable)
   const todayTasks = tasks.filter((task) => task.deadline === TODAY)
@@ -640,14 +649,17 @@ function Dashboard({ clients, tasks, activities, notifications = [], connectionS
   const recurringDueToday = recurringTasks.filter((task) => task.nextOccurrenceDate === TODAY)
   const recurringUpcoming = recurringTasks.filter((task) => task.nextOccurrenceDate > TODAY).slice(0, 4)
   const stats = [
-    ['Active Clients', String(clients.length).padStart(2, '0'), 'Client workspaces', Users],
-    ['Today’s Tasks', String(todayTasks.length).padStart(2, '0'), `${todayTasks.filter((task) => task.status !== 'Completed').length} open`, ClipboardList],
-    ['Pending Tasks', String(tasks.length - completed.length).padStart(2, '0'), 'Across all clients', Clock3],
-    ['Completed', String(completed.length).padStart(2, '0'), 'Stored in daily logs', CheckCircle2],
-    ['Billable Work', formatMoney(billable.reduce((sum, task) => sum + Number(task.amount), 0)), `${billable.length} items`, CircleDollarSign],
-    ['Reports Ready', String(new Set(completed.map((task) => task.clientId)).size).padStart(2, '0'), 'From completed tasks', FileText],
+    ['Active clients', String(clients.length).padStart(2, '0'), 'Client workspaces', Users, 'blue'],
+    ['Today’s tasks', String(todayTasks.length).padStart(2, '0'), `${todayTasks.filter((task) => task.status !== 'Completed').length} open`, ClipboardList, 'orange'],
+    ['Pending tasks', String(tasks.length - completed.length).padStart(2, '0'), 'Across all clients', Clock3, 'violet'],
+    ['Completed work', String(completed.length).padStart(2, '0'), 'Stored in daily logs', CheckCircle2, 'emerald'],
+    ['Billable work', formatMoney(billable.reduce((sum, task) => sum + Number(task.amount), 0)), `${billable.length} items`, CircleDollarSign, 'blue'],
+    ['Reports ready', String(new Set(completed.map((task) => task.clientId)).size).padStart(2, '0'), 'From completed work', FileText, 'emerald'],
   ]
-  const priorityTasks = tasks.filter((task) => task.status !== 'Completed').slice(0, 4)
+  const priorityTasks = tasks.filter((task) => task.status !== 'Completed').sort((a, b) => {
+    const rank = { Urgent: 0, High: 1, Medium: 2, Low: 3 }
+    return (rank[a.priority] ?? 4) - (rank[b.priority] ?? 4) || String(a.deadline || '9999').localeCompare(String(b.deadline || '9999'))
+  }).slice(0, 6)
   const importantNotifications = notifications.filter((notification) => (
     ['overdue_task', 'due_today', 'reminder', 'unpaid_billing'].includes(notification.type)
     && Number(notification.is_read) !== 1
@@ -655,25 +667,33 @@ function Dashboard({ clients, tasks, activities, notifications = [], connectionS
   const statusLabel = connectionStatus === 'connected' ? 'Connected to API' : connectionStatus === 'fallback' ? 'Demo/Fallback Mode' : 'API Error'
   const statusClasses = connectionStatus === 'connected' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : connectionStatus === 'fallback' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-700'
   return <>
-    <PageHeading number="01" title="Agency overview" description="Live workload, delivery, and billable activity from your local workspace." action="Create task" onAction={onNewTask} />
-    <div className={`mb-5 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold ${statusClasses}`}><span className="h-2 w-2 rounded-full bg-current" />{statusLabel}</div>
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">{stats.map(([label, value, change, Icon]) => <StatCard key={label} label={label} value={value} change={change} icon={Icon} />)}</div>
-    <div className="mt-6 grid gap-4 sm:grid-cols-3">
-      <button className="flex items-center justify-between rounded-2xl border border-red-200 bg-red-50 p-5 text-left text-red-800 transition hover:-translate-y-0.5 hover:shadow-md" onClick={() => setActivePage('Tasks')}><div><p className="text-3xl font-semibold tabular-nums">{overdueTasks.length}</p><p className="mt-1 text-sm font-semibold">Overdue tasks</p></div><AlertTriangle size={22} /></button>
-      <button className="flex items-center justify-between rounded-2xl border border-orange-200 bg-orange-50 p-5 text-left text-orange-800 transition hover:-translate-y-0.5 hover:shadow-md" onClick={() => setActivePage('Tasks')}><div><p className="text-3xl font-semibold tabular-nums">{dueTodayTasks.length}</p><p className="mt-1 text-sm font-semibold">Due today</p></div><CalendarDays size={22} /></button>
-      <button className="flex items-center justify-between rounded-2xl border border-blue/15 bg-blue/5 p-5 text-left text-blue transition hover:-translate-y-0.5 hover:shadow-md" onClick={() => setActivePage('Tasks')}><div><p className="text-3xl font-semibold tabular-nums">{dueThisWeekTasks.length + upcomingTasks.length}</p><p className="mt-1 text-sm font-semibold">Upcoming deadlines</p></div><Clock3 size={22} /></button>
+    <header className="relative overflow-hidden rounded-3xl border border-white/70 bg-white p-6 shadow-[0_16px_50px_rgba(24,24,27,0.07)] ring-1 ring-zinc-200/80 sm:p-8">
+      <div className="absolute right-0 top-0 h-36 w-36 rounded-bl-[5rem] bg-blue/[0.035]" />
+      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div><div className="mb-4 flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue text-sm font-bold text-white shadow-md">01</span><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusClasses}`}><span className="h-2 w-2 rounded-full bg-current" />{statusLabel}</span></div><h1 className="text-3xl font-semibold tracking-[-0.04em] text-ink sm:text-4xl">Agency overview</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-500">A focused view of client delivery, deadlines, team attention, and billable work.</p></div>
+        <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setActivePage('Calendar')}><CalendarDays size={16} />Open calendar</Button><Button onClick={onNewTask}><Plus size={16} />Create task</Button></div>
+      </div>
+    </header>
+
+    <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{stats.map(([label, value, detail, Icon, accent]) => <DashboardMetricCard key={label} label={label} value={value} detail={detail} icon={Icon} accent={accent} />)}</section>
+
+    <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="min-w-0 space-y-6">
+        <section><div className="mb-4 flex items-end justify-between gap-4"><div><h2 className="text-lg font-semibold tracking-tight">Deadline attention</h2><p className="mt-1 text-sm text-zinc-500">Open client work ordered by urgency.</p></div><button className="text-sm font-semibold text-blue hover:underline" onClick={() => setActivePage('Reminders')}>View reminders</button></div><div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4"><DeadlineColumn title="Overdue" description="Past deadline" tasks={overdueTasks} clients={clients} tone="red" /><DeadlineColumn title="Due today" description={formatDate(TODAY, { month: 'long', day: 'numeric' })} tasks={dueTodayTasks} clients={clients} tone="orange" /><DeadlineColumn title="Due this week" description="Next seven days" tasks={dueThisWeekTasks} clients={clients} tone="blue" /><DeadlineColumn title="Upcoming" description="Beyond seven days" tasks={upcomingTasks} clients={clients} tone="blue" /></div></section>
+
+        <section className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.055)] ring-1 ring-zinc-200/80"><div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6"><div><h2 className="text-base font-semibold tracking-tight">Priority work</h2><p className="mt-1 text-xs text-zinc-500">High-attention tasks across active clients.</p></div><button className="text-sm font-semibold text-blue hover:underline" onClick={() => setActivePage('Tasks')}>View all tasks</button></div>{priorityTasks.length ? <div className="grid gap-4 p-4 md:grid-cols-2 sm:p-5">{priorityTasks.map((task) => <DashboardTaskCard key={task.id} task={task} client={clients.find((client) => client.id === task.clientId)} onEdit={onEditTask} updateTask={updateTask} />)}</div> : <div className="p-5"><EmptyState title="No priority work" description="Open tasks requiring attention will appear here." action="Create task" onAction={onNewTask} /></div>}</section>
+
+        <section className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.055)] ring-1 ring-zinc-200/80"><div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6"><div><h2 className="text-base font-semibold tracking-tight">Recurring workflow</h2><p className="mt-1 text-xs text-zinc-500">Templates scheduled for upcoming delivery.</p></div><button className="text-sm font-semibold text-blue hover:underline" onClick={() => setActivePage('Recurring Tasks')}>Manage</button></div><div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">{recurringUpcoming.length ? recurringUpcoming.map((task) => <article className="rounded-2xl bg-canvas p-4" key={task.id}><div className="flex items-start justify-between gap-3"><Repeat2 size={15} className="text-violet-600" /><span className="text-[10px] font-semibold text-violet-700">{formatDate(task.nextOccurrenceDate, { month: 'short', day: 'numeric' })}</span></div><p className="mt-4 truncate text-sm font-semibold">{task.title}</p><p className="mt-1 truncate text-xs text-zinc-500">{clients.find((client) => client.id === task.clientId)?.name || 'Deleted client'}</p></article>) : <p className="col-span-full rounded-2xl border border-dashed border-zinc-200 p-6 text-center text-sm text-zinc-400">No upcoming recurring tasks.</p>}</div>{recurringDueToday.length > 0 && <button className="flex w-full items-center justify-between border-t border-violet-100 bg-violet-50 px-5 py-3 text-left text-sm font-semibold text-violet-800 hover:bg-violet-100" onClick={() => setActivePage('Recurring Tasks')}><span>{recurringDueToday.length} recurring task{recurringDueToday.length === 1 ? '' : 's'} due today</span><ChevronRight size={16} /></button>}</section>
+      </div>
+
+      <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
+        <section className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.055)] ring-1 ring-zinc-200/80"><div className="border-b border-line px-5 py-4"><h2 className="text-base font-semibold tracking-tight">Delivery pulse</h2><p className="mt-1 text-xs text-zinc-500">{formatDate(TODAY, { weekday: 'long', month: 'long', day: 'numeric' })}</p></div><div className="space-y-4 p-5">{clients.length ? clients.slice(0, 6).map((client) => { const clientTasks = tasks.filter((task) => task.clientId === client.id); const done = clientTasks.filter((task) => task.status === 'Completed').length; const percentage = clientTasks.length ? Math.round((done / clientTasks.length) * 100) : 0; return <div key={client.id}><div className="flex items-center justify-between gap-4"><p className="truncate text-xs font-semibold">{client.name}</p><span className="text-[10px] font-medium tabular-nums text-zinc-400">{done}/{clientTasks.length}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-100"><div className="h-full rounded-full bg-blue" style={{ width: `${percentage}%` }} /></div></div> }) : <p className="rounded-xl border border-dashed border-zinc-200 p-5 text-center text-xs text-zinc-400">No clients yet.</p>}</div></section>
+
+        <section className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.055)] ring-1 ring-zinc-200/80"><div className="flex items-center justify-between border-b border-line px-5 py-4"><div><h2 className="text-base font-semibold tracking-tight">Notifications</h2><p className="mt-1 text-xs text-zinc-500">Items that need attention.</p></div><button className="text-xs font-semibold text-blue hover:underline" onClick={() => setActivePage('Notifications')}>View all</button></div>{importantNotifications.length ? <div className="divide-y divide-line">{importantNotifications.slice(0, 4).map((notification) => <NotificationItem key={notification.id} compact notification={notification} onOpen={onOpenNotification} />)}</div> : <div className="p-5"><div className="rounded-2xl border border-dashed border-zinc-200 p-5 text-center"><CheckCircle2 size={20} className="mx-auto text-emerald-600" /><p className="mt-2 text-xs font-semibold">Nothing urgent</p><p className="mt-1 text-[11px] text-zinc-500">Important alerts will appear here.</p></div></div>}</section>
+
+        <section className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.055)] ring-1 ring-zinc-200/80"><div className="flex items-center justify-between border-b border-line px-5 py-4"><div><h2 className="text-base font-semibold tracking-tight">Recent activity</h2><p className="mt-1 text-xs text-zinc-500">Latest workspace actions.</p></div><button className="text-xs font-semibold text-blue hover:underline" onClick={() => setActivePage('Activity')}>View all</button></div><ActivityFeed activities={(activities || []).slice(0, 4)} compact /></section>
+      </aside>
     </div>
-    <section className="mt-8 grid overflow-hidden rounded-2xl border border-line bg-line shadow-sm lg:grid-cols-[280px_1fr] lg:gap-px">
-      <button className="flex items-center justify-between bg-violet-50 p-5 text-left text-violet-800 hover:bg-violet-100" onClick={() => setActivePage('Recurring Tasks')}><div><p className="text-3xl font-semibold">{recurringDueToday.length}</p><p className="mt-1 text-sm font-semibold">Recurring tasks due today</p></div><Repeat2 size={22} /></button>
-      <div className="bg-white"><div className="flex items-center justify-between border-b border-line px-5 py-3"><div><h2 className="text-sm font-semibold">Upcoming recurring tasks</h2><p className="mt-1 text-xs text-zinc-500">Next scheduled templates</p></div><button className="text-sm font-semibold text-blue" onClick={() => setActivePage('Recurring Tasks')}>Manage</button></div>{recurringUpcoming.length ? <div className="grid gap-px bg-line sm:grid-cols-2 xl:grid-cols-4">{recurringUpcoming.map((task) => <div className="bg-white p-4" key={task.id}><p className="truncate text-sm font-semibold">{task.title}</p><p className="mt-1 truncate text-xs text-zinc-500">{clients.find((client) => client.id === task.clientId)?.name || 'Deleted client'}</p><p className="mt-3 text-xs font-semibold text-violet-700">{formatDate(task.nextOccurrenceDate, { month: 'short', day: 'numeric' })}</p></div>)}</div> : <p className="p-5 text-sm text-zinc-400">No upcoming recurring tasks.</p>}</div>
-    </section>
-    <section className="mt-8"><div className="mb-4 flex items-end justify-between border-b border-line pb-3"><div><h2 className="font-semibold">Deadline attention</h2><p className="mt-1 text-xs text-zinc-500">Open client work ordered by urgency</p></div><button className="text-sm font-semibold text-blue" onClick={() => setActivePage('Reminders')}>View reminders</button></div><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><DeadlineColumn title="Overdue Tasks" description="Past deadline" tasks={overdueTasks} clients={clients} tone="red" /><DeadlineColumn title="Due Today" description={formatDate(TODAY, { month: 'long', day: 'numeric' })} tasks={dueTodayTasks} clients={clients} tone="orange" /><DeadlineColumn title="Due This Week" description="Next seven days" tasks={dueThisWeekTasks} clients={clients} tone="blue" /><DeadlineColumn title="Upcoming Deadlines" description="Beyond seven days" tasks={upcomingTasks} clients={clients} tone="blue" /></div></section>
-    <div className="mt-8 grid gap-8 xl:grid-cols-[1fr_340px]">
-      <section className="panel"><div className="flex items-center justify-between border-b border-line p-5"><div><h2 className="font-semibold">Priority work</h2><p className="mt-1 text-xs text-zinc-500">Current tasks requiring attention</p></div><button className="text-sm font-semibold text-blue" onClick={() => setActivePage('Tasks')}>View all</button></div>{priorityTasks.length ? <div className="grid gap-px bg-line md:grid-cols-2">{priorityTasks.map((task) => <TaskCard key={task.id} task={task} client={clients.find((client) => client.id === task.clientId)} compact statuses={TASK_STATUSES} onEdit={() => onEditTask(task)} onDelete={() => onDeleteTask(task.id)} onStatusChange={(id, status) => updateTask(id, { status })} />)}</div> : <EmptyState title="No pending work" description="Create a task to start planning client work." action="Create task" onAction={onNewTask} />}</section>
-      <aside className="panel"><div className="border-b border-line p-5"><h2 className="font-semibold">Delivery pulse</h2><p className="mt-1 text-xs text-zinc-500">{formatDate(TODAY, { weekday: 'long', month: 'long', day: 'numeric' })}</p></div><div className="divide-y divide-line">{clients.map((client) => { const clientTasks = tasks.filter((task) => task.clientId === client.id); const done = clientTasks.filter((task) => task.status === 'Completed').length; return <div key={client.id} className="p-4"><div className="flex justify-between gap-4"><p className="text-sm font-semibold">{client.name}</p><span className="text-xs text-zinc-500">{done}/{clientTasks.length}</span></div><div className="mt-3 h-1 bg-zinc-100"><div className="h-full bg-blue" style={{ width: `${clientTasks.length ? (done / clientTasks.length) * 100 : 0}%` }} /></div></div>})}</div></aside>
-    </div>
-    <section className="panel mt-8"><div className="flex items-center justify-between border-b border-line p-5"><div><h2 className="font-semibold">Recent Activity</h2><p className="mt-1 text-xs text-zinc-500">Latest workspace actions</p></div><button className="text-sm font-semibold text-blue" onClick={() => setActivePage('Activity')}>View all</button></div><ActivityFeed activities={(activities || []).slice(0, 5)} compact /></section>
-    <section className="panel mt-8"><div className="flex items-center justify-between border-b border-line p-5"><div><h2 className="font-semibold">Important Notifications</h2><p className="mt-1 text-xs text-zinc-500">Overdue, due today, reminders, and unpaid billing</p></div><button className="text-sm font-semibold text-blue" onClick={() => setActivePage('Notifications')}>View all</button></div>{importantNotifications.length ? <div className="divide-y divide-line">{importantNotifications.map((notification) => <NotificationItem key={notification.id} compact notification={notification} onOpen={onOpenNotification} />)}</div> : <p className="p-5 text-sm text-zinc-500">No important unread notifications.</p>}</section>
   </>
 }
 
@@ -684,11 +704,89 @@ function ClientsPage({ clients, tasks, onNewClient, onEditClient, onDeleteClient
   }
   return <>
     <PageHeading number="02" title="Clients" description="Client workspaces with task progress, contacts, and billable totals." action="Add client" onAction={onNewClient} />
-    {clients.length ? <div className="grid gap-px border border-line bg-line sm:grid-cols-2 xl:grid-cols-4">{clients.map((client) => <ClientCard key={client.id} client={client} metrics={metrics(client.id)} onView={() => onViewClient(client.id)} onEdit={() => onEditClient(client)} onDelete={() => onDeleteClient(client.id)} />)}</div> : <EmptyState title="No clients yet." description="Add your first client." action="Add client" onAction={onNewClient} />}
+    {clients.length ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{clients.map((client) => <ClientCard key={client.id} client={client} metrics={metrics(client.id)} onView={() => onViewClient(client.id)} onEdit={() => onEditClient(client)} onDelete={() => onDeleteClient(client.id)} />)}</div> : <EmptyState title="No clients yet." description="Add your first client." action="Add client" onAction={onNewClient} />}
   </>
 }
 
-function TasksPage({ clients, users, tasks, onNewTask, onEditTask, onDeleteTask, updateTask }) {
+function TaskFilterControl({ label, value, onChange, children, className = '' }) {
+  return <label className={`group flex min-w-[148px] flex-1 items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 shadow-sm transition hover:border-zinc-300 focus-within:border-blue/50 focus-within:ring-4 focus-within:ring-blue/10 ${className}`}>
+    <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">{label}</span>
+    <select className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-zinc-700 outline-none" value={value} onChange={onChange}>{children}</select>
+  </label>
+}
+
+function AssigneePill({ name }) {
+  const initials = name ? name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase() : '—'
+  return <div className="flex min-w-0 items-center gap-2">
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue/10 text-[10px] font-bold text-blue">{initials}</span>
+    <span className="truncate text-xs font-medium text-zinc-600">{name || 'Unassigned'}</span>
+  </div>
+}
+
+function TaskListRow({ task, client, selected, onToggle, onEdit, onDelete, updateTask }) {
+  const checklistPercent = task.checklistTotal ? Math.round((task.checklistCompleted / task.checklistTotal) * 100) : 0
+  return <article className={`group relative grid gap-4 border-b border-zinc-100 px-4 py-4 transition last:border-b-0 hover:bg-blue/[0.025] sm:px-5 xl:grid-cols-[32px_minmax(260px,1.5fr)_minmax(150px,.7fr)_minmax(150px,.7fr)_145px_120px_36px] xl:items-center ${selected ? 'bg-blue/[0.045]' : 'bg-white'}`}>
+    <div className="absolute inset-y-2 left-0 w-0.5 rounded-r-full bg-blue opacity-0 transition group-hover:opacity-100" />
+    <input className="h-4 w-4 rounded border-zinc-300 text-blue focus:ring-blue/20" type="checkbox" checked={selected} onChange={onToggle} aria-label={`Select ${task.title}`} />
+    <button className="min-w-0 text-left" onClick={onEdit}>
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="truncate text-sm font-semibold tracking-tight text-zinc-900 transition group-hover:text-blue">{task.title}</h3>
+        <PriorityBadge priority={task.priority} />
+        {task.isRecurring && <Badge className="border-violet-200 bg-violet-50 text-violet-700"><Repeat2 size={11} className="mr-1" />Recurring</Badge>}
+      </div>
+      <p className="mt-1 truncate text-xs text-zinc-500">{task.category || 'General task'}</p>
+      {task.checklistTotal > 0 && <div className="mt-3 max-w-xs">
+        <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold text-zinc-400"><span>Checklist</span><span>{task.checklistCompleted}/{task.checklistTotal}</span></div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-zinc-100"><div className="h-full rounded-full bg-blue transition-all" style={{ width: `${checklistPercent}%` }} /></div>
+      </div>}
+    </button>
+    <div className="min-w-0">
+      <p className="truncate text-xs font-semibold text-zinc-800">{client?.name || 'Deleted client'}</p>
+      <div className="mt-2"><AssigneePill name={task.assignedUserName} /></div>
+    </div>
+    <div>
+      <p className="text-xs font-semibold text-zinc-700">{task.deadline ? formatDate(task.deadline) : 'No deadline'}</p>
+      <div className="mt-2 flex flex-wrap gap-1.5"><DeadlineBadge task={task} />{task.reminderDate && <Badge className="border-orange-200 bg-orange-50 text-orange-700"><BellRing size={11} className="mr-1" />Reminder</Badge>}</div>
+    </div>
+    <div className="space-y-2">
+      <StatusBadge status={task.status} />
+      <select className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-zinc-600 outline-none transition focus:border-blue/50 focus:ring-2 focus:ring-blue/10" value={task.status} onChange={(event) => updateTask(task.id, { status: event.target.value })} aria-label={`Update ${task.title} status`}>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select>
+    </div>
+    <div>
+      {task.billable ? <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700"><CircleDollarSign size={11} className="mr-1" />{formatMoney(task.amount)}</Badge> : <span className="text-[11px] font-medium text-zinc-400">Non-billable</span>}
+    </div>
+    <ActionMenu onEdit={onEdit} onDelete={onDelete} />
+  </article>
+}
+
+function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
+  const checklistPercent = task.checklistTotal ? Math.round((task.checklistCompleted / task.checklistTotal) * 100) : 0
+  const proofCount = task.attachments?.length || (task.proofLink ? 1 : 0)
+  return <article className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-[0_5px_18px_rgba(24,24,27,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-blue/20 hover:shadow-[0_12px_30px_rgba(37,99,235,0.09)]">
+    <div className="flex items-start justify-between gap-3">
+      <button className="min-w-0 flex-1 text-left" onClick={onEdit}><h3 className="text-sm font-semibold leading-5 tracking-tight text-zinc-900 transition group-hover:text-blue">{task.title}</h3><p className="mt-1 truncate text-xs font-medium text-zinc-400">{client?.name || 'Deleted client'}</p></button>
+      <ActionMenu onEdit={onEdit} onDelete={onDelete} />
+    </div>
+    <div className="mt-3 flex flex-wrap gap-1.5"><StatusBadge status={task.status} /><PriorityBadge priority={task.priority} />{task.billable && <BillingBadge />}</div>
+    <div className="mt-4 rounded-xl bg-zinc-50 p-3">
+      <AssigneePill name={task.assignedUserName} />
+      <div className="mt-3 flex flex-wrap gap-1.5"><DeadlineBadge task={task} />{task.reminderDate && <Badge className="border-orange-200 bg-orange-50 text-orange-700"><BellRing size={11} className="mr-1" />Reminder</Badge>}</div>
+    </div>
+    {task.checklistTotal > 0 && <div className="mt-4">
+      <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold text-zinc-400"><span>Checklist progress</span><span>{task.checklistCompleted}/{task.checklistTotal}</span></div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-zinc-100"><div className="h-full rounded-full bg-blue" style={{ width: `${checklistPercent}%` }} /></div>
+    </div>}
+    <div className="mt-4 flex items-center justify-between border-t border-zinc-100 pt-3">
+      <div className="flex items-center gap-3 text-[11px] font-medium text-zinc-400">
+        {proofCount > 0 && <span className="inline-flex items-center gap-1"><Link2 size={13} />{proofCount} proof{proofCount === 1 ? '' : 's'}</span>}
+        {task.isRecurring && <span className="inline-flex items-center gap-1 text-violet-600"><Repeat2 size={13} />Recurring</span>}
+      </div>
+      <select className="max-w-[128px] rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-[10px] font-bold text-zinc-600 outline-none focus:border-blue/50" value={task.status} onChange={(event) => updateTask(task.id, { status: event.target.value })} aria-label={`Move ${task.title}`}>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select>
+    </div>
+  </article>
+}
+
+function TasksPage({ clients, users, tasks, onNewTask, onEditTask, onDeleteTask, updateTask, setActivePage }) {
   const [search, setSearch] = useState('')
   const [clientFilter, setClientFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All')
@@ -730,31 +828,64 @@ function TasksPage({ clients, users, tasks, onNewTask, onEditTask, onDeleteTask,
     for (const id of selected) await onDeleteTask(id)
     setSelected([])
   }
-  const columns = [
-    { key: 'select', label: <input type="checkbox" checked={allVisibleSelected} onChange={() => setSelected(allVisibleSelected ? selected.filter((id) => !filtered.some((task) => task.id === id)) : [...new Set([...selected, ...filtered.map((task) => task.id)])])} aria-label="Select visible tasks" />, render: (task) => <input type="checkbox" checked={selected.includes(task.id)} onChange={() => toggleSelected(task.id)} aria-label={`Select ${task.title}`} /> },
-    { key: 'title', label: 'Task', render: (task) => <button className="max-w-xs text-left" onClick={() => onEditTask(task)}><p className="font-semibold hover:text-blue">{task.title}</p><p className="mt-1 text-xs text-zinc-500">{task.category}</p>{task.checklistTotal > 0 && <div className="mt-2"><div className="mb-1 flex justify-between text-[10px] text-zinc-500"><span>Checklist</span><span>{task.checklistCompleted}/{task.checklistTotal}</span></div><div className="h-1 w-32 bg-zinc-100"><div className="h-full bg-blue" style={{ width: `${(task.checklistCompleted / task.checklistTotal) * 100}%` }} /></div></div>}</button> },
-    { key: 'client', label: 'Client / Assignee', render: (task) => <div><p className="font-medium">{clients.find((client) => client.id === task.clientId)?.name || 'Deleted client'}</p><p className="mt-1 flex items-center gap-1 text-xs text-zinc-500"><UserRound size={12} />{task.assignedUserName || 'Unassigned'}</p></div> },
-    { key: 'priority', label: 'Priority', render: (task) => <PriorityBadge priority={task.priority} /> },
-    { key: 'deadline', label: 'Schedule', render: (task) => <div><p>{formatDate(task.deadline)}</p><div className="mt-1 flex flex-wrap gap-1"><DeadlineBadge task={task} />{task.reminderDate && <Badge className="border-orange-200 bg-orange-50 text-orange-800"><BellRing size={11} className="mr-1" />Reminder</Badge>}</div></div> },
-    { key: 'status', label: 'Status', render: (task) => <div className="space-y-2"><StatusBadge status={task.status} /><select className="block border border-line bg-white px-2 py-1 text-xs" value={task.status} onChange={(event) => updateTask(task.id, { status: event.target.value })}>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></div> },
-    { key: 'billable', label: 'Billing', render: (task) => task.billable ? <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">{formatMoney(task.amount)}</Badge> : <span className="text-xs text-zinc-400">Not billable</span> },
-    { key: 'actions', label: '', render: (task) => <ActionMenu onEdit={() => onEditTask(task)} onDelete={() => onDeleteTask(task.id)} /> },
-  ]
+  const clearFilters = () => { setSearch(''); setClientFilter('All'); setStatusFilter('All'); setPriorityFilter('All'); setAssigneeFilter('All'); setDeadlineFilter('All'); setBillableOnly(false); setRecurringOnly(false) }
   return <>
-    <PageHeading number="03" title="Tasks" description="Create, filter, update, and complete all client work from one view." action="Create task" onAction={onNewTask} />
-    {!tasks.length ? <EmptyState title="No tasks yet" description="Create the first client task to start planning deadlines, assignments, and delivery." action="Create task" onAction={onNewTask} /> : <div className="panel">
-      <div className="grid gap-3 border-b border-line p-4 md:grid-cols-2 xl:grid-cols-4"><div className="flex items-center border border-line px-3 xl:col-span-2"><Search size={15} className="shrink-0 text-zinc-400" /><input className="w-full px-2 py-2.5 text-sm outline-none" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search task, client, or notes" /></div><select className="field" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option>All</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select><select className="field" value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option>All</option><option>Unassigned</option>{users.map((user) => <option key={user.id} value={String(user.id)}>{user.name}</option>)}</select><select className="field" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>All</option>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select><select className="field" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option>All</option>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select><select className="field" value={deadlineFilter} onChange={(event) => setDeadlineFilter(event.target.value)}><option>All</option><option>Overdue</option><option>Due Today</option><option>Due This Week</option><option>No Deadline</option></select><div className="flex items-center gap-5 border border-line px-3"><label className="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={billableOnly} onChange={(event) => setBillableOnly(event.target.checked)} />Billable</label><label className="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={recurringOnly} onChange={(event) => setRecurringOnly(event.target.checked)} />Recurring</label></div></div>
-      {selected.length > 0 && <div className="flex flex-wrap items-center gap-2 border-b border-blue/20 bg-blue/5 px-4 py-3"><p className="mr-2 text-sm font-semibold text-blue">{selected.length} selected</p><select className="field h-9 w-auto py-1 text-xs" value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value)}><option value="">Change status</option>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select><button className="button-secondary py-2" disabled={!bulkStatus} onClick={() => applyBulk({ status: bulkStatus })}>Apply</button><select className="field h-9 w-auto py-1 text-xs" value={bulkPriority} onChange={(event) => setBulkPriority(event.target.value)}><option value="">Change priority</option>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select><button className="button-secondary py-2" disabled={!bulkPriority} onClick={() => applyBulk({ priority: bulkPriority })}>Apply</button><select className="field h-9 w-auto py-1 text-xs" value={bulkAssignee} onChange={(event) => setBulkAssignee(event.target.value)}><option value="">Assign user</option><option value="unassigned">Unassigned</option>{users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select><button className="button-secondary py-2" disabled={!bulkAssignee} onClick={() => applyBulk({ assignedUserId: bulkAssignee === 'unassigned' ? '' : String(bulkAssignee) })}>Apply</button><button className="ml-auto inline-flex items-center gap-2 border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50" onClick={deleteSelected}><Trash2 size={14} />Delete selected</button></div>}
-      <div className="flex items-center justify-between border-b border-line px-4 py-2 text-xs text-zinc-500"><span>{filtered.length} of {tasks.length} tasks</span>{filtered.length === 0 && <button className="font-semibold text-blue" onClick={() => { setSearch(''); setClientFilter('All'); setStatusFilter('All'); setPriorityFilter('All'); setAssigneeFilter('All'); setDeadlineFilter('All'); setBillableOnly(false); setRecurringOnly(false) }}>Clear filters</button>}</div>
-      <Table columns={columns} data={filtered} emptyMessage="No tasks match these filters. Clear filters or create a new task." />
+    <PageHeader eyebrow="Work management" title="Tasks" description="Plan, assign, and deliver every client commitment from one focused workspace." action={<div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setActivePage('Kanban Board')}><LayoutDashboard size={15} />Board view</Button><Button onClick={onNewTask}><Plus size={15} />Create task</Button></div>} />
+    {!tasks.length ? <div className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-sm"><EmptyState title="Your task workspace is ready" description="Create the first client task to start planning deadlines, assignments, and delivery." action="Create task" onAction={onNewTask} /></div> : <div className="space-y-4">
+      <section className="rounded-3xl border border-zinc-200/80 bg-zinc-50/70 p-3 shadow-[0_8px_30px_rgba(24,24,27,0.035)] sm:p-4">
+        <div className="flex flex-col gap-3 xl:flex-row">
+          <div className="flex min-w-[240px] flex-[1.5] items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 shadow-sm transition focus-within:border-blue/50 focus-within:ring-4 focus-within:ring-blue/10"><Search size={15} className="shrink-0 text-zinc-400" /><input className="w-full bg-transparent py-3 text-sm font-medium outline-none placeholder:text-zinc-400" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tasks, clients, or notes..." /></div>
+          <div className="flex flex-1 flex-wrap gap-2">
+            <TaskFilterControl label="Client" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option>All</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</TaskFilterControl>
+            <TaskFilterControl label="Assignee" value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option>All</option><option>Unassigned</option>{users.map((user) => <option key={user.id} value={String(user.id)}>{user.name}</option>)}</TaskFilterControl>
+          </div>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <TaskFilterControl label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>All</option>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</TaskFilterControl>
+          <TaskFilterControl label="Priority" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option>All</option>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</TaskFilterControl>
+          <TaskFilterControl label="Deadline" value={deadlineFilter} onChange={(event) => setDeadlineFilter(event.target.value)}><option>All</option><option>Overdue</option><option>Due Today</option><option>Due This Week</option><option>No Deadline</option></TaskFilterControl>
+          <button className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold shadow-sm transition ${billableOnly ? 'border-blue/20 bg-blue text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300'}`} onClick={() => setBillableOnly((current) => !current)} aria-pressed={billableOnly}><CircleDollarSign size={14} />Billable</button>
+          <button className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold shadow-sm transition ${recurringOnly ? 'border-blue/20 bg-blue text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300'}`} onClick={() => setRecurringOnly((current) => !current)} aria-pressed={recurringOnly}><Repeat2 size={14} />Recurring</button>
+        </div>
+      </section>
+      {selected.length > 0 && <section className="sticky top-3 z-20 flex flex-wrap items-center gap-2 rounded-2xl border border-blue/20 bg-white/95 p-3 shadow-[0_12px_36px_rgba(37,99,235,0.14)] backdrop-blur">
+        <div className="mr-2 flex items-center gap-2 rounded-xl bg-blue/10 px-3 py-2 text-xs font-bold text-blue"><CheckCircle2 size={14} />{selected.length} selected</div>
+        <select className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold outline-none" value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value)}><option value="">Change status</option>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select><Button variant="secondary" size="sm" disabled={!bulkStatus} onClick={() => applyBulk({ status: bulkStatus })}>Apply</Button>
+        <select className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold outline-none" value={bulkPriority} onChange={(event) => setBulkPriority(event.target.value)}><option value="">Change priority</option>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select><Button variant="secondary" size="sm" disabled={!bulkPriority} onClick={() => applyBulk({ priority: bulkPriority })}>Apply</Button>
+        <select className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold outline-none" value={bulkAssignee} onChange={(event) => setBulkAssignee(event.target.value)}><option value="">Assign user</option><option value="unassigned">Unassigned</option>{users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select><Button variant="secondary" size="sm" disabled={!bulkAssignee} onClick={() => applyBulk({ assignedUserId: bulkAssignee === 'unassigned' ? '' : String(bulkAssignee) })}>Apply</Button>
+        <Button className="ml-auto" variant="danger" size="sm" onClick={deleteSelected}><Trash2 size={14} />Delete</Button>
+      </section>}
+      <section className="overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.05)]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-4 py-3 sm:px-5">
+          <label className="flex items-center gap-3 text-xs font-semibold text-zinc-500"><input className="h-4 w-4 rounded border-zinc-300 text-blue focus:ring-blue/20" type="checkbox" checked={allVisibleSelected} onChange={() => setSelected(allVisibleSelected ? selected.filter((id) => !filtered.some((task) => task.id === id)) : [...new Set([...selected, ...filtered.map((task) => task.id)])])} aria-label="Select visible tasks" /><span><strong className="text-zinc-800">{filtered.length}</strong> of {tasks.length} tasks</span></label>
+          {filtered.length === 0 && <button className="text-xs font-bold text-blue hover:underline" onClick={clearFilters}>Clear all filters</button>}
+        </div>
+        {filtered.length ? <div>{filtered.map((task) => <TaskListRow key={task.id} task={task} client={clients.find((client) => client.id === task.clientId)} selected={selected.includes(task.id)} onToggle={() => toggleSelected(task.id)} onEdit={() => onEditTask(task)} onDelete={() => onDeleteTask(task.id)} updateTask={updateTask} />)}</div> : <div className="p-6"><EmptyState title="No matching tasks" description="Adjust your filters or clear them to return to the full task workspace." action="Clear filters" onAction={clearFilters} /></div>}
+      </section>
     </div>}
   </>
 }
 
-function KanbanPage({ clients, tasks, onNewTask, onEditTask, onDeleteTask, updateTask }) {
+function KanbanPage({ clients, tasks, onNewTask, onEditTask, onDeleteTask, updateTask, setActivePage }) {
   return <>
-    <PageHeading number="04" title="Kanban Board" description="Update task status directly from compact delivery cards." action="Create task" onAction={onNewTask} />
-    <div className="flex gap-4 overflow-x-auto pb-4">{TASK_STATUSES.map((status) => { const list = tasks.filter((task) => task.status === status); return <section key={status} className="w-[285px] shrink-0"><div className="mb-3 flex items-center justify-between border-b-2 border-ink pb-3"><h2 className="text-sm font-semibold">{status}</h2><span className="flex h-6 min-w-6 items-center justify-center bg-zinc-200 px-2 text-xs font-semibold">{list.length}</span></div><div className="space-y-3">{list.map((task) => <TaskCard key={task.id} task={task} client={clients.find((client) => client.id === task.clientId)} statuses={TASK_STATUSES} onEdit={() => onEditTask(task)} onDelete={() => onDeleteTask(task.id)} onStatusChange={(id, nextStatus) => updateTask(id, { status: nextStatus })} />)}<button className="flex w-full items-center justify-center gap-2 border border-dashed border-zinc-300 p-3 text-xs font-semibold text-zinc-500 hover:border-blue hover:text-blue" onClick={() => onNewTask({ status })}><Plus size={14} />Add task</button></div></section> })}</div>
+    <PageHeader eyebrow="Delivery pipeline" title="Kanban Board" description="Move client work through delivery stages without losing the details that matter." action={<div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setActivePage('Tasks')}><ListChecks size={15} />List view</Button><Button onClick={onNewTask}><Plus size={15} />Create task</Button></div>} />
+    <section className="overflow-hidden rounded-3xl border border-zinc-200/80 bg-zinc-100/60 shadow-[0_10px_34px_rgba(24,24,27,0.045)]">
+      <div className="flex items-center justify-between border-b border-zinc-200/80 bg-white/80 px-4 py-3 backdrop-blur sm:px-5"><p className="text-xs font-semibold text-zinc-500"><strong className="text-zinc-900">{tasks.length}</strong> tasks across {TASK_STATUSES.length} delivery stages</p><p className="hidden text-[11px] font-medium text-zinc-400 sm:block">Use each card menu to edit, delete, or move work</p></div>
+      <div className="flex gap-4 overflow-x-auto p-4 pb-5 sm:p-5">{TASK_STATUSES.map((status) => {
+        const list = tasks.filter((task) => task.status === status)
+        return <section key={status} className="w-[310px] shrink-0 rounded-2xl border border-zinc-200/80 bg-zinc-50/80 p-2.5 sm:w-[330px]">
+          <div className="sticky top-0 z-10 mb-2 flex items-center justify-between rounded-xl bg-white px-3 py-3 shadow-sm">
+            <div className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${status === 'Completed' ? 'bg-emerald-500' : status === 'In Progress' ? 'bg-blue' : status === 'Revision' ? 'bg-orange-500' : 'bg-zinc-400'}`} /><h2 className="text-sm font-bold tracking-tight text-zinc-800">{status}</h2></div>
+            <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-zinc-100 px-2 text-[11px] font-bold text-zinc-600">{list.length}</span>
+          </div>
+          <div className="space-y-2.5">
+            {list.map((task) => <KanbanTaskCard key={task.id} task={task} client={clients.find((client) => client.id === task.clientId)} onEdit={() => onEditTask(task)} onDelete={() => onDeleteTask(task.id)} updateTask={updateTask} />)}
+            {!list.length && <div className="rounded-2xl border border-dashed border-zinc-300 bg-white/60 px-4 py-8 text-center"><div className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-100 text-zinc-400"><ClipboardList size={17} /></div><p className="mt-3 text-xs font-semibold text-zinc-500">No {status.toLowerCase()} tasks</p><p className="mt-1 text-[11px] text-zinc-400">New work can start here.</p></div>}
+            <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-white/70 px-3 py-3 text-xs font-semibold text-zinc-500 transition hover:border-blue/40 hover:bg-white hover:text-blue" onClick={() => onNewTask({ status })}><Plus size={14} />Add task to {status}</button>
+          </div>
+        </section>
+      })}</div>
+    </section>
   </>
 }
 

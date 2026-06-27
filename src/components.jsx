@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useRef, useState } from 'react'
 import {
   ArrowDownRight, ArrowUpRight, CalendarDays, Check, ChevronRight, CircleDollarSign,
   ExternalLink, ListChecks, MoreHorizontal, Pencil, ReceiptText, Repeat2, Trash2, UserRound, X,
@@ -21,6 +21,59 @@ const priorityStyle = {
   Low: 'border-zinc-200 bg-zinc-50 text-zinc-600',
 }
 
+const buttonStyles = {
+  primary: 'button-primary',
+  secondary: 'button-secondary',
+  ghost: 'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100 hover:text-ink',
+  danger: 'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 hover:border-red-300',
+}
+
+const badgeVariants = {
+  neutral: 'border-zinc-200 bg-zinc-50 text-zinc-600',
+  info: 'border-blue/15 bg-blue/5 text-blue',
+  success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  warning: 'border-amber-200 bg-amber-50 text-amber-800',
+  danger: 'border-red-200 bg-red-50 text-red-700',
+}
+
+export function Card({ children, className = '', interactive = false }) {
+  return <section className={`panel ${interactive ? 'transition duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-lg' : ''} ${className}`}>{children}</section>
+}
+
+export const Button = forwardRef(function Button({ children, variant = 'primary', className = '', type = 'button', ...props }, ref) {
+  return <button ref={ref} type={type} className={`${buttonStyles[variant] || buttonStyles.primary} ${className}`} {...props}>{children}</button>
+})
+
+export const Input = forwardRef(function Input({ className = '', ...props }, ref) {
+  return <input ref={ref} className={`field ${className}`} {...props} />
+})
+
+export const Select = forwardRef(function Select({ children, className = '', ...props }, ref) {
+  return <select ref={ref} className={`field ${className}`} {...props}>{children}</select>
+})
+
+export function PageHeader({ number, title, description, actions, action, onAction }) {
+  return <header className="mb-8 flex flex-col gap-5 rounded-2xl border border-white/70 bg-white px-5 py-5 shadow-[0_8px_28px_rgba(24,24,27,0.055)] ring-1 ring-zinc-200/80 sm:flex-row sm:items-end sm:justify-between sm:px-7 sm:py-6">
+    <div className="flex items-start gap-4 sm:gap-5">
+      {number && <span className="select-none text-4xl font-light leading-none tracking-[-0.06em] text-zinc-200 tabular-nums sm:text-5xl">{number}</span>}
+      <div><h1 className="text-2xl font-semibold tracking-[-0.025em] text-ink md:text-[2rem]">{title}</h1>{description && <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">{description}</p>}</div>
+    </div>
+    {actions || (action && <Button onClick={onAction}>{action}</Button>)}
+  </header>
+}
+
+export function SectionHeader({ title, description, action, className = '' }) {
+  return <header className={`section-header ${className}`}><div><h2 className="text-sm font-semibold tracking-tight text-ink">{title}</h2>{description && <p className="mt-1 text-xs leading-5 text-zinc-500">{description}</p>}</div>{action}</header>
+}
+
+export function TableWrapper({ children, className = '' }) {
+  return <div className={`overflow-hidden rounded-2xl border border-line bg-white shadow-[0_4px_18px_rgba(24,24,27,0.035)] ${className}`}>{children}</div>
+}
+
+export function Skeleton({ className = '' }) {
+  return <span className={`block animate-pulse rounded-lg bg-zinc-200/80 ${className}`} aria-hidden="true" />
+}
+
 export function StatCard({ label, value, change, trend = 'up', icon: Icon }) {
   return (
     <div className="panel group p-5 transition duration-150 hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md">
@@ -34,8 +87,8 @@ export function StatCard({ label, value, change, trend = 'up', icon: Icon }) {
   )
 }
 
-export function Badge({ children, className = '' }) {
-  return <span className={`inline-flex items-center whitespace-nowrap rounded-lg border px-2 py-1 text-[11px] font-semibold leading-none ${className}`}>{children}</span>
+export function Badge({ children, className = '', variant = 'neutral' }) {
+  return <span className={`inline-flex items-center whitespace-nowrap rounded-lg border px-2.5 py-1 text-[11px] font-semibold leading-none ${badgeVariants[variant] || ''} ${className}`}>{children}</span>
 }
 
 export function StatusBadge({ status }) {
@@ -109,35 +162,40 @@ export function ActionMenu({ onEdit, onDelete }) {
 }
 
 export function TaskCard({ task, client, onEdit, onDelete, onStatusChange, statuses, compact = false }) {
+  const assigneeInitials = task.assignedUserName
+    ? task.assignedUserName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+    : ''
   return (
-    <article className="panel p-4 transition duration-150 hover:border-zinc-300 hover:shadow-md">
-      <div className="flex items-start justify-between gap-3"><PriorityBadge priority={task.priority} /><ActionMenu onEdit={onEdit} onDelete={onDelete} /></div>
-      <h3 className="mt-3 text-sm font-semibold leading-snug">{task.title}</h3>
+    <Card interactive className="p-4">
+      <div className="flex items-start justify-between gap-3"><div className="flex flex-wrap gap-1.5"><PriorityBadge priority={task.priority} /><StatusBadge status={task.status} /></div><ActionMenu onEdit={onEdit} onDelete={onDelete} /></div>
+      <h3 className="mt-3 text-sm font-semibold leading-snug tracking-tight">{task.title}</h3>
       {!compact && <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-500">{task.description}</p>}
-      <p className="mt-3 text-xs font-medium text-zinc-500">{client?.name || 'Deleted client'}</p>
-      <p className="mt-2 flex items-center gap-1.5 text-xs text-zinc-500"><UserRound size={12} />{task.assignedUserName || 'Unassigned'}</p>
+      <div className="mt-3 flex items-center justify-between gap-3"><p className="truncate text-xs font-medium text-zinc-500">{client?.name || 'Deleted client'}</p><span className="flex items-center gap-1.5 text-xs text-zinc-500">{assigneeInitials ? <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-zinc-900 text-[9px] font-bold text-white">{assigneeInitials}</span> : <UserRound size={13} />}{task.assignedUserName || 'Unassigned'}</span></div>
       <div className="mt-3 flex flex-wrap gap-2">
         <Badge className="border-zinc-200 bg-zinc-50 text-zinc-700"><CalendarDays size={12} className="mr-1" />{formatDate(task.deadline)}</Badge>
         <DeadlineBadge task={task} />
         <RecurringBadge task={task} />
         {task.billable && <Badge className="border-blue/20 bg-blue/5 text-blue"><CircleDollarSign size={12} className="mr-1" />{formatMoney(task.amount)}</Badge>}
       </div>
-      {task.checklistTotal > 0 && <div className="mt-3"><div className="mb-1.5 flex items-center justify-between text-[10px] font-medium text-zinc-500"><span className="flex items-center gap-1"><ListChecks size={11} />Checklist</span><span>{task.checklistCompleted}/{task.checklistTotal}</span></div><div className="h-1 bg-zinc-100"><div className="h-full bg-blue" style={{ width: `${(task.checklistCompleted / task.checklistTotal) * 100}%` }} /></div></div>}
+      {task.checklistTotal > 0 && <div className="mt-3 rounded-xl bg-canvas p-3"><div className="mb-2 flex items-center justify-between text-[10px] font-medium text-zinc-500"><span className="flex items-center gap-1"><ListChecks size={11} />Checklist</span><span>{task.checklistCompleted}/{task.checklistTotal}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-zinc-200"><div className="h-full rounded-full bg-blue" style={{ width: `${(task.checklistCompleted / task.checklistTotal) * 100}%` }} /></div></div>}
       <div className="mt-4 border-t border-line pt-3">
-        <select className="w-full bg-white text-xs font-semibold outline-none" value={task.status} onChange={(event) => onStatusChange(task.id, event.target.value)} aria-label="Change task status">{statuses.map((status) => <option key={status}>{status}</option>)}</select>
+        <select className="w-full rounded-lg bg-canvas px-2 py-2 text-xs font-semibold outline-none transition hover:bg-zinc-100" value={task.status} onChange={(event) => onStatusChange(task.id, event.target.value)} aria-label="Change task status">{statuses.map((status) => <option key={status}>{status}</option>)}</select>
       </div>
-    </article>
+    </Card>
   )
 }
 
 export function ClientCard({ client, metrics, onView, onEdit, onDelete }) {
+  const completion = metrics.total ? Math.round((metrics.completed / metrics.total) * 100) : 0
+  const active = String(client.status || 'active').toLowerCase() === 'active'
   return (
-    <article className="panel p-5 transition hover:border-zinc-400">
-      <div className="flex items-start justify-between"><div className="flex h-11 w-11 items-center justify-center text-sm font-bold text-white" style={{ backgroundColor: client.color }}>{client.initials}</div><ActionMenu onEdit={onEdit} onDelete={onDelete} /></div>
-      <button className="mt-5 block text-left text-lg font-semibold hover:text-blue" onClick={onView}>{client.name}</button><p className="mt-1 text-sm text-zinc-500">{client.contact}</p>
-      <div className="mt-6 grid grid-cols-2 border-t border-line pt-4"><div><div className="text-lg font-semibold">{metrics.total}</div><div className="text-xs text-zinc-500">Total tasks</div></div><div className="border-l border-line pl-4"><div className="text-lg font-semibold">{metrics.pending}</div><div className="text-xs text-zinc-500">Pending</div></div></div>
-      <button onClick={onView} className="mt-5 flex w-full items-center justify-between border-t border-line pt-4 text-sm font-semibold hover:text-blue">View client <ChevronRight size={16} /></button>
-    </article>
+    <Card interactive className="p-5">
+      <div className="flex items-start justify-between"><div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl text-sm font-bold text-white shadow-sm" style={{ backgroundColor: client.color }}>{client.initials}</div><Badge variant={active ? 'success' : 'warning'}>{active ? 'Active' : String(client.status || '').replaceAll('_', ' ')}</Badge></div><ActionMenu onEdit={onEdit} onDelete={onDelete} /></div>
+      <button className="mt-5 block text-left text-lg font-semibold tracking-tight hover:text-blue" onClick={onView}>{client.name}</button><p className="mt-1 truncate text-sm text-zinc-500">{client.contact || 'No contact person'}</p>
+      <div className="mt-5 grid grid-cols-3 rounded-xl bg-canvas p-3"><div><div className="text-base font-semibold tabular-nums">{metrics.total}</div><div className="text-[10px] text-zinc-500">Tasks</div></div><div><div className="text-base font-semibold tabular-nums">{metrics.pending}</div><div className="text-[10px] text-zinc-500">Pending</div></div><div><div className="text-base font-semibold tabular-nums">{formatMoney(metrics.billable)}</div><div className="text-[10px] text-zinc-500">Billable</div></div></div>
+      <div className="mt-4"><div className="mb-2 flex items-center justify-between text-[11px] text-zinc-500"><span>Delivery progress</span><span className="font-semibold tabular-nums text-zinc-700">{completion}%</span></div><div className="h-1.5 overflow-hidden rounded-full bg-zinc-100"><div className="h-full rounded-full bg-blue transition-all" style={{ width: `${completion}%` }} /></div></div>
+      <button onClick={onView} className="mt-5 flex w-full items-center justify-between border-t border-line pt-4 text-sm font-semibold text-zinc-700 hover:text-blue">Open workspace <ChevronRight size={16} /></button>
+    </Card>
   )
 }
 
@@ -148,7 +206,7 @@ export function EmptyState({ title, description, action, onAction }) {
 export function Table({ columns, data, emptyMessage = 'No records found.' }) {
   if (!data.length) return <div className="p-10 text-center text-sm text-zinc-500">{emptyMessage}</div>
   return (
-    <div className="overflow-x-auto overscroll-x-contain"><table className="w-full min-w-[900px] border-collapse text-left"><thead className="sticky top-0 z-[1]"><tr className="border-b border-line bg-canvas/95 backdrop-blur">{columns.map((column) => <th key={column.key} className="whitespace-nowrap px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-500">{column.label}</th>)}</tr></thead><tbody>{data.map((row, index) => <tr key={row.id || index} className="border-b border-line transition-colors last:border-0 hover:bg-blue/[0.025]">{columns.map((column) => <td key={column.key} className="px-5 py-4 text-sm align-middle">{column.render ? column.render(row) : row[column.key]}</td>)}</tr>)}</tbody></table></div>
+    <div className="overflow-x-auto overscroll-x-contain"><table className="w-full min-w-[900px] border-separate border-spacing-0 text-left"><thead className="sticky top-0 z-[1]"><tr className="bg-zinc-50/95 backdrop-blur">{columns.map((column) => <th key={column.key} className="border-b border-line px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-500 first:pl-6 last:pr-6">{column.label}</th>)}</tr></thead><tbody>{data.map((row, index) => <tr key={row.id || index} className="group transition-colors hover:bg-blue/[0.025]">{columns.map((column) => <td key={column.key} className="border-b border-line px-5 py-4 text-sm align-middle group-last:border-0 first:pl-6 last:pr-6">{column.render ? column.render(row) : row[column.key]}</td>)}</tr>)}</tbody></table></div>
   )
 }
 

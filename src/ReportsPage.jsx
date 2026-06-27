@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ClipboardCopy, Download, FileText, Printer } from 'lucide-react'
-import { EmptyState, ReportSection, StatusBadge } from './components'
+import { EmptyState, PageHeader, ReportSection, StatusBadge } from './components'
 import { generateReport, saveReport } from './services/api'
 import { formatMoney } from './utils'
 import ReportShareManager from './ReportShareManager'
@@ -17,7 +17,7 @@ function Field({ label, children }) {
 }
 
 function PageHeading() {
-  return <div className="mb-8 flex items-start gap-4 border-b border-line pb-7 sm:gap-5"><span className="text-4xl font-light leading-none text-zinc-200 sm:text-5xl">06</span><div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Reports</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">Generate, review, save, and export monthly client delivery reports.</p></div></div>
+  return <PageHeader number="06" title="Reports" description="Generate, review, save, and export monthly client delivery reports." />
 }
 
 export default function ReportsPage({ clients, tasks, settings, isFallback, onActivityRefresh }) {

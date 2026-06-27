@@ -4,7 +4,7 @@ import {
   FileText, MessageSquare, Repeat2, Trash2, UserRound,
 } from 'lucide-react'
 
-import { Badge, EmptyState } from './components'
+import { Badge, Button, EmptyState, PageHeader } from './components'
 import { formatDate, todayDateString } from './utils'
 
 const NOTIFICATION_TYPES = [
@@ -89,10 +89,7 @@ export default function NotificationsPage({ notifications, clients, onOpen, onRe
   const unread = notifications.filter((notification) => Number(notification.is_read) !== 1).length
 
   return <>
-    <div className="mb-7 rounded-2xl border border-line bg-white px-5 py-5 shadow-sm sm:flex sm:items-end sm:justify-between sm:gap-6 sm:px-6 sm:py-6">
-      <div className="flex items-start gap-4 sm:gap-5"><span className="text-4xl font-light leading-none tracking-[-0.05em] text-zinc-200 tabular-nums sm:text-5xl">10</span><div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Notifications</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">Deadline, assignment, report, billing, and system updates for your account.</p></div></div>
-      <div className="mt-5 flex flex-wrap gap-2 sm:mt-0"><button className="button-secondary" disabled={!unread} onClick={onReadAll}><Check size={15} />Mark all read</button><button className="button-primary" disabled={generating} onClick={onGenerate}><Repeat2 size={15} />{generating ? 'Checking…' : 'Check now'}</button></div>
-    </div>
+    <PageHeader number="10" title="Notifications" description="Deadline, assignment, report, billing, and system updates for your account." actions={<div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={!unread} onClick={onReadAll}><Check size={15} />Mark all read</Button><Button disabled={generating} onClick={onGenerate}><Repeat2 size={15} />{generating ? 'Checking…' : 'Check now'}</Button></div>} />
 
     <div className="panel mb-5 grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
       <select className="field" value={readFilter} onChange={(event) => setReadFilter(event.target.value)}><option>All</option><option>Unread</option><option>Read</option></select>

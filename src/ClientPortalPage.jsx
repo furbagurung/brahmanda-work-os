@@ -21,7 +21,7 @@ export default function ClientPortalPage({ token }) {
     getPublicPortalReport(token).then(setData).catch(() => setError('This report link is expired or unavailable.'))
   }, [token])
 
-  if (error) return <main className="flex min-h-screen items-center justify-center bg-[#F7F7F8] p-6"><section className="w-full max-w-lg border border-zinc-200 bg-white p-8 text-left"><FileText size={28} className="text-zinc-300" /><h1 className="mt-6 text-2xl font-semibold tracking-tight">Report unavailable</h1><p className="mt-3 text-sm leading-6 text-zinc-500">{error}</p></section></main>
+  if (error) return <main className="flex min-h-screen items-center justify-center bg-[#F7F7F8] p-6"><section className="w-full max-w-lg rounded-3xl border border-zinc-200 bg-white p-8 text-left shadow-xl"><FileText size={28} className="text-zinc-300" /><h1 className="mt-6 text-2xl font-semibold tracking-tight">Report unavailable</h1><p className="mt-3 text-sm leading-6 text-zinc-500">{error}</p></section></main>
   if (!data) return <main className="flex min-h-screen items-center justify-center bg-[#F7F7F8]"><div className="h-8 w-8 animate-spin border-2 border-zinc-200 border-t-[#002FA7]" aria-label="Loading report" /></main>
 
   const { report, client, branding } = data
@@ -34,7 +34,7 @@ export default function ClientPortalPage({ token }) {
   const accent = branding.brand_color || '#002FA7'
 
   return <main className="min-h-screen bg-[#F7F7F8] px-4 py-6 text-zinc-900 sm:px-6 sm:py-10">
-    <article className="mx-auto max-w-5xl border border-zinc-200 bg-white">
+    <article className="mx-auto max-w-5xl overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_20px_60px_rgba(24,24,27,0.08)]">
       <header className="grid border-b border-zinc-200 lg:grid-cols-[1fr_260px]">
         <div className="p-6 sm:p-10">
           <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: accent }}>{branding.logo_url || branding.agency_name || 'Brahmanda Tech'}</p>

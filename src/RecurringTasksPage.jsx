@@ -1,6 +1,6 @@
 import { CalendarClock, Play, Repeat2 } from 'lucide-react'
 
-import { Badge, EmptyState, PriorityBadge, StatusBadge } from './components'
+import { Badge, Button, EmptyState, PageHeader, PriorityBadge, StatCard, StatusBadge } from './components'
 import { recurrenceLabel } from './recurrenceUtils'
 import { formatDate, todayDateString } from './utils'
 
@@ -21,16 +21,9 @@ export default function RecurringTasksPage({
   const due = active.filter((task) => task.nextOccurrenceDate && task.nextOccurrenceDate <= today)
 
   return <>
-    <div className="mb-8 flex flex-col gap-5 border-b border-line pb-7 sm:flex-row sm:items-end sm:justify-between">
-      <div className="flex items-start gap-4 sm:gap-5"><span className="text-4xl font-light leading-none text-zinc-200 sm:text-5xl">08</span><div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Recurring Tasks</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">Manage repeating client work and generate task occurrences that are due.</p></div></div>
-      <button className="button-primary self-start sm:self-auto" onClick={onGenerate} disabled={generating}><Play size={15} />{generating ? 'Generating…' : 'Generate Due Recurring Tasks'}</button>
-    </div>
+    <PageHeader number="08" title="Recurring Tasks" description="Manage repeating client work and generate task occurrences that are due." actions={<Button onClick={onGenerate} disabled={generating}><Play size={15} />{generating ? 'Generating…' : 'Generate Due Recurring Tasks'}</Button>} />
 
-    <div className="mb-5 grid gap-px border border-line bg-line sm:grid-cols-3">
-      <div className="bg-white p-5"><Repeat2 size={17} className="text-blue" /><p className="mt-5 text-3xl font-semibold">{active.length}</p><p className="mt-1 text-sm text-zinc-500">Active recurring tasks</p></div>
-      <div className="bg-white p-5"><CalendarClock size={17} className="text-orange-700" /><p className="mt-5 text-3xl font-semibold">{due.length}</p><p className="mt-1 text-sm text-zinc-500">Due to generate</p></div>
-      <div className="bg-white p-5"><Repeat2 size={17} className="text-zinc-500" /><p className="mt-5 text-3xl font-semibold">{recurring.length - active.length}</p><p className="mt-1 text-sm text-zinc-500">Inactive templates</p></div>
-    </div>
+    <div className="mb-5 grid gap-4 sm:grid-cols-3"><StatCard icon={Repeat2} value={active.length} label="Active recurring tasks" /><StatCard icon={CalendarClock} value={due.length} label="Due to generate" /><StatCard icon={Repeat2} value={recurring.length - active.length} label="Inactive templates" /></div>
 
     {generationMessage && <p className="mb-5 border border-blue/20 bg-blue/5 px-4 py-3 text-sm text-blue">{generationMessage}</p>}
 
