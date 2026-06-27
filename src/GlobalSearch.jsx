@@ -18,13 +18,13 @@ function TypeBadge({ type }) {
     Report: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     Proof: 'border-orange-200 bg-orange-50 text-orange-800',
   }
-  return <span className={`inline-flex border px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${styles[type]}`}>{type}</span>
+  return <span className={`inline-flex rounded-lg border px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${styles[type]}`}>{type}</span>
 }
 
 function ResultRow({ result, onSelect }) {
   const Icon = result.type === 'Client' ? Users : result.type === 'Task' ? BriefcaseBusiness : result.type === 'Report' ? FileText : Link2
   return <button className="grid w-full grid-cols-[32px_minmax(0,1fr)_auto] items-start gap-3 border-b border-line px-4 py-3 text-left last:border-0 hover:bg-canvas" onClick={() => onSelect(result)}>
-    <span className="flex h-8 w-8 items-center justify-center border border-line text-zinc-500"><Icon size={15} /></span>
+    <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white text-zinc-500"><Icon size={15} /></span>
     <span className="min-w-0"><span className="block truncate text-sm font-semibold">{result.title}</span><span className="mt-1 block truncate text-xs text-zinc-500">{result.clientName || result.subtitle || 'Brahmanda Work OS'}</span></span>
     <span className="flex flex-col items-end gap-2"><TypeBadge type={result.type} />{result.status && (result.type === 'Task' ? <StatusBadge status={result.status} /> : <span className="text-[11px] font-medium text-zinc-500">{result.status}</span>)}</span>
   </button>
@@ -109,9 +109,9 @@ export default function GlobalSearch({
     ...recentTaskIds.map((id) => taskResults.find((result) => result.id === id)),
   ].filter(Boolean).slice(0, 8)
 
-  return <div className="fixed inset-0 z-[70] flex items-start justify-center bg-black/40 p-3 pt-[8vh] sm:p-6 sm:pt-[12vh]" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section className="max-h-[76vh] w-full max-w-2xl overflow-hidden border border-zinc-300 bg-white shadow-2xl">
-      <div className="flex items-center border-b border-line px-4"><Search size={18} className="shrink-0 text-zinc-400" /><input ref={inputRef} className="min-w-0 flex-1 px-3 py-4 text-base outline-none" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search clients, tasks, reports, and proof links" /><kbd className="hidden border border-line bg-canvas px-2 py-1 text-[10px] font-semibold text-zinc-500 sm:block">ESC</kbd><button className="ml-3 flex h-8 w-8 items-center justify-center hover:bg-canvas" onClick={onClose} aria-label="Close search"><X size={17} /></button></div>
+  return <div className="fixed inset-0 z-[70] flex items-start justify-center bg-zinc-950/45 p-3 pt-[6vh] backdrop-blur-[2px] sm:p-6 sm:pt-[12vh]" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <section role="dialog" aria-modal="true" aria-label="Global search" className="max-h-[82vh] w-full max-w-2xl overflow-hidden rounded-2xl border border-zinc-300 bg-white shadow-2xl sm:max-h-[76vh]">
+      <div className="flex items-center border-b border-line px-4"><Search size={18} className="shrink-0 text-zinc-400" /><input ref={inputRef} className="min-w-0 flex-1 px-3 py-4 text-base outline-none" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search clients, tasks, reports, and proof links" /><kbd className="hidden rounded-lg border border-line bg-canvas px-2 py-1 text-[10px] font-semibold text-zinc-500 sm:block">ESC</kbd><button className="ml-3 flex h-8 w-8 items-center justify-center rounded-lg hover:bg-canvas" onClick={onClose} aria-label="Close search"><X size={17} /></button></div>
       <div className="max-h-[64vh] overflow-y-auto">
         {!normalized && <div><div className="flex items-center justify-between border-b border-line bg-canvas px-4 py-2.5"><p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Recent items</p><p className="text-[11px] text-zinc-400">Ctrl + K</p></div>{recentResults.length ? recentResults.map((result) => <ResultRow key={`${result.type}-${result.id}`} result={result} onSelect={onSelect} />) : <p className="p-8 text-center text-sm text-zinc-500">Recently opened clients and edited tasks will appear here.</p>}</div>}
         {normalized && <div><div className="border-b border-line bg-canvas px-4 py-2.5"><p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">{results.length} result{results.length === 1 ? '' : 's'}</p></div>{results.length ? results.map((result) => <ResultRow key={`${result.type}-${result.id}`} result={result} onSelect={onSelect} />) : <p className="p-8 text-center text-sm text-zinc-500">No matching clients, tasks, reports, or proof links.</p>}</div>}

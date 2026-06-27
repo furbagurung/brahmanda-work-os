@@ -12,7 +12,7 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function EventMarker({ event, client, onClick }) {
   const isReminder = event.type === 'reminder'
-  return <button className={`block w-full border-l-2 px-2 py-1.5 text-left transition ${isReminder ? 'border-orange-500 bg-orange-50 hover:bg-orange-100' : 'border-blue bg-blue/5 hover:bg-blue/10'}`} onClick={(clickEvent) => { clickEvent.stopPropagation(); onClick() }}>
+  return <button className={`block w-full rounded-lg border border-l-2 px-2 py-1.5 text-left transition ${isReminder ? 'border-orange-200 border-l-orange-500 bg-orange-50 hover:bg-orange-100' : 'border-blue/15 border-l-blue bg-blue/5 hover:bg-blue/10'}`} onClick={(clickEvent) => { clickEvent.stopPropagation(); onClick() }}>
     <span className="block truncate text-[11px] font-semibold">{event.task.title}</span>
     <span className="mt-0.5 block truncate text-[10px] text-zinc-500">{client?.name || 'Deleted client'}</span>
     {event.task.assignedUserName && <span className="mt-0.5 flex items-center gap-1 truncate text-[10px] text-zinc-500"><UserRound size={10} />{event.task.assignedUserName}</span>}
@@ -101,7 +101,7 @@ export default function CalendarPage({ clients, tasks, onEditTask, updateTask })
 
     <div className="mb-3 flex flex-wrap gap-4 text-xs font-medium text-zinc-600"><span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 bg-blue" />Deadline</span><span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 bg-orange-500" />Reminder</span><button className="font-semibold text-blue hover:underline" onClick={() => setVisibleMonth(new Date(Date.UTC(todayParts[0], todayParts[1] - 1, 1)))}>Go to today</button></div>
 
-    <section className="overflow-x-auto border border-line bg-line">
+    <section className="overflow-x-auto rounded-2xl border border-line bg-line shadow-sm">
       <div className="min-w-[980px]">
         <div className="grid grid-cols-7 gap-px bg-line">{WEEKDAYS.map((weekday) => <div className="bg-canvas px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-zinc-500" key={weekday}>{weekday}</div>)}</div>
         <div className="grid grid-cols-7 gap-px bg-line">{days.map((day) => {

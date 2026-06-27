@@ -49,19 +49,19 @@ const DEFAULT_SETTINGS = {
   date_format: 'MMM d, yyyy',
 }
 const navigation = [
-  { label: 'Dashboard', icon: LayoutDashboard },
-  { label: 'Clients', icon: Users },
-  { label: 'Tasks', icon: ClipboardList },
-  { label: 'Kanban Board', icon: BriefcaseBusiness },
-  { label: 'Daily Logs', icon: CalendarDays },
-  { label: 'Reminders', icon: BellRing },
-  { label: 'Calendar', icon: CalendarRange },
-  { label: 'Recurring Tasks', icon: Repeat2 },
-  { label: 'Activity', icon: History },
-  { label: 'Reports', icon: BarChart3 },
-  { label: 'Billing', icon: ReceiptText },
-  { label: 'Team', icon: UsersRound },
-  { label: 'Settings', icon: Settings },
+  { label: 'Dashboard', icon: LayoutDashboard, group: 'Workspace' },
+  { label: 'Clients', icon: Users, group: 'Workspace' },
+  { label: 'Tasks', icon: ClipboardList, group: 'Workspace' },
+  { label: 'Kanban Board', icon: BriefcaseBusiness, group: 'Workspace' },
+  { label: 'Daily Logs', icon: CalendarDays, group: 'Planning' },
+  { label: 'Reminders', icon: BellRing, group: 'Planning' },
+  { label: 'Calendar', icon: CalendarRange, group: 'Planning' },
+  { label: 'Recurring Tasks', icon: Repeat2, group: 'Planning' },
+  { label: 'Activity', icon: History, group: 'Operations' },
+  { label: 'Reports', icon: BarChart3, group: 'Operations' },
+  { label: 'Billing', icon: ReceiptText, group: 'Operations' },
+  { label: 'Team', icon: UsersRound, group: 'Administration' },
+  { label: 'Settings', icon: Settings, group: 'Administration' },
 ]
 
 function useWorkspace() {
@@ -384,21 +384,24 @@ function useWorkspace() {
 
 function Sidebar({ activePage, setActivePage, open, setOpen, collapsed, settings }) {
   const initials = settings.agency_name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+  const groups = [...new Set(navigation.map((item) => item.group))]
   return (
     <>
       {open && <button className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu" />}
-      <aside className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-line bg-white/95 shadow-lg transition-all duration-300 ease-out backdrop-blur-xl ${collapsed ? 'w-20' : 'w-64'} ${open ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
+      <aside className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-line bg-white/95 shadow-[4px_0_20px_rgba(24,24,27,0.03)] transition-all duration-300 ease-out backdrop-blur-xl ${collapsed ? 'w-20' : 'w-64'} ${open ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
         <div className="flex h-16 items-center gap-3 border-b border-line px-4">
           <button className="flex items-center gap-3 truncate" onClick={() => setActivePage('Dashboard')}>
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl text-white" style={{ backgroundColor: settings.brand_color }}><Command size={18} /></span>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-sm" style={{ backgroundColor: settings.brand_color }}><Command size={18} /></span>
             {!collapsed && <span className="truncate text-sm font-bold tracking-tight">{settings.agency_name} <span style={{ color: settings.brand_color }}>OS</span></span>}
           </button>
           <button className="ml-auto rounded-2xl p-2 text-zinc-500 hover:bg-canvas lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu"><X size={20} /></button>
         </div>
-        <nav className="flex-1 overflow-y-auto px-2 py-5">
-          {!collapsed && <p className="px-3 pb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">Workspace</p>}
-          <div className="space-y-1">
-            {navigation.map(({ label, icon: Icon }) => {
+        <nav className="flex-1 overflow-y-auto px-2.5 py-4">
+          <div className="space-y-5">
+            {groups.map((group) => <section key={group}>
+              {!collapsed && <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-400">{group}</p>}
+              <div className="space-y-1">
+              {navigation.filter((item) => item.group === group).map(({ label, icon: Icon }) => {
               const isActive = activePage === label || (activePage === 'Client Detail' && label === 'Clients')
               return (
                 <button
@@ -407,18 +410,21 @@ function Sidebar({ activePage, setActivePage, open, setOpen, collapsed, settings
                   onClick={() => { setActivePage(label); setOpen(false) }}
                   title={collapsed ? label : undefined}
                   aria-label={collapsed ? label : undefined}
-                  className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-2xl px-3 py-2.5 text-left text-sm transition duration-200 ${isActive ? 'bg-blue text-white shadow-sm' : 'text-zinc-600 hover:bg-canvas hover:text-ink'}`}
+                  className={`relative flex min-h-10 w-full items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-left text-sm transition duration-150 ${isActive ? 'bg-blue text-white shadow-[0_2px_8px_rgba(0,47,167,0.18)]' : 'text-zinc-600 hover:bg-canvas hover:text-ink'}`}
                 >
+                  {isActive && !collapsed && <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-white/80" />}
                   <Icon size={17} strokeWidth={1.8} />
                   {!collapsed && <span className="font-medium">{label}</span>}
                 </button>
               )
-            })}
+              })}
+              </div>
+            </section>)}
           </div>
         </nav>
         <div className="border-t border-line p-4">
           <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
-            <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-ink text-xs font-bold text-white">{initials}</span>
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink text-xs font-bold text-white">{initials}</span>
             {!collapsed && <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{settings.agency_name}</p><p className="truncate text-xs text-zinc-500">{settings.legal_business_name}</p></div>}
             {!collapsed && <ChevronDown size={15} className="text-zinc-400" />}
           </div>
@@ -430,38 +436,38 @@ function Sidebar({ activePage, setActivePage, open, setOpen, collapsed, settings
 
 function Topbar({ activePage, setOpen, onToggleCollapse, collapsed, onOpenSearch, quickAddOpen, setQuickAddOpen, quickAddActions, settings, user, onLogout }) {
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-line bg-white/95 px-4 shadow-sm backdrop-blur-md md:px-7">
-      <button className="mr-3 rounded-2xl border border-line bg-white p-2 text-zinc-500 shadow-sm hover:border-zinc-400 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu"><Menu size={22} /></button>
-      <button className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-line bg-white text-zinc-500 transition hover:border-zinc-400 lg:inline-flex shadow-sm" onClick={onToggleCollapse} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+    <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-line bg-white/90 px-3 backdrop-blur-xl sm:gap-3 md:px-6">
+      <button className="mr-1 rounded-xl border border-line bg-white p-2 text-zinc-500 shadow-sm hover:border-zinc-400 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu"><Menu size={22} /></button>
+      <button className="hidden h-10 w-10 items-center justify-center rounded-xl border border-line bg-white text-zinc-500 shadow-sm transition hover:border-zinc-400 hover:text-ink lg:inline-flex" onClick={onToggleCollapse} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
         {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
       </button>
       <div className="hidden min-w-0 flex-1 xl:block"><p className="truncate text-sm font-semibold">{activePage}</p><p className="hidden truncate text-xs text-zinc-500 sm:block">{settings.agency_name} / Internal workspace</p></div>
-      <button className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-line bg-canvas px-3 py-2 text-left text-sm text-zinc-500 shadow-sm transition hover:border-zinc-400 hover:bg-white/80 xl:mx-6 xl:max-w-xl" onClick={onOpenSearch}>
+      <button className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-canvas px-3 py-2 text-left text-sm text-zinc-500 transition hover:border-zinc-400 hover:bg-white xl:mx-5 xl:max-w-xl" onClick={onOpenSearch}>
         <Search size={15} className="shrink-0" />
         <span className="truncate">Search clients, tasks, reports, proofs</span>
         <kbd className="ml-auto hidden rounded border border-line bg-white px-1.5 py-0.5 text-[10px] font-semibold sm:block">Ctrl K</kbd>
       </button>
       <div className="relative ml-2 sm:ml-3">
         <button className="button-primary hidden sm:inline-flex" onClick={() => setQuickAddOpen((value) => !value)}><Plus size={15} />Quick Add<ChevronDown size={14} /></button>
-        <button className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue text-white shadow-sm sm:hidden" onClick={() => setQuickAddOpen((value) => !value)} aria-label="Open Quick Add"><Plus size={17} /></button>
+        <button className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue text-white shadow-sm sm:hidden" onClick={() => setQuickAddOpen((value) => !value)} aria-label="Open Quick Add"><Plus size={17} /></button>
         <QuickAddMenu open={quickAddOpen} onClose={() => setQuickAddOpen(false)} {...quickAddActions} />
       </div>
-      <button className="relative ml-3 flex h-9 w-9 items-center justify-center rounded-2xl border border-line bg-white text-zinc-500 shadow-sm" aria-label="Notifications"><Bell size={17} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-blue" /></button>
+      <button className="relative ml-1 flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-white text-zinc-500 shadow-sm hover:border-zinc-400 hover:text-ink" aria-label="Notifications"><Bell size={17} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-blue ring-2 ring-white" /></button>
       <div className="ml-3 hidden text-right md:block">
         <p className="text-xs font-semibold">{user.name}</p>
         <p className="text-[11px] capitalize text-zinc-500">{user.role}</p>
       </div>
-      <span className="ml-3 flex h-9 w-9 items-center justify-center rounded-2xl bg-ink text-xs font-bold text-white">{user.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span>
-      <button className="ml-2 flex h-9 w-9 items-center justify-center rounded-2xl border border-line text-zinc-500 hover:border-zinc-400 hover:text-ink" onClick={onLogout} aria-label="Log out"><LogOut size={16} /></button>
+      <span className="ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ink text-xs font-bold text-white">{user.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span>
+      <button className="flex h-10 w-10 items-center justify-center rounded-xl border border-line text-zinc-500 hover:border-zinc-400 hover:text-ink" onClick={onLogout} aria-label="Log out"><LogOut size={16} /></button>
     </header>
   )
 }
 
 function PageHeading({ number, title, description, action, onAction }) {
   return (
-    <div className="mb-8 rounded-[2rem] border border-line bg-white/90 px-6 py-6 shadow-sm sm:flex sm:items-end sm:justify-between sm:gap-6">
+    <div className="mb-7 rounded-2xl border border-line bg-white px-5 py-5 shadow-[0_1px_2px_rgba(24,24,27,0.04)] sm:flex sm:items-end sm:justify-between sm:gap-6 sm:px-6 sm:py-6">
       <div className="flex items-start gap-4 sm:gap-5">
-        <span className="text-4xl font-light leading-none text-zinc-200 sm:text-5xl">{number}</span>
+        <span className="text-4xl font-light leading-none tracking-[-0.05em] text-zinc-200 tabular-nums sm:text-5xl">{number}</span>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{title}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">{description}</p>
@@ -479,7 +485,7 @@ function Field({ label, children, className = '' }) {
 const blankTask = (clientId = '') => ({ id: '', clientId, assignedUserId: '', assignedUserName: '', title: '', description: '', category: 'Design', priority: 'Medium', deadline: TODAY, reminderDate: '', reminderNote: '', isRecurring: false, recurrenceType: 'monthly', recurrenceInterval: 1, recurrenceEndDate: '', nextOccurrenceDate: '', recurringParentId: '', status: 'New', proofLink: '', attachments: [], billable: false, amount: 0, completedAt: '', paymentStatus: 'Unpaid', invoiceStatus: 'Not invoiced' })
 
 function FormSection({ icon: Icon, title, description, children }) {
-  return <section className="border border-line bg-white"><header className="flex items-start gap-3 border-b border-line bg-canvas px-4 py-3"><Icon size={16} className="mt-0.5 text-blue" /><div><h3 className="text-sm font-semibold">{title}</h3>{description && <p className="mt-0.5 text-xs text-zinc-500">{description}</p>}</div></header><div className="grid gap-4 p-4 sm:grid-cols-2">{children}</div></section>
+  return <section className="overflow-hidden rounded-xl border border-line bg-white"><header className="flex items-start gap-3 border-b border-line bg-canvas/70 px-4 py-3.5"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-blue/10 bg-blue/5 text-blue"><Icon size={15} /></span><div><h3 className="text-sm font-semibold">{title}</h3>{description && <p className="mt-0.5 text-xs leading-5 text-zinc-500">{description}</p>}</div></header><div className="grid gap-4 p-4 sm:grid-cols-2">{children}</div></section>
 }
 
 function TaskForm({ task, clients, users, onSave, onClose }) {
@@ -587,7 +593,7 @@ function TaskForm({ task, clients, users, onSave, onClose }) {
         </div>}
         {collaborationError && <p className="border border-red-200 bg-red-50 p-3 text-sm text-red-700">{collaborationError}</p>}
       </div>
-      <div className="flex justify-end gap-3 border-t border-line bg-canvas p-4 sm:px-6"><button type="button" className="button-secondary" onClick={onClose}>Cancel</button><button className="button-primary" disabled={saving} type="submit">{saving ? 'Saving…' : task?.id ? 'Save changes' : 'Create task'}</button></div>
+      <div className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-line bg-white/95 p-4 backdrop-blur sm:px-6"><button type="button" className="button-secondary" onClick={onClose}>Cancel</button><button className="button-primary" disabled={saving} type="submit">{saving ? 'Saving…' : task?.id ? 'Save changes' : 'Create task'}</button></div>
     </form>
   )
 }
@@ -641,14 +647,14 @@ function Dashboard({ clients, tasks, activities, connectionStatus, onNewTask, se
   const statusClasses = connectionStatus === 'connected' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : connectionStatus === 'fallback' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-700'
   return <>
     <PageHeading number="01" title="Agency overview" description="Live workload, delivery, and billable activity from your local workspace." action="Create task" onAction={onNewTask} />
-    <div className={`mb-5 flex items-center gap-2 border px-4 py-3 text-sm font-semibold ${statusClasses}`}><span className="h-2 w-2 rounded-full bg-current" />{statusLabel}</div>
-    <div className="grid grid-cols-1 gap-px border border-line bg-line sm:grid-cols-2 xl:grid-cols-3">{stats.map(([label, value, change, Icon]) => <StatCard key={label} label={label} value={value} change={change} icon={Icon} />)}</div>
-    <div className="mt-6 grid gap-px border border-line bg-line sm:grid-cols-3">
-      <button className="flex items-center justify-between bg-red-50 p-5 text-left text-red-800 hover:bg-red-100" onClick={() => setActivePage('Tasks')}><div><p className="text-3xl font-semibold">{overdueTasks.length}</p><p className="mt-1 text-sm font-semibold">Overdue tasks</p></div><AlertTriangle size={22} /></button>
-      <button className="flex items-center justify-between bg-orange-50 p-5 text-left text-orange-800 hover:bg-orange-100" onClick={() => setActivePage('Tasks')}><div><p className="text-3xl font-semibold">{dueTodayTasks.length}</p><p className="mt-1 text-sm font-semibold">Due today</p></div><CalendarDays size={22} /></button>
-      <button className="flex items-center justify-between bg-blue/5 p-5 text-left text-blue hover:bg-blue/10" onClick={() => setActivePage('Tasks')}><div><p className="text-3xl font-semibold">{dueThisWeekTasks.length + upcomingTasks.length}</p><p className="mt-1 text-sm font-semibold">Upcoming deadlines</p></div><Clock3 size={22} /></button>
+    <div className={`mb-5 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold ${statusClasses}`}><span className="h-2 w-2 rounded-full bg-current" />{statusLabel}</div>
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">{stats.map(([label, value, change, Icon]) => <StatCard key={label} label={label} value={value} change={change} icon={Icon} />)}</div>
+    <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <button className="flex items-center justify-between rounded-2xl border border-red-200 bg-red-50 p-5 text-left text-red-800 transition hover:-translate-y-0.5 hover:shadow-md" onClick={() => setActivePage('Tasks')}><div><p className="text-3xl font-semibold tabular-nums">{overdueTasks.length}</p><p className="mt-1 text-sm font-semibold">Overdue tasks</p></div><AlertTriangle size={22} /></button>
+      <button className="flex items-center justify-between rounded-2xl border border-orange-200 bg-orange-50 p-5 text-left text-orange-800 transition hover:-translate-y-0.5 hover:shadow-md" onClick={() => setActivePage('Tasks')}><div><p className="text-3xl font-semibold tabular-nums">{dueTodayTasks.length}</p><p className="mt-1 text-sm font-semibold">Due today</p></div><CalendarDays size={22} /></button>
+      <button className="flex items-center justify-between rounded-2xl border border-blue/15 bg-blue/5 p-5 text-left text-blue transition hover:-translate-y-0.5 hover:shadow-md" onClick={() => setActivePage('Tasks')}><div><p className="text-3xl font-semibold tabular-nums">{dueThisWeekTasks.length + upcomingTasks.length}</p><p className="mt-1 text-sm font-semibold">Upcoming deadlines</p></div><Clock3 size={22} /></button>
     </div>
-    <section className="mt-8 grid gap-px border border-line bg-line lg:grid-cols-[280px_1fr]">
+    <section className="mt-8 grid overflow-hidden rounded-2xl border border-line bg-line shadow-sm lg:grid-cols-[280px_1fr] lg:gap-px">
       <button className="flex items-center justify-between bg-violet-50 p-5 text-left text-violet-800 hover:bg-violet-100" onClick={() => setActivePage('Recurring Tasks')}><div><p className="text-3xl font-semibold">{recurringDueToday.length}</p><p className="mt-1 text-sm font-semibold">Recurring tasks due today</p></div><Repeat2 size={22} /></button>
       <div className="bg-white"><div className="flex items-center justify-between border-b border-line px-5 py-3"><div><h2 className="text-sm font-semibold">Upcoming recurring tasks</h2><p className="mt-1 text-xs text-zinc-500">Next scheduled templates</p></div><button className="text-sm font-semibold text-blue" onClick={() => setActivePage('Recurring Tasks')}>Manage</button></div>{recurringUpcoming.length ? <div className="grid gap-px bg-line sm:grid-cols-2 xl:grid-cols-4">{recurringUpcoming.map((task) => <div className="bg-white p-4" key={task.id}><p className="truncate text-sm font-semibold">{task.title}</p><p className="mt-1 truncate text-xs text-zinc-500">{clients.find((client) => client.id === task.clientId)?.name || 'Deleted client'}</p><p className="mt-3 text-xs font-semibold text-violet-700">{formatDate(task.nextOccurrenceDate, { month: 'short', day: 'numeric' })}</p></div>)}</div> : <p className="p-5 text-sm text-zinc-400">No upcoming recurring tasks.</p>}</div>
     </section>

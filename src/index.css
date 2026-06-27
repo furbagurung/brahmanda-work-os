@@ -9,7 +9,9 @@
 html {
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   color: #18181b;
-  background: radial-gradient(circle at top, rgba(59, 130, 246, 0.12), transparent 35%), linear-gradient(180deg, #f8fbff 0%, #eef2ff 100%);
+  background: #f7f7f8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
 }
 
 body {
@@ -17,6 +19,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: transparent;
+  line-height: 1.5;
 }
 
 button,
@@ -26,12 +29,35 @@ textarea {
   font: inherit;
 }
 
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 4px rgba(0, 47, 167, 0.12);
+  box-shadow: 0 0 0 3px rgba(0, 47, 167, 0.18);
 }
 
 ::-webkit-scrollbar {
@@ -41,27 +67,68 @@ textarea:focus-visible {
 
 ::-webkit-scrollbar-thumb {
   background: #d4d4d8;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 @layer components {
   .panel {
-    @apply overflow-hidden rounded-3xl border border-line bg-white shadow-sm;
+    @apply overflow-hidden rounded-2xl border border-line bg-white shadow-[0_1px_2px_rgba(24,24,27,0.04)];
   }
 
   .button-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-blue px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002680];
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-blue px-4 py-2.5 text-sm font-semibold text-white shadow-[0_1px_2px_rgba(0,47,167,0.25)] transition duration-150 hover:bg-[#002680] active:translate-y-px;
   }
 
   .button-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-line bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-zinc-400 hover:bg-zinc-50;
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 text-sm font-semibold text-ink shadow-[0_1px_1px_rgba(24,24,27,0.03)] transition duration-150 hover:border-zinc-400 hover:bg-zinc-50 active:translate-y-px;
   }
 
   .field {
-    @apply w-full rounded-2xl border border-line bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-zinc-400;
+    @apply min-h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-ink outline-none transition duration-150 placeholder:text-zinc-400;
   }
 
   .field:focus {
-    @apply border-blue bg-white shadow-[0_0_0_2px_rgba(0,47,167,0.16)];
+    @apply border-blue bg-white shadow-[0_0_0_3px_rgba(0,47,167,0.12)];
+  }
+
+  .section-header {
+    @apply flex items-start justify-between gap-4 border-b border-line px-5 py-4 sm:px-6;
+  }
+
+  .help-text {
+    @apply mt-1 text-xs leading-5 text-zinc-500;
+  }
+
+  .alert-error {
+    @apply rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800;
+  }
+
+  .alert-warning {
+    @apply rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900;
+  }
+}
+
+::selection {
+  background: rgba(0, 47, 167, 0.16);
+}
+
+@media (max-width: 640px) {
+  .button-primary,
+  .button-secondary {
+    @apply px-3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

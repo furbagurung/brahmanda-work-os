@@ -177,7 +177,7 @@ PAN: ${settings.pan_number}`
 
   return <>
     <PageHeading />
-    <div className="panel p-4 sm:p-5">
+    <div className="panel p-4 sm:p-6">
       <div className="grid gap-4 md:grid-cols-[minmax(180px,1fr)_150px_150px_180px_auto]">
         <Field label="Client"><select className="field" value={clientId} onChange={(event) => { setClientId(event.target.value); setReport(null) }}>{clients.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
         <Field label="Month"><select className="field" value={month} onChange={(event) => { setMonth(Number(event.target.value)); setReport(null) }}>{MONTHS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field>
@@ -188,9 +188,9 @@ PAN: ${settings.pan_number}`
       {error && <p className="mt-4 border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     </div>
 
-    {report && savedReportId && <section className="mx-auto mt-6 max-w-4xl border border-line bg-white"><div className="border-b border-line p-4"><h2 className="font-semibold">Client portal share</h2><p className="mt-1 text-xs text-zinc-500">Generate a view-only link for this saved report.</p></div><ReportShareManager reportId={savedReportId} clientId={clientId} onActivityRefresh={onActivityRefresh} /></section>}
+    {report && savedReportId && <section className="mx-auto mt-6 max-w-4xl overflow-hidden rounded-2xl border border-line bg-white shadow-sm"><div className="border-b border-line p-4"><h2 className="font-semibold">Client portal share</h2><p className="mt-1 text-xs text-zinc-500">Generate a view-only link for this saved report.</p></div><ReportShareManager reportId={savedReportId} clientId={clientId} onActivityRefresh={onActivityRefresh} /></section>}
 
-    {report ? <article id="report-preview" className="mx-auto mt-6 max-w-4xl border border-line bg-white">
+    {report ? <article id="report-preview" className="mx-auto mt-6 max-w-4xl overflow-hidden rounded-2xl border border-line bg-white shadow-[0_10px_30px_rgba(24,24,27,0.06)]">
       <header className="border-b-4 p-6 sm:p-8" style={{ borderColor: settings.brand_color }}>
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div><p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: settings.brand_color }}>{settings.logo_url || `${settings.agency_name} / Work OS`}</p><h2 className="mt-3 text-3xl font-semibold tracking-tight">{settings.report_title}</h2><p className="mt-2 text-lg">{client?.name}</p><p className="mt-1 text-sm text-zinc-500">{monthLabel} {year}</p></div>

@@ -138,7 +138,7 @@ export default function ClientDetailPage({
   return <>
     <button className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-zinc-600 hover:text-blue" onClick={onBack}><ArrowLeft size={16} />Back to clients</button>
 
-    <section className="border border-line bg-white">
+    <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-[0_1px_2px_rgba(24,24,27,0.04)]">
       <div className="grid lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
         <div className="border-b border-line p-5 sm:p-7 lg:border-b-0 lg:border-r">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
@@ -164,9 +164,9 @@ export default function ClientDetailPage({
       </div>
     </section>
 
-    <div className="mt-5 grid gap-px border border-line bg-line sm:grid-cols-2 xl:grid-cols-6">{summary.map(([label, value, icon]) => <SummaryCard key={label} label={label} value={value} icon={icon} />)}</div>
+    <div className="mt-5 grid overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 sm:gap-px xl:grid-cols-6">{summary.map(([label, value, icon]) => <SummaryCard key={label} label={label} value={value} icon={icon} />)}</div>
 
-    <div className="mt-7 overflow-x-auto border-b border-line">
+    <div className="mt-7 overflow-x-auto rounded-xl border border-line bg-white p-1">
       <div className="flex min-w-max">{TABS.map((tab) => <button key={tab} className={`border-b-2 px-4 py-3 text-sm font-semibold transition ${activeTab === tab ? 'border-blue text-blue' : 'border-transparent text-zinc-500 hover:text-ink'}`} onClick={() => setActiveTab(tab)}>{tab}</button>)}</div>
     </div>
 
