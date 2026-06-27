@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   AlertTriangle, BarChart3, Bell, BellRing, BriefcaseBusiness, CalendarDays, CalendarRange, CheckCircle2, ChevronDown,
   ChevronLeft, ChevronRight, CircleDollarSign, ClipboardCopy, ClipboardList, Clock3, Command, FileText,
-  History, LayoutDashboard, LogOut, Menu, Plus, ReceiptText, Repeat2, Search, Settings, Users, UsersRound, X,
+  History, LayoutDashboard, ListChecks, LogOut, Menu, MessageSquare, Plus, ReceiptText, Repeat2, Search, Settings, Trash2, UserRound, Users, UsersRound, X,
 } from 'lucide-react'
 import {
   ActionMenu, Badge, BillingBadge, ClientCard, DeadlineBadge, EmptyState, Modal, PriorityBadge,
@@ -14,7 +14,9 @@ import {
   createTask as createTaskApi, createTaskAttachment, deleteClient as deleteClientApi,
   deleteTask as deleteTaskApi, deleteTaskAttachment,
   generateReport as generateReportApi, getActivityLogs, getBillings, getClients, getDailyLogs, getReports, getSettings, getTasks,
-  getTaskAttachments, logFromApi, markTaskCompleted, taskFromApi, taskToApi,
+  getTaskAttachments, getTaskChecklists, getTaskComments, createTaskChecklist, createTaskComment,
+  deleteTaskChecklist, deleteTaskComment, updateTaskChecklist, getAssignableUsers,
+  logFromApi, markTaskCompleted, taskFromApi, taskToApi,
   updateBilling as updateBillingApi, attachmentFromApi, reportFromApi,
   updateClient as updateClientApi, updateTask as updateTaskApi, generateRecurringTasks as generateRecurringTasksApi,
   updateSettings as updateSettingsApi,
@@ -74,9 +76,10 @@ function useWorkspace() {
         reports: parsed.reports || [],
         activities: parsed.activities || [],
         settings: { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) },
+        users: parsed.users || [],
       }
     } catch {
-      return { clients: initialClients, tasks: initialTasks, logs: [], billings: [], reports: [], activities: [], settings: DEFAULT_SETTINGS }
+      return { clients: initialClients, tasks: initialTasks, logs: [], billings: [], reports: [], activities: [], settings: DEFAULT_SETTINGS, users: [] }
     }
   })
   const [loading, setLoading] = useState(true)
@@ -93,7 +96,7 @@ function useWorkspace() {
   }, [workspace.settings?.currency, workspace.settings?.date_format])
 
   const loadApiData = async () => {
-    const [clients, taskRows, logs, billing, reports, activities, settings] = await Promise.all([
+    const [clients, taskRows, logs, billing, reports, activities, settings, users] = await Promise.all([
       getClients(),
       getTasks(),
       getDailyLogs(),
@@ -101,6 +104,7 @@ function useWorkspace() {
       getReports(),
       getActivityLogs({ limit: 200 }).catch(() => []),
       getSettings().catch(() => DEFAULT_SETTINGS),
+      getAssignableUsers().catch(() => []),
     ])
     const attachments = await Promise.all(taskRows.map(async (task) => [
       String(task.id),
@@ -115,6 +119,7 @@ function useWorkspace() {
       reports: reports.map(reportFromApi),
       activities: activities.map(activityFromApi),
       settings: { ...DEFAULT_SETTINGS, ...settings },
+      users,
     }
     setWorkspace(next)
     setWorkspaceCurrency(next.settings.currency)
@@ -368,7 +373,7 @@ function useWorkspace() {
     setIsFallback(true)
     setConnectionStatus('fallback')
     setError('Demo mode enabled. Data is stored in this browser only.')
-    setWorkspace({ clients: initialClients, tasks: initialTasks, logs: initialTasks.filter((task) => task.status === 'Completed'), billings: initialTasks.filter((task) => task.billable), reports: [], activities: [], settings: DEFAULT_SETTINGS })
+    setWorkspace({ clients: initialClients, tasks: initialTasks, logs: initialTasks.filter((task) => task.status === 'Completed'), billings: initialTasks.filter((task) => task.billable), reports: [], activities: [], settings: DEFAULT_SETTINGS, users: [] })
     setWorkspaceCurrency(DEFAULT_SETTINGS.currency)
     setWorkspaceDateFormat(DEFAULT_SETTINGS.date_format)
   }
@@ -470,9 +475,13 @@ function Field({ label, children, className = '' }) {
   return <label className={`block ${className}`}><span className="mb-2 block text-sm font-semibold">{label}</span>{children}</label>
 }
 
-const blankTask = (clientId = '') => ({ id: '', clientId, title: '', description: '', category: 'Design', priority: 'Medium', deadline: TODAY, reminderDate: '', reminderNote: '', isRecurring: false, recurrenceType: 'monthly', recurrenceInterval: 1, recurrenceEndDate: '', nextOccurrenceDate: '', recurringParentId: '', status: 'New', proofLink: '', attachments: [], billable: false, amount: 0, assignee: 'AS', completedAt: '', paymentStatus: 'Unpaid', invoiceStatus: 'Not invoiced' })
+const blankTask = (clientId = '') => ({ id: '', clientId, assignedUserId: '', assignedUserName: '', title: '', description: '', category: 'Design', priority: 'Medium', deadline: TODAY, reminderDate: '', reminderNote: '', isRecurring: false, recurrenceType: 'monthly', recurrenceInterval: 1, recurrenceEndDate: '', nextOccurrenceDate: '', recurringParentId: '', status: 'New', proofLink: '', attachments: [], billable: false, amount: 0, completedAt: '', paymentStatus: 'Unpaid', invoiceStatus: 'Not invoiced' })
 
-function TaskForm({ task, clients, onSave, onClose }) {
+function FormSection({ icon: Icon, title, description, children }) {
+  return <section className="border border-line bg-white"><header className="flex items-start gap-3 border-b border-line bg-canvas px-4 py-3"><Icon size={16} className="mt-0.5 text-blue" /><div><h3 className="text-sm font-semibold">{title}</h3>{description && <p className="mt-0.5 text-xs text-zinc-500">{description}</p>}</div></header><div className="grid gap-4 p-4 sm:grid-cols-2">{children}</div></section>
+}
+
+function TaskForm({ task, clients, users, onSave, onClose }) {
   const [form, setForm] = useState(() => {
     const initial = task || blankTask(clients[0]?.id)
     const attachments = initial.attachments?.length
@@ -483,32 +492,72 @@ function TaskForm({ task, clients, onSave, onClose }) {
     return { ...initial, attachments }
   })
   const [saving, setSaving] = useState(false)
+  const [comments, setComments] = useState([])
+  const [checklist, setChecklist] = useState([])
+  const [commentText, setCommentText] = useState('')
+  const [checklistTitle, setChecklistTitle] = useState('')
+  const [collaborationError, setCollaborationError] = useState('')
+  useEffect(() => {
+    if (!task?.id || String(task.id).startsWith('task-')) return
+    Promise.all([getTaskComments(task.id), getTaskChecklists(task.id)])
+      .then(([commentRows, checklistRows]) => {
+        setComments(commentRows)
+        setChecklist(checklistRows)
+      })
+      .catch((error) => setCollaborationError(error.message))
+  }, [task?.id])
   const change = (key, value) => setForm((current) => ({ ...current, [key]: value }))
   const addProof = () => setForm((current) => ({ ...current, attachments: [...current.attachments, { id: '', type: 'link', title: '', url: '' }] }))
   const updateProof = (index, key, value) => setForm((current) => ({ ...current, attachments: current.attachments.map((attachment, attachmentIndex) => attachmentIndex === index ? { ...attachment, [key]: value } : attachment) }))
   const removeProof = (index) => setForm((current) => ({ ...current, attachments: current.attachments.filter((_, attachmentIndex) => attachmentIndex !== index) }))
+  const addComment = async () => {
+    if (!commentText.trim()) return
+    try {
+      await createTaskComment({ task_id: Number(task.id), comment: commentText.trim() })
+      setComments(await getTaskComments(task.id))
+      setCommentText('')
+    } catch (error) { setCollaborationError(error.message) }
+  }
+  const removeComment = async (id) => {
+    try { await deleteTaskComment(id); setComments((items) => items.filter((item) => item.id !== id)) } catch (error) { setCollaborationError(error.message) }
+  }
+  const addChecklistItem = async () => {
+    if (!checklistTitle.trim()) return
+    try {
+      await createTaskChecklist({ task_id: Number(task.id), title: checklistTitle.trim() })
+      setChecklist(await getTaskChecklists(task.id))
+      setChecklistTitle('')
+    } catch (error) { setCollaborationError(error.message) }
+  }
+  const toggleChecklistItem = async (item) => {
+    try {
+      await updateTaskChecklist(item.id, { title: item.title, is_completed: !Number(item.is_completed) })
+      setChecklist((items) => items.map((current) => current.id === item.id ? { ...current, is_completed: Number(current.is_completed) ? 0 : 1 } : current))
+    } catch (error) { setCollaborationError(error.message) }
+  }
+  const removeChecklistItem = async (id) => {
+    try { await deleteTaskChecklist(id); setChecklist((items) => items.filter((item) => item.id !== id)) } catch (error) { setCollaborationError(error.message) }
+  }
   const submit = async (event) => {
     event.preventDefault()
     const attachments = form.attachments.filter((attachment) => attachment.title.trim() && attachment.url.trim())
     setSaving(true)
-    await onSave({ ...form, attachments, proofLink: attachments[0]?.url || '' })
+    await onSave({
+      ...form,
+      assignedUserName: users.find((user) => String(user.id) === String(form.assignedUserId))?.name || '',
+      attachments,
+      proofLink: attachments[0]?.url || '',
+    })
     setSaving(false)
     onClose()
   }
   return (
     <form onSubmit={submit}>
-      <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
-        <Field label="Client"><select className="field" value={form.clientId} onChange={(event) => change('clientId', event.target.value)} required>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></Field>
-        <Field label="Task title"><input className="field" value={form.title} onChange={(event) => change('title', event.target.value)} required placeholder="What needs to be done?" /></Field>
-        <Field label="Description" className="sm:col-span-2"><textarea className="field min-h-24 resize-y" value={form.description} onChange={(event) => change('description', event.target.value)} required /></Field>
-        <Field label="Category"><select className="field" value={form.category} onChange={(event) => change('category', event.target.value)}>{CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></Field>
-        <Field label="Priority"><select className="field" value={form.priority} onChange={(event) => change('priority', event.target.value)}>{PRIORITIES.map((item) => <option key={item}>{item}</option>)}</select></Field>
-        <Field label="Deadline"><input className="field" type="date" value={form.deadline} onChange={(event) => change('deadline', event.target.value)} /></Field>
-        <Field label="Reminder date"><input className="field" type="date" value={form.reminderDate || ''} onChange={(event) => change('reminderDate', event.target.value)} /></Field>
-        <Field label="Reminder note" className="sm:col-span-2"><textarea className="field min-h-20 resize-y" value={form.reminderNote || ''} onChange={(event) => change('reminderNote', event.target.value)} placeholder="What needs attention on the reminder date?" /></Field>
-        <Field label="Status"><select className="field" value={form.status} onChange={(event) => change('status', event.target.value)}>{TASK_STATUSES.map((item) => <option key={item}>{item}</option>)}</select></Field>
-        <Field label="Assignee initials"><input className="field" value={form.assignee} onChange={(event) => change('assignee', event.target.value.toUpperCase().slice(0, 3))} /></Field>
-        <section className="border border-line p-4 sm:col-span-2">
+      <div className="space-y-4 p-5 sm:p-6">
+        <FormSection icon={ClipboardList} title="Basic Info"><Field label="Task title" className="sm:col-span-2"><input className="field" value={form.title} onChange={(event) => change('title', event.target.value)} required placeholder="What needs to be done?" /></Field><Field label="Category"><select className="field" value={form.category} onChange={(event) => change('category', event.target.value)}>{CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="Priority"><select className="field" value={form.priority} onChange={(event) => change('priority', event.target.value)}>{PRIORITIES.map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="Status"><select className="field" value={form.status} onChange={(event) => change('status', event.target.value)}>{TASK_STATUSES.map((item) => <option key={item}>{item}</option>)}</select></Field></FormSection>
+        <FormSection icon={UserRound} title="Client & Assignment"><Field label="Client"><select className="field" value={form.clientId} onChange={(event) => change('clientId', event.target.value)} required>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></Field><Field label="Assigned user"><select className="field" value={form.assignedUserId || ''} onChange={(event) => change('assignedUserId', event.target.value)}><option value="">Unassigned</option>{users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></Field></FormSection>
+        <FormSection icon={BellRing} title="Deadline & Reminder"><Field label="Deadline"><input className="field" type="date" value={form.deadline} onChange={(event) => change('deadline', event.target.value)} /></Field><Field label="Reminder date"><input className="field" type="date" value={form.reminderDate || ''} onChange={(event) => change('reminderDate', event.target.value)} /></Field><Field label="Reminder note" className="sm:col-span-2"><textarea className="field min-h-20 resize-y" value={form.reminderNote || ''} onChange={(event) => change('reminderNote', event.target.value)} placeholder="What needs attention on the reminder date?" /></Field></FormSection>
+        <section className="border border-line p-4">
           <label className="flex items-center gap-3 text-sm font-semibold"><input type="checkbox" checked={Boolean(form.isRecurring)} onChange={(event) => setForm((current) => ({ ...current, isRecurring: event.target.checked, nextOccurrenceDate: event.target.checked ? current.nextOccurrenceDate || current.deadline || TODAY : current.nextOccurrenceDate }))} className="h-4 w-4 accent-blue" />Recurring task</label>
           <p className="mt-1 text-xs text-zinc-500">Use this task as a template for repeated client work.</p>
           {form.isRecurring && <div className="mt-4 grid gap-4 border-t border-line pt-4 sm:grid-cols-2">
@@ -518,15 +567,24 @@ function TaskForm({ task, clients, onSave, onClose }) {
             <Field label="Next occurrence date"><input className="field" type="date" value={form.nextOccurrenceDate || ''} onChange={(event) => change('nextOccurrenceDate', event.target.value)} required /></Field>
           </div>}
         </section>
-        <section className="border border-line p-4 sm:col-span-2">
+        <FormSection icon={CircleDollarSign} title="Billing"><label className="flex items-center gap-3 border border-line p-3 text-sm font-semibold sm:col-span-2"><input type="checkbox" checked={form.billable} onChange={(event) => change('billable', event.target.checked)} className="h-4 w-4 accent-blue" />This is extra billable work</label>{form.billable && <Field label="Billable amount"><input className="field" type="number" min="0" value={form.amount} onChange={(event) => change('amount', event.target.value)} required /></Field>}</FormSection>
+        <FormSection icon={CheckCircle2} title="Proof Links" description="Google Drive, design, social post, or website links.">
           <div className="flex items-center justify-between gap-4"><div><h3 className="text-sm font-semibold">Proof links</h3><p className="mt-1 text-xs text-zinc-500">Google Drive, design, social post, or website links.</p></div><button type="button" className="button-secondary px-3 py-2" onClick={addProof}><Plus size={14} />Add Proof Link</button></div>
           <div className="mt-4 space-y-3">
             {form.attachments.map((attachment, index) => <div key={`${attachment.id}-${index}`} className="grid gap-3 border-t border-line pt-3 sm:grid-cols-[1fr_1.4fr_auto]"><input className="field" value={attachment.title} onChange={(event) => updateProof(index, 'title', event.target.value)} placeholder="Proof title" required /><input className="field" type="url" value={attachment.url} onChange={(event) => updateProof(index, 'url', event.target.value)} placeholder="https://" required /><button type="button" className="flex h-10 w-10 items-center justify-center border border-line text-zinc-500 hover:border-red-300 hover:text-red-700" onClick={() => removeProof(index)} aria-label="Remove proof link"><X size={16} /></button></div>)}
             {!form.attachments.length && <p className="text-sm text-zinc-400">No proof links added.</p>}
           </div>
-        </section>
-        <label className="flex items-center gap-3 border border-line p-3 text-sm font-semibold sm:col-span-2"><input type="checkbox" checked={form.billable} onChange={(event) => change('billable', event.target.checked)} className="h-4 w-4 accent-blue" />This is extra billable work</label>
-        {form.billable && <Field label="Billable amount"><input className="field" type="number" min="0" value={form.amount} onChange={(event) => change('amount', event.target.value)} required /></Field>}
+        </FormSection>
+        <FormSection icon={FileText} title="Notes"><Field label="Task notes" className="sm:col-span-2"><textarea className="field min-h-28 resize-y" value={form.description} onChange={(event) => change('description', event.target.value)} placeholder="Context, deliverables, and completion requirements" /></Field></FormSection>
+        {task?.id && !String(task.id).startsWith('task-') && <div className="grid gap-4 lg:grid-cols-2">
+          <FormSection icon={ListChecks} title="Checklist" description={`${checklist.filter((item) => Number(item.is_completed)).length} of ${checklist.length} completed`}>
+            <div className="space-y-2 sm:col-span-2">{checklist.map((item) => <div className="flex items-center gap-3 border-b border-line py-2" key={item.id}><input type="checkbox" checked={Boolean(Number(item.is_completed))} onChange={() => toggleChecklistItem(item)} className="h-4 w-4 accent-blue" /><span className={`flex-1 text-sm ${Number(item.is_completed) ? 'text-zinc-400 line-through' : ''}`}>{item.title}</span><button type="button" onClick={() => removeChecklistItem(item.id)} className="text-zinc-400 hover:text-red-700" aria-label="Delete checklist item"><Trash2 size={14} /></button></div>)}<div className="flex gap-2 pt-2"><input className="field" value={checklistTitle} onChange={(event) => setChecklistTitle(event.target.value)} placeholder="Add checklist item" /><button type="button" className="button-secondary shrink-0" onClick={addChecklistItem}><Plus size={14} />Add</button></div></div>
+          </FormSection>
+          <FormSection icon={MessageSquare} title="Comments" description="Updates from the team">
+            <div className="space-y-3 sm:col-span-2">{comments.map((comment) => <article className="border-b border-line pb-3" key={comment.id}><div className="flex justify-between gap-3"><p className="text-xs font-semibold">{comment.user_name}</p><button type="button" onClick={() => removeComment(comment.id)} className="text-zinc-400 hover:text-red-700" aria-label="Delete comment"><Trash2 size={13} /></button></div><p className="mt-1 text-sm leading-5 text-zinc-600">{comment.comment}</p><p className="mt-1 text-[11px] text-zinc-400">{formatDate(String(comment.created_at).slice(0, 10))}</p></article>)}<textarea className="field min-h-20 resize-y" value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Add a comment" /><button type="button" className="button-secondary" onClick={addComment}><MessageSquare size={14} />Add comment</button></div>
+          </FormSection>
+        </div>}
+        {collaborationError && <p className="border border-red-200 bg-red-50 p-3 text-sm text-red-700">{collaborationError}</p>}
       </div>
       <div className="flex justify-end gap-3 border-t border-line bg-canvas p-4 sm:px-6"><button type="button" className="button-secondary" onClick={onClose}>Cancel</button><button className="button-primary" disabled={saving} type="submit">{saving ? 'Saving…' : task?.id ? 'Save changes' : 'Create task'}</button></div>
     </form>
@@ -613,12 +671,19 @@ function ClientsPage({ clients, tasks, onNewClient, onEditClient, onDeleteClient
   </>
 }
 
-function TasksPage({ clients, tasks, onNewTask, onEditTask, onDeleteTask, updateTask }) {
+function TasksPage({ clients, users, tasks, onNewTask, onEditTask, onDeleteTask, updateTask }) {
   const [search, setSearch] = useState('')
   const [clientFilter, setClientFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All')
   const [priorityFilter, setPriorityFilter] = useState('All')
+  const [assigneeFilter, setAssigneeFilter] = useState('All')
   const [deadlineFilter, setDeadlineFilter] = useState('All')
+  const [billableOnly, setBillableOnly] = useState(false)
+  const [recurringOnly, setRecurringOnly] = useState(false)
+  const [selected, setSelected] = useState([])
+  const [bulkStatus, setBulkStatus] = useState('')
+  const [bulkPriority, setBulkPriority] = useState('')
+  const [bulkAssignee, setBulkAssignee] = useState('')
   const filtered = tasks.filter((task) => {
     const client = clients.find((item) => item.id === task.clientId)
     const deadline = deadlineState(task)
@@ -629,22 +694,42 @@ function TasksPage({ clients, tasks, onNewTask, onEditTask, onDeleteTask, update
       && (clientFilter === 'All' || task.clientId === clientFilter)
       && (statusFilter === 'All' || task.status === statusFilter)
       && (priorityFilter === 'All' || task.priority === priorityFilter)
+      && (assigneeFilter === 'All' || (assigneeFilter === 'Unassigned' ? !task.assignedUserId : task.assignedUserId === assigneeFilter))
+      && (!billableOnly || task.billable)
+      && (!recurringOnly || task.isRecurring)
       && matchesDeadline
   })
+  const allVisibleSelected = filtered.length > 0 && filtered.every((task) => selected.includes(task.id))
+  const toggleSelected = (id) => setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+  const applyBulk = async (patch) => {
+    const normalizedPatch = 'assignedUserId' in patch
+      ? { ...patch, assignedUserName: users.find((user) => String(user.id) === String(patch.assignedUserId))?.name || '' }
+      : patch
+    for (const id of selected) await updateTask(id, normalizedPatch)
+    setSelected([])
+  }
+  const deleteSelected = async () => {
+    if (!window.confirm(`Delete ${selected.length} selected task${selected.length === 1 ? '' : 's'}?`)) return
+    for (const id of selected) await onDeleteTask(id)
+    setSelected([])
+  }
   const columns = [
-    { key: 'title', label: 'Task', render: (task) => <div><p className="font-semibold">{task.title}</p><p className="mt-1 text-xs text-zinc-500">{task.category}</p></div> },
-    { key: 'client', label: 'Client', render: (task) => clients.find((client) => client.id === task.clientId)?.name || 'Deleted client' },
+    { key: 'select', label: <input type="checkbox" checked={allVisibleSelected} onChange={() => setSelected(allVisibleSelected ? selected.filter((id) => !filtered.some((task) => task.id === id)) : [...new Set([...selected, ...filtered.map((task) => task.id)])])} aria-label="Select visible tasks" />, render: (task) => <input type="checkbox" checked={selected.includes(task.id)} onChange={() => toggleSelected(task.id)} aria-label={`Select ${task.title}`} /> },
+    { key: 'title', label: 'Task', render: (task) => <button className="max-w-xs text-left" onClick={() => onEditTask(task)}><p className="font-semibold hover:text-blue">{task.title}</p><p className="mt-1 text-xs text-zinc-500">{task.category}</p>{task.checklistTotal > 0 && <div className="mt-2"><div className="mb-1 flex justify-between text-[10px] text-zinc-500"><span>Checklist</span><span>{task.checklistCompleted}/{task.checklistTotal}</span></div><div className="h-1 w-32 bg-zinc-100"><div className="h-full bg-blue" style={{ width: `${(task.checklistCompleted / task.checklistTotal) * 100}%` }} /></div></div>}</button> },
+    { key: 'client', label: 'Client / Assignee', render: (task) => <div><p className="font-medium">{clients.find((client) => client.id === task.clientId)?.name || 'Deleted client'}</p><p className="mt-1 flex items-center gap-1 text-xs text-zinc-500"><UserRound size={12} />{task.assignedUserName || 'Unassigned'}</p></div> },
     { key: 'priority', label: 'Priority', render: (task) => <PriorityBadge priority={task.priority} /> },
-    { key: 'deadline', label: 'Deadline', render: (task) => <div><p>{formatDate(task.deadline)}</p><div className="mt-1"><DeadlineBadge task={task} /></div></div> },
-    { key: 'status', label: 'Status', render: (task) => <select className="border border-line bg-white px-2 py-1.5 text-xs font-semibold" value={task.status} onChange={(event) => updateTask(task.id, { status: event.target.value })}>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select> },
-    { key: 'billable', label: 'Billable', render: (task) => task.billable ? formatMoney(task.amount) : 'No' },
+    { key: 'deadline', label: 'Schedule', render: (task) => <div><p>{formatDate(task.deadline)}</p><div className="mt-1 flex flex-wrap gap-1"><DeadlineBadge task={task} />{task.reminderDate && <Badge className="border-orange-200 bg-orange-50 text-orange-800"><BellRing size={11} className="mr-1" />Reminder</Badge>}</div></div> },
+    { key: 'status', label: 'Status', render: (task) => <div className="space-y-2"><StatusBadge status={task.status} /><select className="block border border-line bg-white px-2 py-1 text-xs" value={task.status} onChange={(event) => updateTask(task.id, { status: event.target.value })}>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></div> },
+    { key: 'billable', label: 'Billing', render: (task) => task.billable ? <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">{formatMoney(task.amount)}</Badge> : <span className="text-xs text-zinc-400">Not billable</span> },
     { key: 'actions', label: '', render: (task) => <ActionMenu onEdit={() => onEditTask(task)} onDelete={() => onDeleteTask(task.id)} /> },
   ]
   return <>
     <PageHeading number="03" title="Tasks" description="Create, filter, update, and complete all client work from one view." action="Create task" onAction={onNewTask} />
-    {!tasks.length ? <EmptyState title="No tasks yet." description="Add your first task." action="Create task" onAction={onNewTask} /> : <div className="panel">
-      <div className="grid gap-3 border-b border-line p-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_repeat(4,minmax(140px,180px))]"><div className="flex items-center border border-line px-3"><Search size={15} className="shrink-0 text-zinc-400" /><input className="w-full px-2 py-2.5 text-sm outline-none" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tasks" /></div><select className="field" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option>All</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select><select className="field" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>All</option>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select><select className="field" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option>All</option>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select><select className="field" value={deadlineFilter} onChange={(event) => setDeadlineFilter(event.target.value)}><option>All</option><option>Overdue</option><option>Due Today</option><option>Due This Week</option><option>No Deadline</option></select></div>
-      <Table columns={columns} data={filtered} emptyMessage="No tasks match the current filters." />
+    {!tasks.length ? <EmptyState title="No tasks yet" description="Create the first client task to start planning deadlines, assignments, and delivery." action="Create task" onAction={onNewTask} /> : <div className="panel">
+      <div className="grid gap-3 border-b border-line p-4 md:grid-cols-2 xl:grid-cols-4"><div className="flex items-center border border-line px-3 xl:col-span-2"><Search size={15} className="shrink-0 text-zinc-400" /><input className="w-full px-2 py-2.5 text-sm outline-none" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search task, client, or notes" /></div><select className="field" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option>All</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select><select className="field" value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option>All</option><option>Unassigned</option>{users.map((user) => <option key={user.id} value={String(user.id)}>{user.name}</option>)}</select><select className="field" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>All</option>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select><select className="field" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option>All</option>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select><select className="field" value={deadlineFilter} onChange={(event) => setDeadlineFilter(event.target.value)}><option>All</option><option>Overdue</option><option>Due Today</option><option>Due This Week</option><option>No Deadline</option></select><div className="flex items-center gap-5 border border-line px-3"><label className="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={billableOnly} onChange={(event) => setBillableOnly(event.target.checked)} />Billable</label><label className="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={recurringOnly} onChange={(event) => setRecurringOnly(event.target.checked)} />Recurring</label></div></div>
+      {selected.length > 0 && <div className="flex flex-wrap items-center gap-2 border-b border-blue/20 bg-blue/5 px-4 py-3"><p className="mr-2 text-sm font-semibold text-blue">{selected.length} selected</p><select className="field h-9 w-auto py-1 text-xs" value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value)}><option value="">Change status</option>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select><button className="button-secondary py-2" disabled={!bulkStatus} onClick={() => applyBulk({ status: bulkStatus })}>Apply</button><select className="field h-9 w-auto py-1 text-xs" value={bulkPriority} onChange={(event) => setBulkPriority(event.target.value)}><option value="">Change priority</option>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select><button className="button-secondary py-2" disabled={!bulkPriority} onClick={() => applyBulk({ priority: bulkPriority })}>Apply</button><select className="field h-9 w-auto py-1 text-xs" value={bulkAssignee} onChange={(event) => setBulkAssignee(event.target.value)}><option value="">Assign user</option><option value="unassigned">Unassigned</option>{users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select><button className="button-secondary py-2" disabled={!bulkAssignee} onClick={() => applyBulk({ assignedUserId: bulkAssignee === 'unassigned' ? '' : String(bulkAssignee) })}>Apply</button><button className="ml-auto inline-flex items-center gap-2 border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50" onClick={deleteSelected}><Trash2 size={14} />Delete selected</button></div>}
+      <div className="flex items-center justify-between border-b border-line px-4 py-2 text-xs text-zinc-500"><span>{filtered.length} of {tasks.length} tasks</span>{filtered.length === 0 && <button className="font-semibold text-blue" onClick={() => { setSearch(''); setClientFilter('All'); setStatusFilter('All'); setPriorityFilter('All'); setAssigneeFilter('All'); setDeadlineFilter('All'); setBillableOnly(false); setRecurringOnly(false) }}>Clear filters</button>}</div>
+      <Table columns={columns} data={filtered} emptyMessage="No tasks match these filters. Clear filters or create a new task." />
     </div>}
   </>
 }
@@ -876,7 +961,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     setRecurringMessage(count ? `${count} recurring task occurrence${count === 1 ? '' : 's'} generated.` : 'No recurring tasks are currently due.')
     setGeneratingRecurring(false)
   }
-  const shared = { clients: workspace.clients, tasks: workspace.tasks, activities: workspace.activities, connectionStatus: workspace.connectionStatus, onNewTask: newTask, onEditTask: setTaskModal, onDeleteTask: deleteTask, updateTask: workspace.updateTask, setActivePage: navigatePage }
+  const shared = { clients: workspace.clients, users: workspace.users || [], tasks: workspace.tasks, activities: workspace.activities, connectionStatus: workspace.connectionStatus, onNewTask: newTask, onEditTask: setTaskModal, onDeleteTask: deleteTask, updateTask: workspace.updateTask, setActivePage: navigatePage }
   const pages = {
     Dashboard: <Dashboard {...shared} />,
     Clients: <ClientsPage clients={workspace.clients} tasks={workspace.tasks} onNewClient={() => setClientModal({})} onEditClient={setClientModal} onDeleteClient={deleteClient} onViewClient={openClient} />,
@@ -897,7 +982,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   }
 
   return <div className="min-h-screen bg-canvas"><Sidebar activePage={activePage} setActivePage={navigatePage} open={sidebarOpen} setOpen={setSidebarOpen} collapsed={sidebarCollapsed} settings={workspace.settings || DEFAULT_SETTINGS} /><div className={sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'}><Topbar activePage={activePage === 'Client Detail' ? selectedClient?.name || 'Client Detail' : activePage} setOpen={setSidebarOpen} onToggleCollapse={() => setSidebarCollapsed((value) => !value)} collapsed={sidebarCollapsed} onOpenSearch={() => { setSearchOpen(true); setQuickAddOpen(false) }} quickAddOpen={quickAddOpen} setQuickAddOpen={setQuickAddOpen} quickAddActions={quickAddActions} settings={workspace.settings || DEFAULT_SETTINGS} user={user} onLogout={onLogout} /><main className="mx-auto max-w-[1600px] p-4 md:p-7 lg:p-9">{workspace.error && <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{workspace.error}</div>}{workspace.loading ? <div className="panel flex min-h-64 items-center justify-center"><div className="text-center"><div className="mx-auto h-7 w-7 animate-spin border-2 border-zinc-200 border-t-blue" /><p className="mt-3 text-sm text-zinc-500">Loading workspace data…</p></div></div> : pages[activePage]}</main></div>
-    <Modal open={Boolean(taskModal)} onClose={() => setTaskModal(null)} title={taskModal?.id ? 'Edit task' : 'Create task'} description="Task changes update every workspace view.">{taskModal && <TaskForm task={taskModal} clients={workspace.clients} onSave={saveTaskWithRecent} onClose={() => setTaskModal(null)} />}</Modal>
+    <Modal open={Boolean(taskModal)} onClose={() => setTaskModal(null)} title={taskModal?.id ? 'Edit task' : 'Create task'} description="Task changes update every workspace view." size="max-w-5xl">{taskModal && <TaskForm task={taskModal} clients={workspace.clients} users={workspace.users || []} onSave={saveTaskWithRecent} onClose={() => setTaskModal(null)} />}</Modal>
     <Modal open={Boolean(quickTaskDefaults)} onClose={() => setQuickTaskDefaults(null)} title={quickTaskDefaults?.modeTitle || 'Quick add task'} description="Create essential daily work without opening the full task form.">{quickTaskDefaults && <QuickTaskForm clients={workspace.clients} defaults={quickTaskDefaults} onSave={saveTaskWithRecent} onClose={() => setQuickTaskDefaults(null)} />}</Modal>
     <Modal open={Boolean(clientModal)} onClose={() => setClientModal(null)} title={clientModal?.id ? 'Edit client' : 'Add client'} description="Create a client workspace for tasks, reports, and billing.">{clientModal && <ClientForm client={clientModal.id ? clientModal : null} onSave={workspace.saveClient} onClose={() => setClientModal(null)} />}</Modal>
     <GlobalSearch open={searchOpen} clients={workspace.clients} tasks={workspace.tasks} reports={workspace.reports || []} recentClientIds={recentClientIds} recentTaskIds={recentTaskIds} onClose={() => setSearchOpen(false)} onSelect={selectSearchResult} />

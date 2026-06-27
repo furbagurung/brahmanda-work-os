@@ -29,6 +29,7 @@ Apply only migrations that have not already been applied. The historical order i
 7. `add_recurring_tasks.sql`
 8. `add_activity_logs.sql`
 9. `add_settings.sql`
+10. `add_task_assignment.sql`
 
 Example:
 

@@ -54,6 +54,13 @@ export const updateTask = (id, data) => request(`tasks.php?id=${encodeURICompone
 export const deleteTask = (id) => request(`tasks.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 export const markTaskCompleted = (id) => request(`tasks.php?id=${encodeURIComponent(id)}&action=complete`, { method: 'PATCH' })
 export const generateRecurringTasks = () => request('tasks.php?action=generate_recurring', { method: 'POST' })
+export const getTaskComments = (taskId) => request(`task_comments.php?task_id=${encodeURIComponent(taskId)}`)
+export const createTaskComment = (data) => request('task_comments.php', jsonOptions('POST', data))
+export const deleteTaskComment = (id) => request(`task_comments.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+export const getTaskChecklists = (taskId) => request(`task_checklists.php?task_id=${encodeURIComponent(taskId)}`)
+export const createTaskChecklist = (data) => request('task_checklists.php', jsonOptions('POST', data))
+export const updateTaskChecklist = (id, data) => request(`task_checklists.php?id=${encodeURIComponent(id)}`, jsonOptions('PATCH', data))
+export const deleteTaskChecklist = (id) => request(`task_checklists.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 
 export const getTaskAttachments = (taskId) => request(`attachments.php?task_id=${encodeURIComponent(taskId)}`)
 export const getClientAttachments = (clientId) => request(`attachments.php?client_id=${encodeURIComponent(clientId)}`)
@@ -92,6 +99,7 @@ export const getUsers = async () => {
   const data = await request('users.php')
   return Array.isArray(data) ? data : [data]
 }
+export const getAssignableUsers = () => request('users.php?action=assignees')
 export const createUser = (data) => request('users.php', jsonOptions('POST', data))
 export const updateUser = (id, data) => request(`users.php?id=${encodeURIComponent(id)}`, jsonOptions('PUT', data))
 export const deactivateUser = (id) => request(`users.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
@@ -138,6 +146,7 @@ export function clientFromApi(client) {
 export function taskToApi(task) {
   return {
     client_id: Number(task.clientId),
+    assigned_user_id: task.assignedUserId ? Number(task.assignedUserId) : null,
     title: task.title,
     description: task.description || null,
     category: task.category || null,
@@ -167,6 +176,8 @@ export function taskFromApi(task) {
   return {
     id: String(task.id),
     clientId: String(task.client_id),
+    assignedUserId: task.assigned_user_id ? String(task.assigned_user_id) : '',
+    assignedUserName: task.assigned_user_name || '',
     title: task.title,
     description: task.description || '',
     category: task.category || '',
@@ -184,7 +195,11 @@ export function taskFromApi(task) {
     proofLink: task.proof_link || '',
     billable: Number(task.is_billable) === 1,
     amount: Number(task.billable_amount || 0),
-    assignee: 'AS',
+    assignee: task.assigned_user_name
+      ? task.assigned_user_name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+      : '',
+    checklistTotal: Number(task.checklist_total || 0),
+    checklistCompleted: Number(task.checklist_completed || 0),
     completedAt: task.completed_at ? String(task.completed_at).slice(0, 10) : '',
     paymentStatus: task.payment_status || 'Unpaid',
     invoiceStatus: task.invoice_status || 'Not invoiced',

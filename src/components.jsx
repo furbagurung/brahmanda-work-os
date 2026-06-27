@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   ArrowDownRight, ArrowUpRight, CalendarDays, Check, ChevronRight, CircleDollarSign,
-  ExternalLink, MoreHorizontal, Pencil, ReceiptText, Repeat2, Trash2, X,
+  ExternalLink, ListChecks, MoreHorizontal, Pencil, ReceiptText, Repeat2, Trash2, UserRound, X,
 } from 'lucide-react'
 
 import { deadlineState, formatDate, formatMoney } from './utils'
@@ -112,12 +112,14 @@ export function TaskCard({ task, client, onEdit, onDelete, onStatusChange, statu
       <h3 className="mt-3 text-sm font-semibold leading-snug">{task.title}</h3>
       {!compact && <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-500">{task.description}</p>}
       <p className="mt-3 text-xs font-medium text-zinc-500">{client?.name || 'Deleted client'}</p>
+      <p className="mt-2 flex items-center gap-1.5 text-xs text-zinc-500"><UserRound size={12} />{task.assignedUserName || 'Unassigned'}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         <Badge className="border-zinc-200 bg-zinc-50 text-zinc-700"><CalendarDays size={12} className="mr-1" />{formatDate(task.deadline)}</Badge>
         <DeadlineBadge task={task} />
         <RecurringBadge task={task} />
         {task.billable && <Badge className="border-blue/20 bg-blue/5 text-blue"><CircleDollarSign size={12} className="mr-1" />{formatMoney(task.amount)}</Badge>}
       </div>
+      {task.checklistTotal > 0 && <div className="mt-3"><div className="mb-1.5 flex items-center justify-between text-[10px] font-medium text-zinc-500"><span className="flex items-center gap-1"><ListChecks size={11} />Checklist</span><span>{task.checklistCompleted}/{task.checklistTotal}</span></div><div className="h-1 bg-zinc-100"><div className="h-full bg-blue" style={{ width: `${(task.checklistCompleted / task.checklistTotal) * 100}%` }} /></div></div>}
       <div className="mt-4 border-t border-line pt-3">
         <select className="w-full bg-white text-xs font-semibold outline-none" value={task.status} onChange={(event) => onStatusChange(task.id, event.target.value)} aria-label="Change task status">{statuses.map((status) => <option key={status}>{status}</option>)}</select>
       </div>

@@ -41,6 +41,15 @@ try {
     $method = $_SERVER['REQUEST_METHOD'];
 
     if ($method === 'GET') {
+        if (($_GET['action'] ?? '') === 'assignees') {
+            $statement = $pdo->query(
+                'SELECT id, name, role
+                 FROM users
+                 WHERE status = "active"
+                 ORDER BY name ASC'
+            );
+            jsonResponse($statement->fetchAll());
+        }
         if ($currentUser['role'] !== 'admin') {
             jsonResponse(findUser($pdo, (int) $currentUser['id']));
         }

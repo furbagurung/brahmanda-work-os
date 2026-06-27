@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
-  BellRing, CalendarDays, ChevronLeft, ChevronRight, Pencil, X,
+  BellRing, CalendarDays, ChevronLeft, ChevronRight, Pencil, UserRound, X,
 } from 'lucide-react'
 
 import { Badge, DeadlineBadge, PriorityBadge, StatusBadge } from './components'
@@ -15,6 +15,7 @@ function EventMarker({ event, client, onClick }) {
   return <button className={`block w-full border-l-2 px-2 py-1.5 text-left transition ${isReminder ? 'border-orange-500 bg-orange-50 hover:bg-orange-100' : 'border-blue bg-blue/5 hover:bg-blue/10'}`} onClick={(clickEvent) => { clickEvent.stopPropagation(); onClick() }}>
     <span className="block truncate text-[11px] font-semibold">{event.task.title}</span>
     <span className="mt-0.5 block truncate text-[10px] text-zinc-500">{client?.name || 'Deleted client'}</span>
+    {event.task.assignedUserName && <span className="mt-0.5 flex items-center gap-1 truncate text-[10px] text-zinc-500"><UserRound size={10} />{event.task.assignedUserName}</span>}
     <span className="mt-1.5 flex flex-wrap gap-1"><PriorityBadge priority={event.task.priority} />{isReminder ? <Badge className="border-orange-200 bg-orange-50 text-orange-800"><BellRing size={11} className="mr-1" />Reminder</Badge> : <><Badge className="border-blue/20 bg-blue/5 text-blue"><CalendarDays size={11} className="mr-1" />Deadline</Badge><DeadlineBadge task={event.task} /></>}</span>
   </button>
 }
@@ -33,7 +34,7 @@ function DatePanel({ date, events, clients, onClose, onEditTask, updateTask }) {
           const client = clients.find((item) => item.id === event.task.clientId)
           return <article className="p-5 sm:p-6" key={`${event.type}-${event.task.id}`}>
             <div className="flex items-start justify-between gap-4">
-              <div><div className="flex flex-wrap items-center gap-2"><span className={`inline-flex items-center gap-1 border px-2 py-1 text-[11px] font-semibold ${event.type === 'reminder' ? 'border-orange-200 bg-orange-50 text-orange-800' : 'border-blue/20 bg-blue/5 text-blue'}`}>{event.type === 'reminder' ? <BellRing size={12} /> : <CalendarDays size={12} />}{event.type === 'reminder' ? 'Reminder' : 'Deadline'}</span><PriorityBadge priority={event.task.priority} /></div><h3 className="mt-3 font-semibold">{event.task.title}</h3><p className="mt-1 text-sm text-zinc-500">{client?.name || 'Deleted client'}</p></div>
+              <div><div className="flex flex-wrap items-center gap-2"><span className={`inline-flex items-center gap-1 border px-2 py-1 text-[11px] font-semibold ${event.type === 'reminder' ? 'border-orange-200 bg-orange-50 text-orange-800' : 'border-blue/20 bg-blue/5 text-blue'}`}>{event.type === 'reminder' ? <BellRing size={12} /> : <CalendarDays size={12} />}{event.type === 'reminder' ? 'Reminder' : 'Deadline'}</span><PriorityBadge priority={event.task.priority} /></div><h3 className="mt-3 font-semibold">{event.task.title}</h3><p className="mt-1 text-sm text-zinc-500">{client?.name || 'Deleted client'}</p><p className="mt-1 flex items-center gap-1 text-xs text-zinc-500"><UserRound size={12} />{event.task.assignedUserName || 'Unassigned'}</p></div>
               <button className="button-secondary shrink-0 px-3 py-2" onClick={() => onEditTask(event.task)}><Pencil size={14} />Edit</button>
             </div>
             {event.type === 'reminder' && event.task.reminderNote && <p className="mt-4 border-l-2 border-orange-400 pl-3 text-sm leading-6 text-zinc-600">{event.task.reminderNote}</p>}

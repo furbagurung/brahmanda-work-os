@@ -36,6 +36,7 @@ CREATE TABLE clients (
 CREATE TABLE tasks (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     client_id BIGINT UNSIGNED NOT NULL,
+    assigned_user_id BIGINT UNSIGNED NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT NULL,
     category VARCHAR(100) NULL,
@@ -61,16 +62,48 @@ CREATE TABLE tasks (
     CONSTRAINT fk_tasks_client
         FOREIGN KEY (client_id) REFERENCES clients(id)
         ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_tasks_assigned_user
+        FOREIGN KEY (assigned_user_id) REFERENCES users(id)
+        ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_tasks_recurring_parent
         FOREIGN KEY (recurring_parent_id) REFERENCES tasks(id)
         ON UPDATE CASCADE ON DELETE SET NULL,
     INDEX idx_tasks_client (client_id),
+    INDEX idx_tasks_assigned_user (assigned_user_id),
     INDEX idx_tasks_status (status),
     INDEX idx_tasks_deadline (deadline),
     INDEX idx_tasks_reminder_date (reminder_date),
     INDEX idx_tasks_recurring_due (is_recurring, next_occurrence_date),
     INDEX idx_tasks_recurring_parent (recurring_parent_id),
     INDEX idx_tasks_billable (is_billable)
+) ENGINE=InnoDB;
+
+CREATE TABLE task_comments (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    task_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NULL,
+    user_name VARCHAR(150) NOT NULL,
+    comment TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_task_comments_task FOREIGN KEY (task_id) REFERENCES tasks(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_task_comments_user FOREIGN KEY (user_id) REFERENCES users(id)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    INDEX idx_task_comments_task (task_id),
+    INDEX idx_task_comments_created (created_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE task_checklists (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    task_id BIGINT UNSIGNED NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    is_completed TINYINT(1) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_task_checklists_task FOREIGN KEY (task_id) REFERENCES tasks(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    INDEX idx_task_checklists_task (task_id),
+    INDEX idx_task_checklists_completed (task_id, is_completed)
 ) ENGINE=InnoDB;
 
 CREATE TABLE task_attachments (

@@ -84,6 +84,7 @@ function taskValues(array $data): array
     $isRecurring = boolValue($data['is_recurring'] ?? false);
     return [
         ':client_id' => (int) $data['client_id'],
+        ':assigned_user_id' => !empty($data['assigned_user_id']) ? (int) $data['assigned_user_id'] : null,
         ':title' => trim((string) $data['title']),
         ':description' => $data['description'] ?: null,
         ':category' => $data['category'] ?: null,
@@ -170,12 +171,12 @@ function generateRecurringTasks(PDO $pdo, array $currentUser): array
 
     $insert = $pdo->prepare(
         'INSERT INTO tasks
-            (client_id, title, description, category, priority, deadline, reminder_date, reminder_note,
+            (client_id, assigned_user_id, title, description, category, priority, deadline, reminder_date, reminder_note,
              is_recurring, recurrence_type, recurrence_interval, recurrence_end_date, next_occurrence_date,
              recurring_parent_id, status, proof_link, is_billable, billable_amount, payment_status,
              invoice_status, completed_at)
          VALUES
-            (:client_id, :title, :description, :category, :priority, :deadline, NULL, NULL,
+            (:client_id, :assigned_user_id, :title, :description, :category, :priority, :deadline, NULL, NULL,
              0, NULL, 1, NULL, NULL, :recurring_parent_id, "New", NULL, :is_billable,
              :billable_amount, "Unpaid", "Not invoiced", NULL)'
     );
@@ -189,6 +190,7 @@ function generateRecurringTasks(PDO $pdo, array $currentUser): array
         $occurrenceDate = (string) $template['next_occurrence_date'];
         $insert->execute([
             ':client_id' => $template['client_id'],
+            ':assigned_user_id' => $template['assigned_user_id'] ?: null,
             ':title' => $template['title'],
             ':description' => $template['description'] ?: null,
             ':category' => $template['category'] ?: null,
@@ -244,22 +246,26 @@ try {
         $where = [];
         $parameters = [];
 
-        foreach (['client_id', 'status', 'priority', 'is_recurring'] as $filter) {
+        foreach (['client_id', 'assigned_user_id', 'status', 'priority', 'is_recurring', 'is_billable'] as $filter) {
             if (isset($_GET[$filter]) && $_GET[$filter] !== '') {
                 $where[] = 't.' . $filter . ' = :' . $filter;
                 $parameters[':' . $filter] = $_GET[$filter];
             }
         }
 
-        $sql = 'SELECT t.*, c.name AS client_name
+        $sql = 'SELECT t.*, c.name AS client_name, u.name AS assigned_user_name,
+                       COUNT(tc.id) AS checklist_total,
+                       COALESCE(SUM(tc.is_completed = 1), 0) AS checklist_completed
                 FROM tasks t
-                INNER JOIN clients c ON c.id = t.client_id';
+                INNER JOIN clients c ON c.id = t.client_id
+                LEFT JOIN users u ON u.id = t.assigned_user_id
+                LEFT JOIN task_checklists tc ON tc.task_id = t.id';
 
         if ($where !== []) {
             $sql .= ' WHERE ' . implode(' AND ', $where);
         }
 
-        $sql .= ' ORDER BY
+        $sql .= ' GROUP BY t.id, c.name, u.name ORDER BY
                     CASE t.priority
                         WHEN "Urgent" THEN 1
                         WHEN "High" THEN 2
@@ -290,6 +296,7 @@ try {
         requireFields($data, ['client_id', 'title']);
         $data = array_merge([
             'description' => null,
+            'assigned_user_id' => null,
             'category' => null,
             'priority' => 'Medium',
             'deadline' => null,
@@ -315,12 +322,12 @@ try {
 
         $statement = $pdo->prepare(
             'INSERT INTO tasks
-                (client_id, title, description, category, priority, deadline, reminder_date, reminder_note,
+                (client_id, assigned_user_id, title, description, category, priority, deadline, reminder_date, reminder_note,
                  is_recurring, recurrence_type, recurrence_interval, recurrence_end_date, next_occurrence_date,
                  recurring_parent_id, status, proof_link,
                  is_billable, billable_amount, payment_status, invoice_status, completed_at)
              VALUES
-                (:client_id, :title, :description, :category, :priority, :deadline, :reminder_date, :reminder_note,
+                (:client_id, :assigned_user_id, :title, :description, :category, :priority, :deadline, :reminder_date, :reminder_note,
                  :is_recurring, :recurrence_type, :recurrence_interval, :recurrence_end_date, :next_occurrence_date,
                  :recurring_parent_id, :status, :proof_link,
                  :is_billable, :billable_amount, :payment_status, :invoice_status, :completed_at)'
@@ -365,6 +372,7 @@ try {
         $statement = $pdo->prepare(
             'UPDATE tasks SET
                 client_id = :client_id,
+                assigned_user_id = :assigned_user_id,
                 title = :title,
                 description = :description,
                 category = :category,
