@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/auth_guard.php';
 require_once __DIR__ . '/../helpers/activity_logger.php';
+require_once __DIR__ . '/../helpers/notification_helper.php';
 
 bootstrapApi();
 
@@ -20,6 +21,13 @@ function findTask(PDO $pdo, int $id): array
     }
 
     return $task;
+}
+
+function taskClientName(PDO $pdo, int $clientId): string
+{
+    $statement = $pdo->prepare('SELECT name FROM clients WHERE id = ?');
+    $statement->execute([$clientId]);
+    return (string) ($statement->fetchColumn() ?: '');
 }
 
 function createDailyLog(PDO $pdo, array $task): void
@@ -211,6 +219,16 @@ function generateRecurringTasks(PDO $pdo, array $currentUser): array
             'description' => 'Recurring task occurrence generated for ' . $occurrenceDate . '.',
             'new_value' => $generatedTask,
         ]);
+        $recipients = notificationRecipients($pdo, !empty($generatedTask['assigned_user_id']) ? (int) $generatedTask['assigned_user_id'] : null);
+        notifyRecipients($pdo, $recipients, [
+            'type' => 'recurring_task_generated',
+            'title' => 'Recurring task generated',
+            'message' => $generatedTask['title'] . ' was generated for ' . $occurrenceDate . '.',
+            'related_module' => 'tasks', 'related_id' => $generatedId,
+            'client_id' => $generatedTask['client_id'],
+            'client_name' => taskClientName($pdo, (int) $generatedTask['client_id']),
+            'priority' => 'normal', 'action_url' => 'Recurring Tasks',
+        ], null, $currentUser);
         if ((int) $generatedTask['is_billable'] === 1) {
             logActivity($pdo, $currentUser, [
                 'action_type' => 'created', 'module' => 'billing',
@@ -345,6 +363,17 @@ try {
             'item_title' => $task['title'], 'client_id' => $task['client_id'],
             'description' => 'Task created.', 'new_value' => $task,
         ]);
+        if (!empty($task['assigned_user_id'])) {
+            createNotification($pdo, (int) $task['assigned_user_id'], [
+                'type' => 'assigned_task', 'title' => 'Task assigned to you',
+                'message' => $task['title'] . ' was assigned to you.',
+                'related_module' => 'tasks', 'related_id' => $id,
+                'client_id' => $task['client_id'],
+                'client_name' => taskClientName($pdo, (int) $task['client_id']),
+                'priority' => $task['priority'] === 'Urgent' ? 'urgent' : ($task['priority'] === 'High' ? 'high' : 'normal'),
+                'action_url' => 'Tasks',
+            ], $currentUser);
+        }
         if ((int) $task['is_billable'] === 1 && (int) $task['is_recurring'] !== 1) {
             logActivity($pdo, $currentUser, [
                 'action_type' => 'created', 'module' => 'billing', 'item_id' => $id,
@@ -408,6 +437,18 @@ try {
             'item_title' => $task['title'], 'client_id' => $task['client_id'],
             'description' => 'Task updated.', 'old_value' => $current, 'new_value' => $task,
         ]);
+        if (!empty($task['assigned_user_id'])
+            && (int) ($current['assigned_user_id'] ?? 0) !== (int) $task['assigned_user_id']) {
+            createNotification($pdo, (int) $task['assigned_user_id'], [
+                'type' => 'assigned_task', 'title' => 'Task assigned to you',
+                'message' => $task['title'] . ' was assigned to you.',
+                'related_module' => 'tasks', 'related_id' => $id,
+                'client_id' => $task['client_id'],
+                'client_name' => taskClientName($pdo, (int) $task['client_id']),
+                'priority' => $task['priority'] === 'Urgent' ? 'urgent' : ($task['priority'] === 'High' ? 'high' : 'normal'),
+                'action_url' => 'Tasks',
+            ], $currentUser);
+        }
         if ((int) $current['is_billable'] !== 1 && (int) $task['is_billable'] === 1 && (int) $task['is_recurring'] !== 1) {
             logActivity($pdo, $currentUser, [
                 'action_type' => 'created', 'module' => 'billing', 'item_id' => $id,

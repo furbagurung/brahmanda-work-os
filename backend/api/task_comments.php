@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/auth_guard.php';
 require_once __DIR__ . '/../helpers/activity_logger.php';
+require_once __DIR__ . '/../helpers/notification_helper.php';
 
 bootstrapApi();
 
@@ -34,7 +35,10 @@ try {
         if ($comment === '') {
             errorResponse('Comment cannot be empty.', 422);
         }
-        $task = $pdo->prepare('SELECT id, title, client_id FROM tasks WHERE id = ?');
+        $task = $pdo->prepare(
+            'SELECT t.id, t.title, t.client_id, t.assigned_user_id, c.name AS client_name
+             FROM tasks t INNER JOIN clients c ON c.id = t.client_id WHERE t.id = ?'
+        );
         $task->execute([(int) $data['task_id']]);
         $taskRow = $task->fetch();
         if (!$taskRow) {
@@ -58,6 +62,17 @@ try {
             'description' => 'Comment added to task.',
             'new_value' => ['comment_id' => $id, 'comment' => $comment],
         ]);
+        $recipients = notificationRecipients(
+            $pdo,
+            !empty($taskRow['assigned_user_id']) ? (int) $taskRow['assigned_user_id'] : null
+        );
+        notifyRecipients($pdo, $recipients, [
+            'type' => 'comment_added', 'title' => 'New task comment',
+            'message' => $currentUser['name'] . ' commented on ' . $taskRow['title'] . '.',
+            'related_module' => 'tasks', 'related_id' => $taskRow['id'],
+            'client_id' => $taskRow['client_id'], 'client_name' => $taskRow['client_name'],
+            'priority' => 'normal', 'action_url' => 'Tasks',
+        ], (int) $currentUser['id'], $currentUser);
         jsonResponse(['id' => $id], 201, 'Comment added.');
     }
 

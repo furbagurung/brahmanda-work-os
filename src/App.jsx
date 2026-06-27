@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  AlertTriangle, BarChart3, Bell, BellRing, BriefcaseBusiness, CalendarDays, CalendarRange, CheckCircle2, ChevronDown,
+  AlertTriangle, BarChart3, BellRing, BriefcaseBusiness, CalendarDays, CalendarRange, CheckCircle2, ChevronDown,
   ChevronLeft, ChevronRight, CircleDollarSign, ClipboardCopy, ClipboardList, Clock3, Command, FileText,
   History, LayoutDashboard, ListChecks, LogOut, Menu, MessageSquare, Plus, ReceiptText, Repeat2, Search, Settings, Trash2, UserRound, Users, UsersRound, X,
 } from 'lucide-react'
@@ -20,6 +20,8 @@ import {
   updateBilling as updateBillingApi, attachmentFromApi, reportFromApi,
   updateClient as updateClientApi, updateTask as updateTaskApi, generateRecurringTasks as generateRecurringTasksApi,
   updateSettings as updateSettingsApi,
+  deleteNotification as deleteNotificationApi, generateNotifications as generateNotificationsApi,
+  getNotifications, markAllNotificationsRead, markNotificationRead,
 } from './services/api'
 import { deadlineState, formatDate, formatMoney, setWorkspaceCurrency, setWorkspaceDateFormat, todayDateString } from './utils'
 import LoginPage from './LoginPage'
@@ -35,6 +37,7 @@ import { nextRecurrenceDate } from './recurrenceUtils'
 import ActivityPage, { ActivityFeed } from './ActivityPage'
 import SettingsPage from './SettingsPage'
 import ClientPortalPage from './ClientPortalPage'
+import NotificationsPage, { NotificationBell, NotificationItem } from './NotificationsPage'
 import { getCurrentUser, logout, updateCurrentUser } from './services/auth'
 
 const STORAGE_KEY = 'brahmanda-work-os-v2'
@@ -57,6 +60,7 @@ const navigation = [
   { label: 'Reminders', icon: BellRing, group: 'Planning' },
   { label: 'Calendar', icon: CalendarRange, group: 'Planning' },
   { label: 'Recurring Tasks', icon: Repeat2, group: 'Planning' },
+  { label: 'Notifications', icon: BellRing, group: 'Operations' },
   { label: 'Activity', icon: History, group: 'Operations' },
   { label: 'Reports', icon: BarChart3, group: 'Operations' },
   { label: 'Billing', icon: ReceiptText, group: 'Operations' },
@@ -434,7 +438,7 @@ function Sidebar({ activePage, setActivePage, open, setOpen, collapsed, settings
   )
 }
 
-function Topbar({ activePage, setOpen, onToggleCollapse, collapsed, onOpenSearch, quickAddOpen, setQuickAddOpen, quickAddActions, settings, user, onLogout }) {
+function Topbar({ activePage, setOpen, onToggleCollapse, collapsed, onOpenSearch, quickAddOpen, setQuickAddOpen, quickAddActions, settings, user, onLogout, notifications, notificationsOpen, setNotificationsOpen, onOpenNotification, onReadAllNotifications, onViewNotifications }) {
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-line bg-white/90 px-3 backdrop-blur-xl sm:gap-3 md:px-6">
       <button className="mr-1 rounded-xl border border-line bg-white p-2 text-zinc-500 shadow-sm hover:border-zinc-400 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu"><Menu size={22} /></button>
@@ -452,7 +456,7 @@ function Topbar({ activePage, setOpen, onToggleCollapse, collapsed, onOpenSearch
         <button className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue text-white shadow-sm sm:hidden" onClick={() => setQuickAddOpen((value) => !value)} aria-label="Open Quick Add"><Plus size={17} /></button>
         <QuickAddMenu open={quickAddOpen} onClose={() => setQuickAddOpen(false)} {...quickAddActions} />
       </div>
-      <button className="relative ml-1 flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-white text-zinc-500 shadow-sm hover:border-zinc-400 hover:text-ink" aria-label="Notifications"><Bell size={17} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-blue ring-2 ring-white" /></button>
+      <NotificationBell notifications={notifications} open={notificationsOpen} setOpen={setNotificationsOpen} onOpen={onOpenNotification} onReadAll={onReadAllNotifications} onViewAll={onViewNotifications} />
       <div className="ml-3 hidden text-right md:block">
         <p className="text-xs font-semibold">{user.name}</p>
         <p className="text-[11px] capitalize text-zinc-500">{user.role}</p>
@@ -622,7 +626,7 @@ function DeadlineColumn({ title, description, tasks, clients, tone }) {
   return <section className={`border border-line border-t-2 bg-white ${toneClasses[tone]}`}><div className="border-b border-line p-4"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">{title}</h3><span className="text-lg font-semibold">{tasks.length}</span></div><p className="mt-1 text-xs text-zinc-500">{description}</p></div><div className="divide-y divide-line">{tasks.slice(0, 4).map((task) => <div className="p-4" key={task.id}><p className="text-sm font-semibold">{task.title}</p><p className="mt-1 text-xs text-zinc-500">{clients.find((client) => client.id === task.clientId)?.name || 'Deleted client'} · {formatDate(task.deadline)}</p><div className="mt-2 flex flex-wrap gap-2"><PriorityBadge priority={task.priority} /><DeadlineBadge task={task} /></div></div>)}{!tasks.length && <p className="p-5 text-sm text-zinc-400">No tasks</p>}</div></section>
 }
 
-function Dashboard({ clients, tasks, activities, connectionStatus, onNewTask, setActivePage, onEditTask, onDeleteTask, updateTask }) {
+function Dashboard({ clients, tasks, activities, notifications = [], connectionStatus, onNewTask, setActivePage, onEditTask, onDeleteTask, updateTask, onOpenNotification }) {
   const completed = tasks.filter((task) => task.status === 'Completed')
   const billable = tasks.filter((task) => task.billable)
   const todayTasks = tasks.filter((task) => task.deadline === TODAY)
@@ -643,6 +647,10 @@ function Dashboard({ clients, tasks, activities, connectionStatus, onNewTask, se
     ['Reports Ready', String(new Set(completed.map((task) => task.clientId)).size).padStart(2, '0'), 'From completed tasks', FileText],
   ]
   const priorityTasks = tasks.filter((task) => task.status !== 'Completed').slice(0, 4)
+  const importantNotifications = notifications.filter((notification) => (
+    ['overdue_task', 'due_today', 'reminder', 'unpaid_billing'].includes(notification.type)
+    && Number(notification.is_read) !== 1
+  )).slice(0, 5)
   const statusLabel = connectionStatus === 'connected' ? 'Connected to API' : connectionStatus === 'fallback' ? 'Demo/Fallback Mode' : 'API Error'
   const statusClasses = connectionStatus === 'connected' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : connectionStatus === 'fallback' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-700'
   return <>
@@ -664,6 +672,7 @@ function Dashboard({ clients, tasks, activities, connectionStatus, onNewTask, se
       <aside className="panel"><div className="border-b border-line p-5"><h2 className="font-semibold">Delivery pulse</h2><p className="mt-1 text-xs text-zinc-500">{formatDate(TODAY, { weekday: 'long', month: 'long', day: 'numeric' })}</p></div><div className="divide-y divide-line">{clients.map((client) => { const clientTasks = tasks.filter((task) => task.clientId === client.id); const done = clientTasks.filter((task) => task.status === 'Completed').length; return <div key={client.id} className="p-4"><div className="flex justify-between gap-4"><p className="text-sm font-semibold">{client.name}</p><span className="text-xs text-zinc-500">{done}/{clientTasks.length}</span></div><div className="mt-3 h-1 bg-zinc-100"><div className="h-full bg-blue" style={{ width: `${clientTasks.length ? (done / clientTasks.length) * 100 : 0}%` }} /></div></div>})}</div></aside>
     </div>
     <section className="panel mt-8"><div className="flex items-center justify-between border-b border-line p-5"><div><h2 className="font-semibold">Recent Activity</h2><p className="mt-1 text-xs text-zinc-500">Latest workspace actions</p></div><button className="text-sm font-semibold text-blue" onClick={() => setActivePage('Activity')}>View all</button></div><ActivityFeed activities={(activities || []).slice(0, 5)} compact /></section>
+    <section className="panel mt-8"><div className="flex items-center justify-between border-b border-line p-5"><div><h2 className="font-semibold">Important Notifications</h2><p className="mt-1 text-xs text-zinc-500">Overdue, due today, reminders, and unpaid billing</p></div><button className="text-sm font-semibold text-blue" onClick={() => setActivePage('Notifications')}>View all</button></div>{importantNotifications.length ? <div className="divide-y divide-line">{importantNotifications.map((notification) => <NotificationItem key={notification.id} compact notification={notification} onOpen={onOpenNotification} />)}</div> : <p className="p-5 text-sm text-zinc-500">No important unread notifications.</p>}</section>
   </>
 }
 
@@ -841,6 +850,9 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   const [quickTaskDefaults, setQuickTaskDefaults] = useState(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const [generatingNotifications, setGeneratingNotifications] = useState(false)
   const [generatingRecurring, setGeneratingRecurring] = useState(false)
   const [recurringMessage, setRecurringMessage] = useState('')
   const [activityFilters, setActivityFilters] = useState({ user_id: '', client_id: '', module: '', action_type: '', date_from: '', date_to: '' })
@@ -870,6 +882,63 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     setSelectedClientId(id)
     setActivePage('Client Detail')
     window.history.pushState({ clientId: id }, '', `#clients/${encodeURIComponent(id)}`)
+  }
+  const loadNotifications = useCallback(async () => {
+    if (workspace.isFallback) {
+      setNotifications([])
+      return []
+    }
+    const rows = await getNotifications({ limit: 200 })
+    setNotifications(rows)
+    return rows
+  }, [workspace.isFallback])
+  useEffect(() => {
+    if (workspace.loading || workspace.isFallback) return
+    let active = true
+    const refresh = async () => {
+      try {
+        await generateNotificationsApi()
+        if (active) await loadNotifications()
+      } catch {
+        if (active) setNotifications([])
+      }
+    }
+    refresh()
+    return () => { active = false }
+  }, [loadNotifications, workspace.isFallback, workspace.loading])
+  const readNotification = async (id) => {
+    setNotifications((items) => items.map((item) => String(item.id) === String(id) ? { ...item, is_read: 1, read_at: new Date().toISOString() } : item))
+    if (!workspace.isFallback) await markNotificationRead(id)
+  }
+  const readAllNotifications = async () => {
+    setNotifications((items) => items.map((item) => ({ ...item, is_read: 1, read_at: item.read_at || new Date().toISOString() })))
+    if (!workspace.isFallback) await markAllNotificationsRead()
+  }
+  const removeNotification = async (id) => {
+    setNotifications((items) => items.filter((item) => String(item.id) !== String(id)))
+    if (!workspace.isFallback) await deleteNotificationApi(id)
+  }
+  const openNotification = async (notification) => {
+    if (Number(notification.is_read) !== 1) await readNotification(notification.id)
+    const task = notification.related_module === 'tasks'
+      ? workspace.tasks.find((item) => String(item.id) === String(notification.related_id))
+      : null
+    if (task) {
+      setTaskModal(task)
+      return
+    }
+    navigatePage(notification.action_url || 'Notifications')
+  }
+  const generateNotificationAlerts = async () => {
+    if (workspace.isFallback) return
+    setGeneratingNotifications(true)
+    try {
+      await generateNotificationsApi()
+      await loadNotifications()
+      await workspace.refreshActivities()
+    } finally {
+      setGeneratingNotifications(false)
+    }
   }
   useEffect(() => {
     const syncRoute = () => {
@@ -941,6 +1010,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   const selectedClient = workspace.clients.find((client) => client.id === selectedClientId)
   const saveTaskWithRecent = async (task) => {
     await workspace.saveTask(task)
+    await loadNotifications().catch(() => {})
     if (task.id) {
       const nextRecent = [task.id, ...recentTaskIds.filter((item) => item !== task.id)].slice(0, 6)
       setRecentTaskIds(nextRecent)
@@ -964,11 +1034,18 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     setGeneratingRecurring(true)
     setRecurringMessage('')
     const result = await workspace.generateRecurringTasks()
+    await loadNotifications().catch(() => {})
     const count = Number(result?.generated_count || 0)
     setRecurringMessage(count ? `${count} recurring task occurrence${count === 1 ? '' : 's'} generated.` : 'No recurring tasks are currently due.')
     setGeneratingRecurring(false)
   }
-  const shared = { clients: workspace.clients, users: workspace.users || [], tasks: workspace.tasks, activities: workspace.activities, connectionStatus: workspace.connectionStatus, onNewTask: newTask, onEditTask: setTaskModal, onDeleteTask: deleteTask, updateTask: workspace.updateTask, setActivePage: navigatePage }
+  const refreshWorkspaceEvents = async () => {
+    await Promise.all([
+      workspace.refreshActivities(),
+      loadNotifications().catch(() => []),
+    ])
+  }
+  const shared = { clients: workspace.clients, users: workspace.users || [], tasks: workspace.tasks, activities: workspace.activities, notifications, connectionStatus: workspace.connectionStatus, onNewTask: newTask, onEditTask: setTaskModal, onDeleteTask: deleteTask, updateTask: workspace.updateTask, setActivePage: navigatePage, onOpenNotification: openNotification }
   const pages = {
     Dashboard: <Dashboard {...shared} />,
     Clients: <ClientsPage clients={workspace.clients} tasks={workspace.tasks} onNewClient={() => setClientModal({})} onEditClient={setClientModal} onDeleteClient={deleteClient} onViewClient={openClient} />,
@@ -981,14 +1058,15 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     Reminders: <RemindersPage clients={workspace.clients} tasks={workspace.tasks} onEditTask={setTaskModal} />,
     Calendar: <CalendarPage clients={workspace.clients} tasks={workspace.tasks} onEditTask={setTaskModal} updateTask={workspace.updateTask} />,
     'Recurring Tasks': <RecurringTasksPage clients={workspace.clients} tasks={workspace.tasks} onEditTask={setTaskModal} updateTask={workspace.updateTask} onGenerate={generateDueRecurring} generating={generatingRecurring} generationMessage={recurringMessage} />,
+    Notifications: <NotificationsPage notifications={notifications} clients={workspace.clients} onOpen={openNotification} onRead={readNotification} onReadAll={readAllNotifications} onDelete={removeNotification} onGenerate={generateNotificationAlerts} generating={generatingNotifications} />,
     Activity: <ActivityPage activities={activityResults} sourceActivities={workspace.activities || []} clients={workspace.clients} filters={activityFilters} setFilters={setActivityFilters} />,
-    Reports: <MonthlyReportsPage clients={workspace.clients} tasks={workspace.tasks} settings={workspace.settings || DEFAULT_SETTINGS} isFallback={workspace.isFallback} onActivityRefresh={workspace.refreshActivities} />,
+    Reports: <MonthlyReportsPage clients={workspace.clients} tasks={workspace.tasks} settings={workspace.settings || DEFAULT_SETTINGS} isFallback={workspace.isFallback} onActivityRefresh={refreshWorkspaceEvents} />,
     Billing: <BillingPage clients={workspace.clients} billings={workspace.billings} updateTask={workspace.updateTask} />,
     Team: <TeamPage currentUser={user} onCurrentUserUpdate={onUserUpdate} onActivityRefresh={workspace.refreshActivities} />,
     Settings: <SettingsPage settings={workspace.settings || DEFAULT_SETTINGS} currentUser={user} onSaveSettings={workspace.saveSettings} onCurrentUserUpdate={onUserUpdate} resetWorkspace={workspace.resetWorkspace} />,
   }
 
-  return <div className="min-h-screen bg-canvas"><Sidebar activePage={activePage} setActivePage={navigatePage} open={sidebarOpen} setOpen={setSidebarOpen} collapsed={sidebarCollapsed} settings={workspace.settings || DEFAULT_SETTINGS} /><div className={sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'}><Topbar activePage={activePage === 'Client Detail' ? selectedClient?.name || 'Client Detail' : activePage} setOpen={setSidebarOpen} onToggleCollapse={() => setSidebarCollapsed((value) => !value)} collapsed={sidebarCollapsed} onOpenSearch={() => { setSearchOpen(true); setQuickAddOpen(false) }} quickAddOpen={quickAddOpen} setQuickAddOpen={setQuickAddOpen} quickAddActions={quickAddActions} settings={workspace.settings || DEFAULT_SETTINGS} user={user} onLogout={onLogout} /><main className="mx-auto max-w-[1600px] p-4 md:p-7 lg:p-9">{workspace.error && <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{workspace.error}</div>}{workspace.loading ? <div className="panel flex min-h-64 items-center justify-center"><div className="text-center"><div className="mx-auto h-7 w-7 animate-spin border-2 border-zinc-200 border-t-blue" /><p className="mt-3 text-sm text-zinc-500">Loading workspace data…</p></div></div> : pages[activePage]}</main></div>
+  return <div className="min-h-screen bg-canvas"><Sidebar activePage={activePage} setActivePage={navigatePage} open={sidebarOpen} setOpen={setSidebarOpen} collapsed={sidebarCollapsed} settings={workspace.settings || DEFAULT_SETTINGS} /><div className={sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'}><Topbar activePage={activePage === 'Client Detail' ? selectedClient?.name || 'Client Detail' : activePage} setOpen={setSidebarOpen} onToggleCollapse={() => setSidebarCollapsed((value) => !value)} collapsed={sidebarCollapsed} onOpenSearch={() => { setSearchOpen(true); setQuickAddOpen(false); setNotificationsOpen(false) }} quickAddOpen={quickAddOpen} setQuickAddOpen={setQuickAddOpen} quickAddActions={quickAddActions} settings={workspace.settings || DEFAULT_SETTINGS} user={user} onLogout={onLogout} notifications={notifications} notificationsOpen={notificationsOpen} setNotificationsOpen={setNotificationsOpen} onOpenNotification={openNotification} onReadAllNotifications={readAllNotifications} onViewNotifications={() => navigatePage('Notifications')} /><main className="mx-auto max-w-[1600px] p-4 md:p-7 lg:p-9">{workspace.error && <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{workspace.error}</div>}{workspace.loading ? <div className="panel flex min-h-64 items-center justify-center"><div className="text-center"><div className="mx-auto h-7 w-7 animate-spin border-2 border-zinc-200 border-t-blue" /><p className="mt-3 text-sm text-zinc-500">Loading workspace data…</p></div></div> : pages[activePage]}</main></div>
     <Modal open={Boolean(taskModal)} onClose={() => setTaskModal(null)} title={taskModal?.id ? 'Edit task' : 'Create task'} description="Task changes update every workspace view." size="max-w-5xl">{taskModal && <TaskForm task={taskModal} clients={workspace.clients} users={workspace.users || []} onSave={saveTaskWithRecent} onClose={() => setTaskModal(null)} />}</Modal>
     <Modal open={Boolean(quickTaskDefaults)} onClose={() => setQuickTaskDefaults(null)} title={quickTaskDefaults?.modeTitle || 'Quick add task'} description="Create essential daily work without opening the full task form.">{quickTaskDefaults && <QuickTaskForm clients={workspace.clients} defaults={quickTaskDefaults} onSave={saveTaskWithRecent} onClose={() => setQuickTaskDefaults(null)} />}</Modal>
     <Modal open={Boolean(clientModal)} onClose={() => setClientModal(null)} title={clientModal?.id ? 'Edit client' : 'Add client'} description="Create a client workspace for tasks, reports, and billing.">{clientModal && <ClientForm client={clientModal.id ? clientModal : null} onSave={workspace.saveClient} onClose={() => setClientModal(null)} />}</Modal>

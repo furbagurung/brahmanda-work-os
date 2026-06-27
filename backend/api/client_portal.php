@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/auth_guard.php';
 require_once __DIR__ . '/../helpers/activity_logger.php';
+require_once __DIR__ . '/../helpers/notification_helper.php';
 
 bootstrapApi();
 
@@ -183,6 +184,13 @@ try {
             'description' => 'Client portal share link created.',
             'new_value' => ['share_id' => $id, 'token_preview' => $preview, 'expires_at' => $expiresAt],
         ]);
+        createNotification($pdo, (int) $currentUser['id'], [
+            'type' => 'report_shared', 'title' => 'Report share link created',
+            'message' => $report['client_name'] . ' report is ready to share.',
+            'related_module' => 'reports', 'related_id' => $report['id'],
+            'client_id' => $report['client_id'], 'client_name' => $report['client_name'],
+            'priority' => 'normal', 'action_url' => 'Reports',
+        ], $currentUser);
         jsonResponse(['id' => $id, 'token' => $token, 'public_token_preview' => $preview], 201, 'Share link created.');
     }
 

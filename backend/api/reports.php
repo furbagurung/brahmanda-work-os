@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/auth_guard.php';
 require_once __DIR__ . '/../helpers/activity_logger.php';
+require_once __DIR__ . '/../helpers/notification_helper.php';
 
 bootstrapApi();
 
@@ -171,7 +172,6 @@ try {
             'client_id' => $clientId, 'client_name' => $client['name'],
             'description' => 'Report generated for ' . date('F Y', mktime(0, 0, 0, $month, 1, $year)) . '.',
         ]);
-
         jsonResponse([
             'client' => $client,
             'period' => ['month' => $month, 'year' => $year],
@@ -233,6 +233,13 @@ try {
             'old_value' => $existing,
             'new_value' => ['status' => $data['status'] ?? 'Draft', 'report_content' => $content],
         ]);
+        createNotification($pdo, (int) $currentUser['id'], [
+            'type' => 'report_ready', 'title' => 'Report ready',
+            'message' => date('F Y', mktime(0, 0, 0, (int) $data['report_month'], 1, (int) $data['report_year'])) . ' report is ready.',
+            'related_module' => 'reports', 'related_id' => $reportId,
+            'client_id' => (int) $data['client_id'],
+            'priority' => 'normal', 'action_url' => 'Reports',
+        ], $currentUser);
 
         jsonResponse([
             'id' => $reportId,

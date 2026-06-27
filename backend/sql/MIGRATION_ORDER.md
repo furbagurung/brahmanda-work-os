@@ -31,6 +31,7 @@ Apply only migrations that have not already been applied. The historical order i
 9. `add_settings.sql`
 10. `add_task_assignment.sql`
 11. `add_client_portal_shares.sql`
+12. `add_notifications.sql`
 
 Example:
 

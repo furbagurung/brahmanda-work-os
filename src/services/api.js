@@ -107,6 +107,16 @@ export const deactivatePortalShare = (id) => request(`client_portal.php?action=d
 export const recordPortalShareCopy = (id) => request(`client_portal.php?action=copy&id=${encodeURIComponent(id)}`, { method: 'PATCH' })
 export const getPublicPortalReport = (token) => publicRequest(`client_portal.php?action=public&token=${encodeURIComponent(token)}`)
 
+export const getNotifications = (params = {}) => {
+  const query = new URLSearchParams(params)
+  return request(`notifications.php${query.toString() ? `?${query}` : ''}`)
+}
+export const getUnreadNotificationCount = () => request('notifications.php?action=unread_count')
+export const generateNotifications = () => request('notifications.php?action=generate', { method: 'POST' })
+export const markNotificationRead = (id) => request(`notifications.php?id=${encodeURIComponent(id)}`, { method: 'PATCH' })
+export const markAllNotificationsRead = () => request('notifications.php?action=read_all', { method: 'PATCH' })
+export const deleteNotification = (id) => request(`notifications.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+
 export const getActivityLogs = (params = {}) => {
   const query = new URLSearchParams(params)
   return request(`activity_logs.php${query.toString() ? `?${query}` : ''}`)

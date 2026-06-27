@@ -64,6 +64,13 @@ added, run:
 mysql -u root -p brahmanda_work_os < backend/sql/add_client_portal_shares.sql
 ```
 
+For an existing database created before the internal notification center was
+added, run:
+
+```bash
+mysql -u root -p brahmanda_work_os < backend/sql/add_notifications.sql
+```
+
 For an existing database created before token authentication was added, run:
 
 ```bash
@@ -215,6 +222,7 @@ The React frontend stores the token in localStorage for now. For higher-security
 | GET/POST/PATCH/DELETE | `api/task_checklists.php` | Manage task checklist items |
 | GET/POST/PATCH | `api/client_portal.php` | Manage authenticated report share links |
 | GET | `api/client_portal.php?action=public&token=...` | Public view-only report snapshot |
+| GET/POST/PATCH/DELETE | `api/notifications.php` | List, generate, read, and delete user notifications |
 | GET | `api/attachments.php?task_id=1` | List proof links for a task |
 | GET | `api/attachments.php?client_id=1` | List all proof links for a client, grouped by task data |
 | POST | `api/attachments.php` | Add a proof link |
