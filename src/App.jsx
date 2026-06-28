@@ -107,7 +107,10 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "./services/api";
-import { getAttachmentPreviewUrl } from "./attachmentUtils";
+import {
+  getAttachmentPreviewUrl,
+  optimizeAttachmentImageForUpload,
+} from "./attachmentUtils";
 import {
   deadlineState,
   formatDate,
@@ -958,6 +961,33 @@ function FormSection({ icon: Icon, title, description, children }) {
   );
 }
 
+function AttachmentImagePreview({ attachment }) {
+  const previewUrl = getAttachmentPreviewUrl(attachment, "modal");
+  if (!previewUrl) {
+    return (
+      <div className="flex h-28 items-center justify-center bg-zinc-50 text-xs font-medium text-zinc-400">
+        Preview unavailable
+      </div>
+    );
+  }
+  return (
+    <a
+      href={previewUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="block"
+    >
+      <img
+        className="h-28 w-full object-cover"
+        src={previewUrl}
+        alt={attachment.originalFilename || attachment.title}
+        loading="lazy"
+        decoding="async"
+      />
+    </a>
+  );
+}
+
 function TaskForm({
   task,
   clients,
@@ -1056,15 +1086,25 @@ function TaskForm({
       );
       return;
     }
-    if (file.size > 25 * 1024 * 1024) {
-      setAttachmentError("Attachments must be 25MB or smaller.");
-      return;
-    }
     setUploadingAttachment(true);
     setAttachmentError("");
     try {
+      let uploadFile = file;
+      if (["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        try {
+          uploadFile = await optimizeAttachmentImageForUpload(file);
+        } catch {
+          uploadFile = file;
+        }
+      }
+      if (uploadFile.size > 25 * 1024 * 1024) {
+        setAttachmentError(
+          "The optimized attachment is still larger than 25MB.",
+        );
+        return;
+      }
       const uploaded = attachmentFromApi(
-        await uploadTaskAttachment(task.id, file),
+        await uploadTaskAttachment(task.id, uploadFile),
       );
       setForm((current) => ({
         ...current,
@@ -1484,20 +1524,7 @@ function TaskForm({
                       className="overflow-hidden rounded-xl border border-zinc-200 bg-white"
                     >
                       {attachment.isImage ? (
-                        <a
-                          href={getAttachmentPreviewUrl(attachment, "modal")}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="block"
-                        >
-                          <img
-                            className="h-28 w-full object-cover"
-                            src={getAttachmentPreviewUrl(attachment, "modal")}
-                            alt={attachment.originalFilename || attachment.title}
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        </a>
+                        <AttachmentImagePreview attachment={attachment} />
                       ) : String(attachment.mimeType || "").startsWith(
                           "video/",
                         ) ? (
@@ -1536,7 +1563,7 @@ function TaskForm({
                         </div>
                         <a
                           className="text-xs font-semibold text-blue hover:underline"
-                          href={getAttachmentPreviewUrl(attachment, "modal")}
+                          href={getAttachmentPreviewUrl(attachment, "download")}
                           target="_blank"
                           rel="noreferrer"
                         >
@@ -2588,6 +2615,7 @@ function TaskListRow({
     ? Math.round((task.checklistCompleted / task.checklistTotal) * 100)
     : 0;
   const imageAttachment = firstTaskImage(task);
+  const imagePreviewUrl = getAttachmentPreviewUrl(imageAttachment, "card");
   const videoAttachment = firstTaskVideo(task);
   return (
     <article
@@ -2602,14 +2630,18 @@ function TaskListRow({
         aria-label={`Select ${task.title}`}
       />
       <button className="min-w-0 text-left" onClick={onEdit}>
-        {imageAttachment ? (
+        {imageAttachment && imagePreviewUrl ? (
           <img
             className="mb-3 h-14 w-20 rounded-lg border border-zinc-200 object-cover sm:float-left sm:mb-0 sm:mr-3"
-            src={getAttachmentPreviewUrl(imageAttachment, "card")}
+            src={imagePreviewUrl}
             alt=""
             loading="lazy"
             decoding="async"
           />
+        ) : imageAttachment ? (
+          <span className="mb-3 flex h-14 w-20 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-[10px] font-medium text-zinc-400 sm:float-left sm:mb-0 sm:mr-3">
+            Image
+          </span>
         ) : videoAttachment ? (
           <span className="mb-3 flex h-14 w-20 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-[10px] font-semibold text-zinc-500 sm:float-left sm:mb-0 sm:mr-3">
             <Video size={15} className="mr-1" />
@@ -2708,10 +2740,11 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
     : 0;
   const proofCount = task.attachments?.length || (task.proofLink ? 1 : 0);
   const imageAttachment = firstTaskImage(task);
+  const imagePreviewUrl = getAttachmentPreviewUrl(imageAttachment, "card");
   const videoAttachment = firstTaskVideo(task);
   return (
     <article className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-[0_5px_18px_rgba(24,24,27,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-blue/20 hover:shadow-[0_12px_30px_rgba(37,99,235,0.09)]">
-      {imageAttachment ? (
+      {imageAttachment && imagePreviewUrl ? (
         <button
           className="mb-3 block w-full overflow-hidden rounded-lg"
           onClick={onEdit}
@@ -2719,11 +2752,19 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
         >
           <img
             className="h-24 w-full object-cover transition duration-200 group-hover:scale-[1.01]"
-            src={getAttachmentPreviewUrl(imageAttachment, "card")}
+            src={imagePreviewUrl}
             alt=""
             loading="lazy"
             decoding="async"
           />
+        </button>
+      ) : imageAttachment ? (
+        <button
+          className="mb-3 flex h-20 w-full items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-xs font-medium text-zinc-400"
+          onClick={onEdit}
+          aria-label={`Open ${task.title}`}
+        >
+          Image preview unavailable
         </button>
       ) : videoAttachment ? (
         <button

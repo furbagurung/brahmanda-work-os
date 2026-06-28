@@ -136,6 +136,13 @@ git add backend/uploads/task-attachments/.gitkeep
 git commit -m "Stop tracking uploaded attachments"
 ```
 
+To regenerate optimized images and task-card thumbnails locally with additional
+memory available to PHP, run:
+
+```bash
+php -d memory_limit=1024M backend/tools/regenerate_attachment_thumbnails.php
+```
+
 Bearer tokens are stored hashed in MySQL. Production must use HTTPS, a non-demo administrator password, restricted CORS, and a dedicated least-privilege database user.
 
 ## Useful commands

@@ -60,7 +60,7 @@ export default function ReportsPage({ clients, tasks, settings, isFallback, onAc
   const billableTotal = Number(report?.extra_billable_work?.total ?? billable.reduce((total, task) => total + amountFor(task), 0))
   const attachmentsFor = (task) => (task.attachments || []).map((attachment) => ({
     ...attachment,
-    url: getAttachmentPreviewUrl(attachment, 'modal'),
+    url: getAttachmentPreviewUrl(attachment, 'download'),
   }))
   const listText = (items, formatter = (item) => item.title) => items.map((item) => `- ${formatter(item)}`).join('\n') || '- None recorded'
   const completedText = completed.map((task) => {

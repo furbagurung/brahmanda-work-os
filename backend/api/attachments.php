@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/auth_guard.php';
 require_once __DIR__ . '/../helpers/activity_logger.php';
+require_once __DIR__ . '/../helpers/image_optimizer.php';
 
 bootstrapApi();
 
@@ -13,106 +14,6 @@ const TASK_ATTACHMENT_MAX_SIZE = 25 * 1024 * 1024;
 const TASK_ATTACHMENT_COLUMNS = 'id, task_id, attachment_type, title, url, file_path, file_url,
     original_filename, mime_type, file_size, is_image, thumbnail_path, thumbnail_url,
     optimized_path, optimized_url, created_at';
-
-function taskAttachmentUploadDirectory(): string
-{
-    return dirname(__DIR__) . '/uploads/task-attachments';
-}
-
-function taskAttachmentPublicUrl(string $filename): string
-{
-    $configuredBase = trim((string) appConfig('uploads_base_url', ''));
-    if ($configuredBase !== '') {
-        return rtrim($configuredBase, '/') . '/task-attachments/' . rawurlencode($filename);
-    }
-
-    $forwardedProtocol = trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]);
-    $scheme = $forwardedProtocol !== ''
-        ? $forwardedProtocol
-        : ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http');
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '/api/attachments.php'));
-    $backendPath = rtrim(str_replace('\\', '/', dirname(dirname($scriptName))), '/.');
-
-    return $scheme . '://' . $host . ($backendPath === '' ? '' : $backendPath)
-        . '/uploads/task-attachments/' . rawurlencode($filename);
-}
-
-function taskAttachmentImageResource(string $sourcePath, string $mimeType)
-{
-    if (!extension_loaded('gd')) {
-        return false;
-    }
-
-    return match ($mimeType) {
-        'image/jpeg' => function_exists('imagecreatefromjpeg') ? @imagecreatefromjpeg($sourcePath) : false,
-        'image/png' => function_exists('imagecreatefrompng') ? @imagecreatefrompng($sourcePath) : false,
-        'image/webp' => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($sourcePath) : false,
-        default => false,
-    };
-}
-
-function taskAttachmentSaveImage($image, string $destination, string $mimeType): bool
-{
-    return match ($mimeType) {
-        'image/jpeg' => function_exists('imagejpeg') && imagejpeg($image, $destination, 82),
-        'image/png' => function_exists('imagepng') && imagepng($image, $destination, 7),
-        'image/webp' => function_exists('imagewebp') && imagewebp($image, $destination, 82),
-        default => false,
-    };
-}
-
-function taskAttachmentCreateDerivative(
-    string $sourcePath,
-    string $destination,
-    string $mimeType,
-    int $maxWidth
-): bool {
-    $source = taskAttachmentImageResource($sourcePath, $mimeType);
-    if ($source === false) {
-        return false;
-    }
-
-    $sourceWidth = imagesx($source);
-    $sourceHeight = imagesy($source);
-    if ($sourceWidth < 1 || $sourceHeight < 1) {
-        imagedestroy($source);
-        return false;
-    }
-
-    $targetWidth = min($sourceWidth, $maxWidth);
-    $targetHeight = max(1, (int) round($sourceHeight * ($targetWidth / $sourceWidth)));
-    $target = imagecreatetruecolor($targetWidth, $targetHeight);
-    if ($target === false) {
-        imagedestroy($source);
-        return false;
-    }
-
-    if (in_array($mimeType, ['image/png', 'image/webp'], true)) {
-        imagealphablending($target, false);
-        imagesavealpha($target, true);
-        $transparent = imagecolorallocatealpha($target, 0, 0, 0, 127);
-        imagefilledrectangle($target, 0, 0, $targetWidth, $targetHeight, $transparent);
-    }
-
-    $resampled = imagecopyresampled(
-        $target,
-        $source,
-        0,
-        0,
-        0,
-        0,
-        $targetWidth,
-        $targetHeight,
-        $sourceWidth,
-        $sourceHeight
-    );
-    $saved = $resampled && taskAttachmentSaveImage($target, $destination, $mimeType);
-    imagedestroy($target);
-    imagedestroy($source);
-
-    return $saved;
-}
 
 function findAttachmentTask(PDO $pdo, int $taskId): array
 {
@@ -269,42 +170,22 @@ try {
         $optimizedUrl = null;
         $generatedPhysicalPaths = [$destination];
 
-        $canOptimize = $isImage === 1
-            && $mimeType !== 'image/gif'
-            && extension_loaded('gd');
-
-        if ($canOptimize) {
-            $optimizedFilename = $storedBaseName . '-optimized.' . $safeExtension;
-            $optimizedDestination = $uploadDirectory . '/' . $optimizedFilename;
-            $optimizedCreated = taskAttachmentCreateDerivative(
-                $destination,
-                $optimizedDestination,
-                $mimeType,
-                1600
-            );
-
-            if ($optimizedCreated) {
-                $generatedPhysicalPaths[] = $optimizedDestination;
-                $optimizedPath = 'uploads/task-attachments/' . $optimizedFilename;
-                $optimizedUrl = taskAttachmentPublicUrl($optimizedFilename);
-
-                $thumbnailFilename = $storedBaseName . '-thumbnail.' . $safeExtension;
-                $thumbnailDestination = $uploadDirectory . '/' . $thumbnailFilename;
-                if (taskAttachmentCreateDerivative(
-                    $destination,
-                    $thumbnailDestination,
-                    $mimeType,
-                    400
-                )) {
-                    $generatedPhysicalPaths[] = $thumbnailDestination;
-                    $thumbnailPath = 'uploads/task-attachments/' . $thumbnailFilename;
-                    $thumbnailUrl = taskAttachmentPublicUrl($thumbnailFilename);
-                } elseif (is_file($thumbnailDestination)) {
-                    @unlink($thumbnailDestination);
-                }
-            } elseif (is_file($optimizedDestination)) {
-                @unlink($optimizedDestination);
-            }
+        $derivatives = optimizeTaskAttachmentImage(
+            $destination,
+            $uploadDirectory,
+            $storedBaseName,
+            $mimeType,
+            $safeExtension
+        );
+        if (!empty($derivatives['optimized_filename'])) {
+            $generatedPhysicalPaths[] = $derivatives['optimized_physical_path'];
+            $optimizedPath = 'uploads/task-attachments/' . $derivatives['optimized_filename'];
+            $optimizedUrl = taskAttachmentPublicUrl($derivatives['optimized_filename']);
+        }
+        if (!empty($derivatives['thumbnail_filename'])) {
+            $generatedPhysicalPaths[] = $derivatives['thumbnail_physical_path'];
+            $thumbnailPath = 'uploads/task-attachments/' . $derivatives['thumbnail_filename'];
+            $thumbnailUrl = taskAttachmentPublicUrl($derivatives['thumbnail_filename']);
         }
 
         $title = trim((string) ($_POST['title'] ?? '')) ?: $originalFilename;
