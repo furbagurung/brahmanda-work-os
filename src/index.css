@@ -32,6 +32,7 @@ html {
   background: #f7f7f8;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  letter-spacing: -0.006em;
 }
 
 body {
@@ -40,6 +41,7 @@ body {
   min-height: 100vh;
   background: transparent;
   line-height: 1.5;
+  font-size: 14px;
 }
 
 button,

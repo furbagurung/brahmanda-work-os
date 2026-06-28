@@ -24,6 +24,8 @@ import {
   Menu,
   MessageSquare,
   Paperclip,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   ReceiptText,
   Repeat2,
@@ -630,9 +632,11 @@ function Sidebar({
   open,
   setOpen,
   collapsed,
+  onToggleCollapse,
   settings,
+  user,
 }) {
-  const initials = settings.agency_name
+  const initials = user.name
     .split(/\s+/)
     .map((part) => part[0])
     .join("")
@@ -649,25 +653,36 @@ function Sidebar({
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-line bg-surface transition-all duration-300 ease-out ${collapsed ? "w-20" : "w-64"} ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
+        className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-line bg-white transition-all duration-300 ease-in-out ${collapsed ? "w-20" : "w-[300px]"} ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
       >
-        <div className={`flex h-16 items-center border-b border-line ${collapsed ? "justify-center px-3" : "gap-3 px-4"}`}>
-          <button
-            className={`flex min-w-0 items-center ${collapsed ? "justify-center" : "gap-3"} truncate`}
-            onClick={() => setActivePage("Dashboard")}
-          >
-            <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white shadow-soft"
-              style={{ backgroundColor: settings.brand_color }}
+        <div className={`flex h-24 items-center ${collapsed ? "justify-center px-3" : "justify-between gap-3 px-4"}`}>
+          {!collapsed && (
+            <button
+              className="grid min-w-0 grid-cols-[44px_1fr] items-center gap-3 text-left"
+              onClick={() => setActivePage("Dashboard")}
             >
-              <Command size={18} />
-            </span>
-            {!collapsed && (
-              <span className="truncate text-sm font-bold tracking-tight">
-                {settings.agency_name}{" "}
-                <span style={{ color: settings.brand_color }}>OS</span>
+              <span
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-soft"
+                style={{ backgroundColor: settings.brand_color }}
+              >
+                <Command size={20} />
               </span>
-            )}
+              <span className="min-w-0 leading-tight">
+                <span className="block truncate text-sm font-bold tracking-tight text-ink">
+                  {settings.agency_name}
+                </span>
+                <span className="mt-1 block truncate text-xs font-medium text-zinc-500">
+                  Work OS
+                </span>
+              </span>
+            </button>
+          )}
+          <button
+            className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-line bg-white text-zinc-500 shadow-soft transition hover:bg-zinc-50 hover:text-ink lg:flex"
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
           </button>
           <button
             className="ml-auto rounded-lg p-2 text-zinc-500 hover:bg-canvas lg:hidden"
@@ -677,13 +692,14 @@ function Sidebar({
             <X size={20} />
           </button>
         </div>
-        <nav className="flex-1 overflow-y-auto px-2.5 py-5">
-          <div className="space-y-6">
+        <div className="mx-4 h-px bg-zinc-100" />
+        <nav className="flex-1 overflow-y-auto px-3 py-5">
+          <div className="space-y-5">
             {groups.map((group) => (
               <section key={group}>
                 {!collapsed && (
-                  <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
-                    {group}
+                  <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
+                    {group === "Workspace" ? "Main" : group}
                   </p>
                 )}
                 <div className="space-y-1">
@@ -702,12 +718,9 @@ function Sidebar({
                               setOpen(false);
                             }}
                             aria-label={collapsed ? label : undefined}
-                            className={`relative flex min-h-10 w-full items-center ${collapsed ? "justify-center px-2" : "gap-3 px-3"} rounded-lg py-2 text-left text-sm transition duration-150 ${isActive ? "bg-blue text-white shadow-soft" : "text-zinc-600 hover:bg-zinc-100/80 hover:text-ink"}`}
+                            className={`relative flex h-11 w-full items-center ${collapsed ? "justify-center px-1.5" : "gap-3 px-3.5"} rounded-lg border text-left text-sm font-medium transition duration-200 ${isActive ? "border-ink bg-ink text-white shadow-soft" : "border-transparent text-zinc-600 hover:bg-zinc-100/70 hover:text-ink"}`}
                           >
-                            {isActive && !collapsed && (
-                              <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-white/80" />
-                            )}
-                            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${isActive ? "bg-white/10" : "bg-transparent group-hover:bg-white"}`}>
+                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition ${isActive ? "bg-white/10" : "group-hover:bg-white"}`}>
                               <Icon size={16} strokeWidth={1.8} />
                             </span>
                             {!collapsed && (
@@ -727,20 +740,22 @@ function Sidebar({
             ))}
           </div>
         </nav>
-        <div className="border-t border-line p-3">
+        <div className="p-3">
+          <div className="mb-3 h-px bg-zinc-100" />
           <div
-            className={`flex items-center rounded-xl border border-line bg-zinc-50/70 ${collapsed ? "justify-center p-2" : "gap-3 p-3"}`}
+            className={`flex items-center border border-line bg-white shadow-soft ${collapsed ? "mx-auto h-12 w-12 justify-center rounded-full" : "gap-3 rounded-md p-3"}`}
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink text-xs font-bold text-white">
+            <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink text-xs font-bold text-white">
               {initials}
+              <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
             </span>
             {!collapsed && (
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">
-                  {settings.agency_name}
+                <p className="truncate text-sm font-bold text-ink">
+                  {user.name}
                 </p>
-                <p className="truncate text-xs text-zinc-500">
-                  {settings.legal_business_name}
+                <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                  {user.role}
                 </p>
               </div>
             )}
@@ -785,40 +800,35 @@ function Topbar({
     .slice(0, 2)
     .toUpperCase();
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-line bg-white/90 px-3 backdrop-blur-xl sm:gap-3 md:px-6">
+    <header className="sticky top-0 z-20 border-b border-line bg-white/90 backdrop-blur-xl">
+      <div className="grid h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 md:px-6 xl:grid-cols-[1fr_minmax(360px,560px)_1fr]">
+        <div className="flex min-w-0 items-center gap-3">
+          <button
+            className="rounded-lg border border-line bg-white p-2 text-zinc-500 hover:border-zinc-400 lg:hidden"
+            onClick={() => setOpen(true)}
+            aria-label="Open menu"
+          >
+            <Menu size={20} />
+          </button>
+          <div className="hidden min-w-0 xl:block">
+            <p className="truncate text-sm font-semibold text-ink">{activePage}</p>
+            <p className="truncate text-[11px] text-zinc-500">{settings.agency_name}</p>
+          </div>
+        </div>
       <button
-        className="mr-1 rounded-lg border border-line bg-white p-2 text-zinc-500 hover:border-zinc-400 lg:hidden"
-        onClick={() => setOpen(true)}
-        aria-label="Open menu"
-      >
-        <Menu size={22} />
-      </button>
-      <button
-        className="hidden h-9 w-9 items-center justify-center rounded-lg border border-line bg-white text-zinc-500 transition hover:border-zinc-400 hover:text-ink lg:inline-flex"
-        onClick={onToggleCollapse}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-      >
-        {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-      </button>
-      <div className="hidden min-w-0 flex-1 xl:block">
-        <p className="truncate text-sm font-semibold">{activePage}</p>
-        <p className="hidden truncate text-xs text-zinc-500 sm:block">
-          {settings.agency_name} / Internal workspace
-        </p>
-      </div>
-      <button
-        className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-white px-3 py-2 text-left text-sm text-zinc-500 shadow-soft transition hover:border-blue/30 hover:text-zinc-700 xl:mx-5 xl:max-w-xl"
+        className="group flex min-w-0 items-center gap-3 rounded-full border border-zinc-200 bg-white p-1.5 pr-3 text-left text-sm text-zinc-500 shadow-soft transition hover:border-zinc-300 hover:shadow-panel"
         onClick={onOpenSearch}
       >
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-zinc-500 transition group-hover:bg-blue/5 group-hover:text-blue">
-          <Search size={14} />
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition group-hover:bg-blue/5 group-hover:text-blue">
+          <Search size={15} />
         </span>
-        <span className="truncate">Search clients, tasks, reports, proofs</span>
-        <kbd className="ml-auto hidden rounded border border-line bg-white px-1.5 py-0.5 text-[10px] font-semibold sm:block">
-          Ctrl K
+        <span className="truncate font-medium">Search clients, tasks, reports and proofs</span>
+        <kbd className="ml-auto hidden rounded-md border border-line bg-zinc-50 px-1.5 py-0.5 text-[10px] font-bold text-zinc-500 sm:block">
+          CTRL K
         </kbd>
       </button>
-      <div className="relative ml-2 sm:ml-3">
+      <div className="flex items-center justify-end gap-2">
+      <div className="relative">
         <button
           className="button-primary hidden sm:inline-flex"
           onClick={() => setQuickAddOpen((value) => !value)}
@@ -848,7 +858,7 @@ function Topbar({
         onReadAll={onReadAllNotifications}
         onViewAll={onViewNotifications}
       />
-      <div className="relative ml-1" ref={profileRef}>
+      <div className="relative" ref={profileRef}>
         <button
           className="flex h-10 items-center gap-2 rounded-xl border border-line bg-white p-1 pr-2 shadow-soft transition hover:border-zinc-300"
           onClick={() => setProfileOpen((value) => !value)}
@@ -869,25 +879,32 @@ function Topbar({
           <ChevronDown size={13} className="hidden text-zinc-400 lg:block" />
         </button>
         {profileOpen && (
-          <div className="absolute right-0 top-12 z-50 w-64 rounded-xl border border-line bg-white p-2 shadow-panel">
-            <div className="border-b border-line px-3 py-3">
-              <p className="truncate text-sm font-semibold">{user.name}</p>
-              <p className="mt-0.5 truncate text-xs text-zinc-500">
-                {user.email}
-              </p>
-              <Badge className="mt-2 capitalize" variant="info">
-                {user.role}
-              </Badge>
+          <div className="absolute right-0 top-12 z-50 w-72 overflow-hidden rounded-xl border border-line bg-white shadow-panel">
+            <div className="flex items-center gap-3 border-b border-line bg-zinc-50/70 px-4 py-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink text-xs font-bold text-white">{initials}</span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-ink">{user.name}</p>
+                <p className="mt-0.5 truncate text-xs text-zinc-500">{user.email}</p>
+              </div>
             </div>
-            <button
-              className="mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-700 hover:bg-red-50"
-              onClick={onLogout}
-            >
-              <LogOut size={15} />
-              Log out
-            </button>
+            <div className="p-2">
+              <div className="flex items-center justify-between rounded-lg px-3 py-2 text-xs">
+                <span className="text-zinc-500">Role</span>
+                <Badge className="capitalize" variant="info">{user.role}</Badge>
+              </div>
+              <div className="my-1 h-px bg-zinc-100" />
+              <button
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-red-700 hover:bg-red-50"
+                onClick={onLogout}
+              >
+                <LogOut size={15} />
+                Log out
+              </button>
+            </div>
           </div>
         )}
+      </div>
+      </div>
       </div>
     </header>
   );
@@ -1953,6 +1970,7 @@ function DashboardMetricCard({
   detail,
   icon: Icon,
   accent = "blue",
+  featured = false,
 }) {
   const accents = {
     blue: "bg-blue/5 text-blue",
@@ -1961,19 +1979,20 @@ function DashboardMetricCard({
     violet: "bg-blue/5 text-blue",
   };
   return (
-    <article className="group rounded-xl border border-line bg-white p-4 shadow-soft transition duration-150 hover:border-zinc-300">
+    <article className={`group relative overflow-hidden rounded-3xl border p-5 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-panel ${featured ? "border-ink bg-gradient-to-br from-ink via-zinc-900 to-blue text-white" : "border-line bg-white hover:border-zinc-300"}`}>
+      {featured && <span className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-blue/40 blur-2xl" />}
       <div className="flex items-start justify-between gap-4">
         <span
-          className={`flex h-9 w-9 items-center justify-center rounded-lg ${accents[accent]}`}
+          className={`relative flex h-10 w-10 items-center justify-center rounded-xl ${featured ? "bg-white/10 text-white" : accents[accent]}`}
         >
           <Icon size={18} strokeWidth={1.8} />
         </span>
-        <span className="max-w-28 text-right text-[10px] font-medium leading-4 text-zinc-400">{detail}</span>
+        <span className={`relative max-w-28 text-right text-[10px] font-medium leading-4 ${featured ? "text-white/60" : "text-zinc-400"}`}>{detail}</span>
       </div>
-      <p className="mt-5 text-[1.75rem] font-semibold leading-none tracking-[-0.04em] text-ink tabular-nums">
+      <p className={`relative mt-6 text-[1.9rem] font-semibold leading-none tracking-[-0.04em] tabular-nums ${featured ? "text-white" : "text-ink"}`}>
         {value}
       </p>
-      <p className="mt-2 text-xs font-semibold text-zinc-600">{label}</p>
+      <p className={`relative mt-2 text-xs font-semibold ${featured ? "text-white/80" : "text-zinc-600"}`}>{label}</p>
     </article>
   );
 }
@@ -2171,26 +2190,23 @@ function Dashboard({
         : "border-red-200 bg-red-50 text-red-700";
   return (
     <>
-      <header className="border-b border-line pb-5">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="mb-3 flex items-center gap-3">
+      <div className="flex flex-col gap-3 p-2 sm:p-3 lg:flex-row lg:items-center lg:justify-between">
+          <section className="w-full rounded-2xl border border-line bg-white px-4 py-3 shadow-soft sm:w-auto sm:min-w-[250px]">
+            <div className="flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue/5 text-blue"><CalendarDays size={17} /></span>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-400">Today</p>
+                <p className="mt-1 text-sm font-semibold text-ink">{formatDate(TODAY, { weekday: "long", month: "long", day: "numeric" })}</p>
+              </div>
+            </div>
+          </section>
+          <div className="flex flex-wrap items-center gap-2">
               <span
                 className={`inline-flex items-center gap-2 rounded-md border px-2 py-1 text-[11px] font-medium ${statusClasses}`}
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-current" />
                 {statusLabel}
               </span>
-            </div>
-            <h1 className="text-2xl font-semibold tracking-[-0.03em] text-ink sm:text-3xl">
-              Dashboard
-            </h1>
-            {/* <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-500">
-              A focused view of client delivery, deadlines, team attention, and
-              billable work.
-            </p> */}
-          </div>
-          <div className="flex flex-wrap gap-2">
             <Button
               variant="secondary"
               onClick={() => setActivePage("Calendar")}
@@ -2203,11 +2219,10 @@ function Dashboard({
               Create task
             </Button>
           </div>
-        </div>
-      </header>
+      </div>
 
-      <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        {stats.map(([label, value, detail, Icon, accent]) => (
+      <section className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {stats.map(([label, value, detail, Icon, accent], index) => (
           <DashboardMetricCard
             key={label}
             label={label}
@@ -2215,14 +2230,15 @@ function Dashboard({
             detail={detail}
             icon={Icon}
             accent={accent}
+            featured={index === 1}
           />
         ))}
       </section>
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0 space-y-5">
+      <div className="mt-4 grid gap-4 2xl:grid-cols-[1.35fr_0.65fr]">
+        <div className="min-w-0 space-y-4">
           <section>
-            <div className="mb-4 flex items-end justify-between gap-4">
+            <div className="mb-3 flex items-end justify-between gap-4 px-1">
               <div>
                 <h2 className="text-lg font-semibold tracking-tight">
                   Deadline attention
@@ -2238,7 +2254,7 @@ function Dashboard({
                 View reminders
               </button>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <DeadlineColumn
                 title="Overdue"
                 description="Past deadline"
@@ -2376,7 +2392,7 @@ function Dashboard({
           </section>
         </div>
 
-        <aside className="space-y-5 xl:sticky xl:top-24 xl:self-start">
+        <aside className="space-y-4 2xl:sticky 2xl:top-24 2xl:self-start">
           <section className="overflow-hidden rounded-xl border border-line bg-white shadow-soft">
             <div className="border-b border-line px-5 py-4">
               <h2 className="text-base font-semibold tracking-tight">
@@ -2522,12 +2538,12 @@ function ClientsPage({
       <PageHeading
         number="02"
         title="Clients"
-        description="Client workspaces with task progress, contacts, and billable totals."
+        description={`${clients.length} client workspace${clients.length === 1 ? "" : "s"} with delivery and billing context.`}
         action="Add client"
         onAction={onNewClient}
       />
       {clients.length ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {clients.map((client) => (
             <ClientCard
               key={client.id}
@@ -2560,7 +2576,7 @@ function TaskFilterControl({
 }) {
   return (
     <label
-      className={`group flex min-w-[148px] flex-1 items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 shadow-sm transition hover:border-zinc-300 focus-within:border-blue/50 focus-within:ring-4 focus-within:ring-blue/10 ${className}`}
+      className={`group flex min-w-[148px] flex-1 items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 transition hover:border-zinc-300 focus-within:border-blue/40 focus-within:ring-2 focus-within:ring-blue/10 ${className}`}
     >
       <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">
         {label}
@@ -2587,7 +2603,7 @@ function AssigneePill({ name }) {
     : "—";
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue/10 text-[10px] font-bold text-blue">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue/5 text-[10px] font-bold text-blue">
         {initials}
       </span>
       <span className="truncate text-xs font-medium text-zinc-600">
@@ -2626,9 +2642,9 @@ function TaskListRow({
   const videoAttachment = firstTaskVideo(task);
   return (
     <article
-      className={`group relative grid gap-4 border-b border-zinc-100 px-4 py-4 transition last:border-b-0 hover:bg-blue/[0.025] sm:px-5 xl:grid-cols-[32px_minmax(260px,1.5fr)_minmax(150px,.7fr)_minmax(150px,.7fr)_145px_120px_36px] xl:items-center ${selected ? "bg-blue/[0.045]" : "bg-white"}`}
+      className={`group relative grid gap-3 border-b border-line px-4 py-3.5 transition last:border-b-0 hover:bg-zinc-50/80 sm:px-5 xl:grid-cols-[28px_minmax(260px,1.5fr)_minmax(150px,.7fr)_minmax(150px,.7fr)_140px_116px_32px] xl:items-center ${selected ? "bg-blue/[0.05]" : "bg-white"}`}
     >
-      <div className="absolute inset-y-2 left-0 w-0.5 rounded-r-full bg-blue opacity-0 transition group-hover:opacity-100" />
+      <div className={`absolute inset-y-2 left-0 w-0.5 rounded-r-full bg-blue transition ${selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`} />
       <input
         className="h-4 w-4 rounded border-zinc-300 text-blue focus:ring-blue/20"
         type="checkbox"
@@ -2639,18 +2655,18 @@ function TaskListRow({
       <button className="min-w-0 text-left" onClick={onEdit}>
         {imageAttachment && imagePreviewUrl ? (
           <img
-            className="mb-3 h-14 w-20 rounded-lg border border-zinc-200 object-cover sm:float-left sm:mb-0 sm:mr-3"
+            className="mb-3 h-12 w-16 rounded-lg border border-line object-cover sm:float-left sm:mb-0 sm:mr-3"
             src={imagePreviewUrl}
             alt=""
             loading="lazy"
             decoding="async"
           />
         ) : imageAttachment ? (
-          <span className="mb-3 flex h-14 w-20 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-[10px] font-medium text-zinc-400 sm:float-left sm:mb-0 sm:mr-3">
+          <span className="mb-3 flex h-12 w-16 items-center justify-center rounded-lg border border-line bg-zinc-50 text-[10px] font-medium text-zinc-400 sm:float-left sm:mb-0 sm:mr-3">
             Image
           </span>
         ) : videoAttachment ? (
-          <span className="mb-3 flex h-14 w-20 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-[10px] font-semibold text-zinc-500 sm:float-left sm:mb-0 sm:mr-3">
+          <span className="mb-3 flex h-12 w-16 items-center justify-center rounded-lg border border-line bg-zinc-50 text-[10px] font-semibold text-zinc-500 sm:float-left sm:mb-0 sm:mr-3">
             <Video size={15} className="mr-1" />
             VIDEO
           </span>
@@ -2750,7 +2766,7 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
   const imagePreviewUrl = getAttachmentPreviewUrl(imageAttachment, "card");
   const videoAttachment = firstTaskVideo(task);
   return (
-    <article className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-[0_5px_18px_rgba(24,24,27,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-blue/20 hover:shadow-[0_12px_30px_rgba(37,99,235,0.09)]">
+    <article className="group rounded-xl border border-line bg-white p-3.5 shadow-soft transition duration-150 hover:border-zinc-300">
       {imageAttachment && imagePreviewUrl ? (
         <button
           className="mb-3 block w-full overflow-hidden rounded-lg"
@@ -2758,7 +2774,7 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
           aria-label={`Open ${task.title}`}
         >
           <img
-            className="h-24 w-full object-cover transition duration-200 group-hover:scale-[1.01]"
+            className="h-20 w-full object-cover"
             src={imagePreviewUrl}
             alt=""
             loading="lazy"
@@ -2799,7 +2815,7 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
         <PriorityBadge priority={task.priority} />
         {task.billable && <BillingBadge />}
       </div>
-      <div className="mt-4 rounded-xl bg-zinc-50 p-3">
+      <div className="mt-3 rounded-lg border border-line bg-zinc-50/70 p-2.5">
         <AssigneePill name={task.assignedUserName} />
         <div className="mt-3 flex flex-wrap gap-1.5">
           <DeadlineBadge task={task} />
@@ -2812,7 +2828,7 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
         </div>
       </div>
       {task.checklistTotal > 0 && (
-        <div className="mt-4">
+        <div className="mt-3">
           <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold text-zinc-400">
             <span>Checklist progress</span>
             <span>
@@ -2827,7 +2843,7 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
           </div>
         </div>
       )}
-      <div className="mt-4 flex items-center justify-between border-t border-zinc-100 pt-3">
+      <div className="mt-3 flex items-center justify-between border-t border-line pt-3">
         <div className="flex items-center gap-3 text-[11px] font-medium text-zinc-400">
           {proofCount > 0 && (
             <span className="inline-flex items-center gap-1">
@@ -2990,9 +3006,8 @@ function TasksPage({
   return (
     <>
       <PageHeader
-        eyebrow="Work management"
         title="Tasks"
-        description="Plan, assign, and deliver every client commitment from one focused workspace."
+        description={`${filtered.length} of ${tasks.length} tasks shown.`}
         action={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -3010,7 +3025,7 @@ function TasksPage({
         }
       />
       {!tasks.length ? (
-        <div className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-sm">
+        <div className="rounded-xl border border-line bg-white p-5 shadow-soft">
           <EmptyState
             title="Your task workspace is ready"
             description="Create the first client task to start planning deadlines, assignments, and delivery."
@@ -3019,10 +3034,10 @@ function TasksPage({
           />
         </div>
       ) : (
-        <div className="space-y-4">
-          <section className="rounded-3xl border border-zinc-200/80 bg-zinc-50/70 p-3 shadow-[0_8px_30px_rgba(24,24,27,0.035)] sm:p-4">
+        <div className="space-y-3">
+          <section className="rounded-xl border border-line bg-zinc-50/70 p-3">
             <div className="flex flex-col gap-3 xl:flex-row">
-              <div className="flex min-w-[240px] flex-[1.5] items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 shadow-sm transition focus-within:border-blue/50 focus-within:ring-4 focus-within:ring-blue/10">
+              <div className="flex min-w-[240px] flex-[1.5] items-center gap-2 rounded-lg border border-line bg-white px-3 transition focus-within:border-blue/40 focus-within:ring-2 focus-within:ring-blue/10">
                 <Search size={15} className="shrink-0 text-zinc-400" />
                 <input
                   className="w-full bg-transparent py-3 text-sm font-medium outline-none placeholder:text-zinc-400"
@@ -3092,7 +3107,7 @@ function TasksPage({
                 <option>No Deadline</option>
               </TaskFilterControl>
               <button
-                className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold shadow-sm transition ${billableOnly ? "border-blue/20 bg-blue text-white" : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300"}`}
+                  className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition ${billableOnly ? "border-blue bg-blue text-white" : "border-line bg-white text-zinc-600 hover:border-zinc-300"}`}
                 onClick={() => setBillableOnly((current) => !current)}
                 aria-pressed={billableOnly}
               >
@@ -3100,7 +3115,7 @@ function TasksPage({
                 Billable
               </button>
               <button
-                className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold shadow-sm transition ${recurringOnly ? "border-blue/20 bg-blue text-white" : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300"}`}
+                  className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition ${recurringOnly ? "border-blue bg-blue text-white" : "border-line bg-white text-zinc-600 hover:border-zinc-300"}`}
                 onClick={() => setRecurringOnly((current) => !current)}
                 aria-pressed={recurringOnly}
               >
@@ -3110,13 +3125,13 @@ function TasksPage({
             </div>
           </section>
           {selected.length > 0 && (
-            <section className="sticky top-3 z-20 flex flex-wrap items-center gap-2 rounded-2xl border border-blue/20 bg-white/95 p-3 shadow-[0_12px_36px_rgba(37,99,235,0.14)] backdrop-blur">
-              <div className="mr-2 flex items-center gap-2 rounded-xl bg-blue/10 px-3 py-2 text-xs font-bold text-blue">
+            <section className="sticky top-3 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-blue/20 bg-white/95 p-3 shadow-panel backdrop-blur">
+              <div className="mr-2 flex items-center gap-2 rounded-lg bg-blue px-3 py-2 text-xs font-bold text-white">
                 <CheckCircle2 size={14} />
                 {selected.length} selected
               </div>
               <select
-                className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold outline-none"
+                className="rounded-lg border border-line bg-white px-3 py-2 text-xs font-semibold outline-none"
                 value={bulkStatus}
                 onChange={(event) => setBulkStatus(event.target.value)}
               >
@@ -3134,7 +3149,7 @@ function TasksPage({
                 Apply
               </Button>
               <select
-                className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold outline-none"
+                className="rounded-lg border border-line bg-white px-3 py-2 text-xs font-semibold outline-none"
                 value={bulkPriority}
                 onChange={(event) => setBulkPriority(event.target.value)}
               >
@@ -3152,7 +3167,7 @@ function TasksPage({
                 Apply
               </Button>
               <select
-                className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold outline-none"
+                className="rounded-lg border border-line bg-white px-3 py-2 text-xs font-semibold outline-none"
                 value={bulkAssignee}
                 onChange={(event) => setBulkAssignee(event.target.value)}
               >
@@ -3188,8 +3203,8 @@ function TasksPage({
               </Button>
             </section>
           )}
-          <section className="overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.05)]">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-4 py-3 sm:px-5">
+          <section className="overflow-hidden rounded-xl border border-line bg-white shadow-soft">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-zinc-50/60 px-4 py-3 sm:px-5">
               <label className="flex items-center gap-3 text-xs font-semibold text-zinc-500">
                 <input
                   className="h-4 w-4 rounded border-zinc-300 text-blue focus:ring-blue/20"
@@ -3271,9 +3286,8 @@ function KanbanPage({
   return (
     <>
       <PageHeader
-        eyebrow="Delivery pipeline"
         title="Kanban Board"
-        description="Move client work through delivery stages without losing the details that matter."
+        description={`${tasks.length} tasks across ${TASK_STATUSES.length} delivery stages.`}
         action={
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => setActivePage("Tasks")}>
@@ -3287,25 +3301,22 @@ function KanbanPage({
           </div>
         }
       />
-      <section className="overflow-hidden rounded-3xl border border-zinc-200/80 bg-zinc-100/60 shadow-[0_10px_34px_rgba(24,24,27,0.045)]">
-        <div className="flex items-center justify-between border-b border-zinc-200/80 bg-white/80 px-4 py-3 backdrop-blur sm:px-5">
+      <section className="overflow-hidden rounded-xl border border-line bg-canvas shadow-soft">
+        <div className="flex items-center justify-between border-b border-line bg-white px-4 py-3 sm:px-5">
           <p className="text-xs font-semibold text-zinc-500">
             <strong className="text-zinc-900">{tasks.length}</strong> tasks
             across {TASK_STATUSES.length} delivery stages
           </p>
-          <p className="hidden text-[11px] font-medium text-zinc-400 sm:block">
-            Use each card menu to edit, delete, or move work
-          </p>
         </div>
-        <div className="flex gap-4 overflow-x-auto p-4 pb-5 sm:p-5">
+        <div className="flex gap-3 overflow-x-auto p-3 pb-4 sm:p-4">
           {TASK_STATUSES.map((status) => {
             const list = tasks.filter((task) => task.status === status);
             return (
               <section
                 key={status}
-                className="w-[310px] shrink-0 rounded-2xl border border-zinc-200/80 bg-zinc-50/80 p-2.5 sm:w-[330px]"
+                className="w-[300px] shrink-0 rounded-xl border border-line bg-zinc-50/70 p-2.5 sm:w-[320px]"
               >
-                <div className="sticky top-0 z-10 mb-2 flex items-center justify-between rounded-xl bg-white px-3 py-3 shadow-sm">
+                <div className="sticky top-0 z-10 mb-2 flex items-center justify-between rounded-lg border border-line bg-white px-3 py-2.5">
                   <div className="flex items-center gap-2">
                     <span
                       className={`h-2.5 w-2.5 rounded-full ${status === "Completed" ? "bg-emerald-500" : status === "In Progress" ? "bg-blue" : status === "Revision" ? "bg-orange-500" : "bg-zinc-400"}`}
@@ -3314,7 +3325,7 @@ function KanbanPage({
                       {status}
                     </h2>
                   </div>
-                  <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-zinc-100 px-2 text-[11px] font-bold text-zinc-600">
+                  <span className="flex h-6 min-w-6 items-center justify-center rounded-md bg-blue/5 px-2 text-[11px] font-bold tabular-nums text-blue">
                     {list.length}
                   </span>
                 </div>
@@ -3332,20 +3343,17 @@ function KanbanPage({
                     />
                   ))}
                   {!list.length && (
-                    <div className="rounded-2xl border border-dashed border-zinc-300 bg-white/60 px-4 py-8 text-center">
-                      <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-100 text-zinc-400">
+                    <div className="rounded-xl border border-dashed border-zinc-300 bg-white/60 px-4 py-7 text-center">
+                      <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-100 text-zinc-400">
                         <ClipboardList size={17} />
                       </div>
                       <p className="mt-3 text-xs font-semibold text-zinc-500">
                         No {status.toLowerCase()} tasks
                       </p>
-                      <p className="mt-1 text-[11px] text-zinc-400">
-                        New work can start here.
-                      </p>
                     </div>
                   )}
                   <button
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-white/70 px-3 py-3 text-xs font-semibold text-zinc-500 transition hover:border-blue/40 hover:bg-white hover:text-blue"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-zinc-300 bg-white/70 px-3 py-2.5 text-xs font-semibold text-zinc-500 transition hover:border-blue/40 hover:bg-white hover:text-blue"
                     onClick={() => onNewTask({ status })}
                   >
                     <Plus size={14} />
@@ -4447,9 +4455,11 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
         open={sidebarOpen}
         setOpen={setSidebarOpen}
         collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((value) => !value)}
         settings={workspace.settings || DEFAULT_SETTINGS}
+        user={user}
       />
-      <div className={sidebarCollapsed ? "lg:pl-20" : "lg:pl-64"}>
+      <div className={sidebarCollapsed ? "lg:pl-20" : "lg:pl-[300px]"}>
         <Topbar
           activePage={
             activePage === "Client Detail"
@@ -4477,7 +4487,8 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
           onReadAllNotifications={readAllNotifications}
           onViewNotifications={() => navigatePage("Notifications")}
         />
-        <main className="mx-auto w-full max-w-[1520px] p-4 md:p-6 lg:p-8">
+        <main className="p-4 md:p-6">
+          <div className="mx-auto w-full max-w-[1220px]">
           {workspace.error && (
             <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               {workspace.error}
@@ -4495,6 +4506,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
           ) : (
             pages[activePage]
           )}
+          </div>
         </main>
       </div>
       <Modal
