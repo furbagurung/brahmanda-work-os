@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   BarChart3,
   BellRing,
@@ -364,6 +365,7 @@ function useWorkspace() {
       await loadApiData();
       return result;
     } catch (requestError) {
+      toast.error(requestError.message || "API request failed.");
       if (rethrow) {
         setError(`API request failed. ${requestError.message}`);
         throw requestError;
@@ -377,10 +379,10 @@ function useWorkspace() {
     }
   };
 
-  const saveTask = async (task) =>
-    runWithFallback(
+  const saveTask = async (task) => {
+    const exists = workspace.tasks.some((item) => item.id === task.id);
+    const result = await runWithFallback(
       async () => {
-        const exists = workspace.tasks.some((item) => item.id === task.id);
         const current = workspace.tasks.find((item) => item.id === task.id);
         const response = exists
           ? await updateTaskApi(task.id, taskToApi(task))
@@ -425,6 +427,9 @@ function useWorkspace() {
       },
       () => saveTaskLocal(task),
     );
+    toast.success(exists ? "Task updated." : "Task created.");
+    return result;
+  };
 
   const updateTask = async (id, patch) => {
     const current = workspace.tasks.find((task) => task.id === id);
@@ -444,10 +449,14 @@ function useWorkspace() {
       },
       () => updateTaskLocal(id, patch),
     );
+    if ("status" in patch) toast.success("Task status updated.");
+    else if ("paymentStatus" in patch || "invoiceStatus" in patch)
+      toast.success("Billing item updated.");
+    else toast.success("Task updated.");
   };
 
-  const deleteTask = async (id) =>
-    runWithFallback(
+  const deleteTask = async (id) => {
+    const result = await runWithFallback(
       () => deleteTaskApi(id),
       () =>
         setWorkspace((current) => ({
@@ -457,6 +466,9 @@ function useWorkspace() {
           billings: current.billings.filter((billing) => billing.id !== id),
         })),
     );
+    toast.success("Task deleted.");
+    return result;
+  };
 
   const saveClientLocal = (client) =>
     setWorkspace((current) => {
@@ -472,10 +484,10 @@ function useWorkspace() {
       };
     });
 
-  const saveClient = async (client, logoChange = {}) =>
-    runWithFallback(
+  const saveClient = async (client, logoChange = {}, feedbackMessage = "") => {
+    const exists = workspace.clients.some((item) => item.id === client.id);
+    const result = await runWithFallback(
       async () => {
-        const exists = workspace.clients.some((item) => item.id === client.id);
         const saved = exists
           ? await updateClientApi(client.id, clientToApi(client))
           : await createClientApi(clientToApi(client));
@@ -491,27 +503,38 @@ function useWorkspace() {
       () => saveClientLocal(client),
       Boolean(logoChange.logoFile || logoChange.removeLogo),
     );
+    toast.success(feedbackMessage || (exists ? "Client updated." : "Client created."));
+    if (logoChange.logoFile) toast.success("Client logo uploaded.");
+    if (logoChange.removeLogo) toast.success("Client logo removed.");
+    return result;
+  };
 
-  const saveClientLogo = async (id, file) =>
-    runWithFallback(
+  const saveClientLogo = async (id, file) => {
+    const result = await runWithFallback(
       () => uploadClientLogo(id, file),
       () => {
         throw new Error("Client logo uploads require the backend API.");
       },
       true,
     );
+    toast.success("Client logo uploaded.");
+    return result;
+  };
 
-  const clearClientLogo = async (id) =>
-    runWithFallback(
+  const clearClientLogo = async (id) => {
+    const result = await runWithFallback(
       () => removeClientLogo(id),
       () => {
         throw new Error("Client logo removal requires the backend API.");
       },
       true,
     );
+    toast.success("Client logo removed.");
+    return result;
+  };
 
-  const deleteClient = async (id) =>
-    runWithFallback(
+  const deleteClient = async (id) => {
+    const result = await runWithFallback(
       () => deleteClientApi(id),
       () =>
         setWorkspace((current) => ({
@@ -524,6 +547,9 @@ function useWorkspace() {
           ),
         })),
     );
+    toast.success("Client deleted.");
+    return result;
+  };
 
   const generateRecurringTasks = async () => {
     const generateLocal = () => {
@@ -616,6 +642,7 @@ function useWorkspace() {
       setWorkspace((current) => ({ ...current, settings }));
       setWorkspaceCurrency(settings.currency);
       setWorkspaceDateFormat(settings.date_format);
+      toast.success("Settings saved.");
       return settings;
     }
     const saved = await updateSettingsApi(settings);
@@ -623,6 +650,7 @@ function useWorkspace() {
     setWorkspaceCurrency(saved.currency);
     setWorkspaceDateFormat(saved.date_format);
     await refreshActivities();
+    toast.success("Settings saved.");
     return saved;
   };
 
@@ -1176,9 +1204,11 @@ function TaskForm({
           { ...uploaded, uploadedThisSession: true },
         ],
       }));
+      toast.success("Attachment uploaded.");
       if (attachmentInputRef.current) attachmentInputRef.current.value = "";
     } catch (error) {
       setAttachmentError(error.message);
+      toast.error(error.message);
     } finally {
       setUploadingAttachment(false);
     }
@@ -1188,8 +1218,10 @@ function TaskForm({
     if (attachment.uploadedThisSession && attachment.id) {
       try {
         await deleteTaskAttachment(attachment.id);
+        toast.success("Attachment deleted.");
       } catch (error) {
         setAttachmentError(error.message);
+        toast.error(error.message);
         return;
       }
     }
@@ -1851,6 +1883,7 @@ function ClientForm({ client, onSave, onClose }) {
       optimizedFile = await optimizeClientLogo(file);
     } catch (error) {
       setLogoError(error.message);
+      toast.error(error.message);
       return;
     }
     if (logoPreview?.startsWith("blob:")) URL.revokeObjectURL(logoPreview);
@@ -4841,7 +4874,10 @@ export default function App() {
   const [user, setUser] = useState(() => getCurrentUser());
 
   useEffect(() => {
-    const handleUnauthorized = () => setUser(null);
+    const handleUnauthorized = () => {
+      toast.error("Your session expired. Please sign in again.");
+      setUser(null);
+    };
     window.addEventListener("auth:unauthorized", handleUnauthorized);
     return () =>
       window.removeEventListener("auth:unauthorized", handleUnauthorized);
@@ -4852,12 +4888,13 @@ export default function App() {
   }
 
   if (!user) {
-    return <LoginPage onLogin={setUser} />;
+    return <LoginPage onLogin={(nextUser) => { setUser(nextUser); toast.success("Signed in successfully."); }} />;
   }
 
   const handleLogout = async () => {
     await logout();
     setUser(null);
+    toast.success("Signed out.");
   };
 
   const handleUserUpdate = (updatedUser) => {

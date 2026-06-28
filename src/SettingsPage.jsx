@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { Building2, FileText, Save, Settings2, UserRound } from 'lucide-react'
 
 import { Badge, PageHeader } from './components'
@@ -39,6 +40,7 @@ export default function SettingsPage({
       setMessage('Settings saved.')
     } catch (error) {
       setMessage(error.message)
+      toast.error(error.message)
     } finally {
       setSaving(false)
     }
@@ -55,8 +57,10 @@ export default function SettingsPage({
       })
       onCurrentUserUpdate(updated)
       setMessage('Profile updated.')
+      toast.success('Profile updated.')
     } catch (error) {
       setMessage(error.message)
+      toast.error(error.message)
     } finally {
       setSaving(false)
     }

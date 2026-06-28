@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { ClipboardCopy, Link2, RefreshCw, ShieldOff } from 'lucide-react'
 
 import { Badge, EmptyState } from './components'
@@ -46,10 +47,12 @@ export default function ReportShareManager({
       const result = await createPortalShare({ report_id: Number(reportId), expires_at: expiryValue(expiryDate) })
       setTokens((current) => ({ ...current, [result.id]: result.token }))
       setMessage('Share link generated. Copy it now or regenerate it later.')
+      toast.success('Share link generated.')
       await loadShares()
       await onActivityRefresh?.()
     } catch (requestError) {
       setError(requestError.message)
+      toast.error(requestError.message)
     } finally {
       setWorkingId('')
     }
@@ -64,10 +67,12 @@ export default function ReportShareManager({
       })
       setTokens((current) => ({ ...current, [share.id]: result.token }))
       setMessage('A new share link was generated. The previous link no longer works.')
+      toast.success('Share link regenerated.')
       await loadShares()
       await onActivityRefresh?.()
     } catch (requestError) {
       setError(requestError.message)
+      toast.error(requestError.message)
     } finally {
       setWorkingId('')
     }
@@ -84,10 +89,12 @@ export default function ReportShareManager({
         return next
       })
       setMessage('Share link deactivated.')
+      toast.success('Share link deactivated.')
       await loadShares()
       await onActivityRefresh?.()
     } catch (requestError) {
       setError(requestError.message)
+      toast.error(requestError.message)
     } finally {
       setWorkingId('')
     }
@@ -101,6 +108,7 @@ export default function ReportShareManager({
     }
     await navigator.clipboard.writeText(portalUrl(token))
     setMessage('Share link copied.')
+    toast.success('Share link copied.')
     recordPortalShareCopy(share.id).then(() => onActivityRefresh?.()).catch(() => {})
   }
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import {
   ArrowLeft, CalendarDays, CheckCircle2, CircleDollarSign, ClipboardList,
   Camera, Download, ExternalLink, FileText, Globe2, Mail, Palette, Pencil, Phone, Plus,
@@ -97,7 +98,6 @@ export default function ClientDetailPage({
   const [coverError, setCoverError] = useState('')
   const [currentLogoUrl, setCurrentLogoUrl] = useState(client.logoUrl || '')
   const [logoUploading, setLogoUploading] = useState(false)
-  const [logoError, setLogoError] = useState('')
   const coverRef = useRef(null)
   const settingsRef = useRef(null)
   const logoInputRef = useRef(null)
@@ -118,11 +118,6 @@ export default function ClientDetailPage({
   useEffect(() => {
     setCurrentLogoUrl(client.logoUrl || '')
   }, [client.logoUrl])
-  useEffect(() => {
-    if (!logoError) return undefined
-    const timeout = window.setTimeout(() => setLogoError(''), 4500)
-    return () => window.clearTimeout(timeout)
-  }, [logoError])
 
   useEffect(() => {
     const closeMenus = (event) => {
@@ -139,7 +134,7 @@ export default function ClientDetailPage({
     setCoverOpen(false)
     setCoverError('')
     try {
-      await onUpdateClient({ ...client, coverColor: nextCover })
+      await onUpdateClient({ ...client, coverColor: nextCover }, {}, 'Cover color updated.')
     } catch (error) {
       setSelectedCover(previous)
       setCoverError(error.message)
@@ -149,16 +144,16 @@ export default function ClientDetailPage({
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
-    setLogoError('')
     let optimizedFile
     try {
       optimizedFile = await optimizeClientLogo(file)
     } catch (error) {
-      setLogoError(error.message)
+      toast.error(error.message)
       return
     }
     const previous = currentLogoUrl
     const preview = URL.createObjectURL(optimizedFile)
+    const toastId = toast.loading('Uploading client logo…')
     setCurrentLogoUrl(preview)
     setLogoUploading(true)
     try {
@@ -166,10 +161,10 @@ export default function ClientDetailPage({
       if (result?.logo_url) {
         setCurrentLogoUrl(`${result.logo_url}?v=${Date.now()}`)
       }
-      setLogoError('')
+      toast.dismiss(toastId)
     } catch (error) {
       setCurrentLogoUrl(previous)
-      setLogoError(error.message)
+      toast.error(error.message, { id: toastId })
     } finally {
       URL.revokeObjectURL(preview)
       setLogoUploading(false)
@@ -208,6 +203,7 @@ export default function ClientDetailPage({
     link.download = `${client.name}-${report.report_year}-${String(report.report_month).padStart(2, '0')}-report.txt`
     link.click()
     URL.revokeObjectURL(url)
+    toast.success('Report downloaded.')
   }
 
   const taskColumns = [
@@ -295,7 +291,6 @@ export default function ClientDetailPage({
         </div>
       </div>
     </section>
-    {logoError && <div className="fixed bottom-5 right-5 z-50 max-w-sm rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-medium text-red-700 shadow-panel" role="alert">{logoError}</div>}
 
     <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{summary.map(([label, value, icon]) => <SummaryCard key={label} label={label} value={value} icon={icon} />)}</div>
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { CheckCircle2, ClipboardCopy, Download, FileText, Link2, Printer, ReceiptText } from 'lucide-react'
 import { Badge, EmptyState, PageHeader, ReportSection, StatusBadge } from './components'
 import { generateReport, saveReport } from './services/api'
@@ -127,6 +128,7 @@ PAN: ${settings.pan_number}`
   })
 
   const handleGenerate = async () => {
+    const toastId = toast.loading('Generating report…')
     setGenerating(true)
     setError('')
     setReport(null)
@@ -140,8 +142,10 @@ PAN: ${settings.pan_number}`
       const saved = await saveSnapshot(savedStatus, generatedReport)
       setSavedReportId(String(saved.id || generatedReport.saved_report?.id || ''))
       await onActivityRefresh?.()
+      toast.success('Report generated.', { id: toastId })
     } catch (requestError) {
       setError(requestError.message)
+      toast.error(requestError.message, { id: toastId })
     } finally {
       setGenerating(false)
     }
@@ -167,6 +171,7 @@ PAN: ${settings.pan_number}`
   const copyReport = async () => {
     await navigator.clipboard.writeText(reportText)
     setCopied(true)
+    toast.success('Report copied.')
     window.setTimeout(() => setCopied(false), 1800)
   }
 
@@ -181,6 +186,7 @@ PAN: ${settings.pan_number}`
     link.download = `${(client?.name || 'client').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${year}-${String(month).padStart(2, '0')}-report.html`
     link.click()
     URL.revokeObjectURL(url)
+    toast.success('Report downloaded.')
   }
 
   return <>

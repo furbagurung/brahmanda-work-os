@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Command, Eye, EyeOff, LockKeyhole, Mail } from 'lucide-react'
 import { login } from './services/auth'
 import { clearRememberedEmail, getRememberedEmail, saveRememberedEmail } from './services/authStorage'
@@ -26,6 +27,7 @@ export default function LoginPage({ onLogin }) {
       onLogin(user)
     } catch (loginError) {
       setError(loginError.message)
+      toast.error(loginError.message || 'Sign in failed.')
     } finally {
       setLoading(false)
     }
