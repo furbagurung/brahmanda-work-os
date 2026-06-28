@@ -2160,25 +2160,43 @@ function Dashboard({
   ];
   const reportsReady = new Set(completed.map((task) => task.clientId)).size;
   const workflowTotal = Math.max(tasks.length, 1);
-  const workflowItems = [
+  const statusFlow = [
     {
-      label: "Completed",
-      value: completed.length,
-      percentage: Math.round((completed.length / workflowTotal) * 100),
+      label: "New",
+      value: tasks.filter((task) => task.status === "New").length,
+      bar: "bg-zinc-300",
+    },
+    {
+      label: "In progress",
+      value: tasks.filter((task) => task.status === "In Progress").length,
       bar: "bg-blue",
     },
     {
-      label: "Pending",
-      value: openTasks.length,
-      percentage: Math.round((openTasks.length / workflowTotal) * 100),
-      bar: "bg-ink",
-    },
-    {
-      label: "Due today",
-      value: dueTodayTasks.length,
-      percentage: Math.round((dueTodayTasks.length / workflowTotal) * 100),
+      label: "Waiting",
+      value: tasks.filter((task) => task.status === "Waiting for Client").length,
       bar: "bg-zinc-400",
     },
+    {
+      label: "Revision",
+      value: tasks.filter((task) => task.status === "Revision").length,
+      bar: "bg-zinc-500",
+    },
+    {
+      label: "Completed",
+      value: completed.length,
+      bar: "bg-ink",
+    },
+  ];
+  const maxStatusCount = Math.max(...statusFlow.map((item) => item.value), 1);
+  const pendingWithoutToday = Math.max(openTasks.length - dueTodayTasks.length, 0);
+  const completedSplit = Math.round((completed.length / workflowTotal) * 100);
+  const dueTodaySplit = Math.round((dueTodayTasks.length / workflowTotal) * 100);
+  const pendingSplit = Math.max(100 - completedSplit - dueTodaySplit, 0);
+  const deadlineSummary = [
+    { label: "Overdue", value: overdueTasks.length },
+    { label: "Due today", value: dueTodayTasks.length },
+    { label: "This week", value: dueThisWeekTasks.length },
+    { label: "Upcoming", value: upcomingTasks.length },
   ];
   const priorityTasks = tasks
     .filter((task) => task.status !== "Completed")
@@ -2263,36 +2281,36 @@ function Dashboard({
             <div className="flex items-start justify-between border-b border-line px-5 py-4">
               <div>
                 <h2 className="text-base font-semibold tracking-tight">
-                  Delivery overview
+                  Delivery Flow
                 </h2>
                 <p className="mt-1 text-xs text-zinc-500">
-                  Current task flow across the workspace.
+                  Task movement across your workspace.
                 </p>
               </div>
               <Badge variant="info">{tasks.length} tasks</Badge>
             </div>
-            <div className="grid gap-6 p-5 lg:grid-cols-[1fr_220px]">
-              <div className="space-y-5">
-                {workflowItems.map((item) => (
-                  <div key={item.label}>
-                    <div className="mb-2 flex items-center justify-between text-xs">
-                      <span className="font-semibold text-zinc-600">
-                        {item.label}
-                      </span>
-                      <span className="font-bold tabular-nums text-ink">
-                        {item.value}
-                      </span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-zinc-100">
+            <div className="p-5">
+              <div className="grid h-[250px] grid-cols-5 items-end gap-3 border-b border-line px-2 pb-4 sm:gap-5">
+                {statusFlow.map((item) => (
+                  <div className="flex h-full min-w-0 flex-col justify-end" key={item.label}>
+                    <span className="mb-2 text-center text-sm font-bold tabular-nums text-ink">
+                      {item.value}
+                    </span>
+                    <div className="flex h-[170px] items-end overflow-hidden rounded-lg bg-zinc-50">
                       <div
-                        className={`h-full rounded-full ${item.bar}`}
-                        style={{ width: `${item.percentage}%` }}
+                        className={`w-full rounded-t-lg transition-all ${item.bar}`}
+                        style={{
+                          height: `${Math.max((item.value / maxStatusCount) * 100, item.value ? 10 : 2)}%`,
+                        }}
                       />
                     </div>
+                    <span className="mt-2 truncate text-center text-[10px] font-semibold text-zinc-500">
+                      {item.label}
+                    </span>
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-6">
                 <div className="rounded-xl border border-line bg-canvas/70 p-4">
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue/5 text-blue">
                     <CheckCircle2 size={16} />
@@ -2315,11 +2333,22 @@ function Dashboard({
                     Reports ready
                   </p>
                 </div>
+                {deadlineSummary.map((item) => (
+                  <div className="rounded-xl border border-line bg-white p-4" key={item.label}>
+                    <p className="text-xl font-semibold tabular-nums text-ink">{item.value}</p>
+                    <p className="mt-1 text-[10px] font-semibold text-zinc-500">{item.label}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button className="text-xs font-semibold text-blue hover:underline" onClick={() => setActivePage("Reminders")}>
+                  View deadline details
+                </button>
               </div>
             </div>
           </section>
 
-          <section className="overflow-hidden rounded-xl border border-line bg-white shadow-soft">
+          <section className="hidden">
             <div className="flex items-end justify-between gap-4 border-b border-line px-5 py-4">
               <div>
                 <h2 className="text-lg font-semibold tracking-tight">
@@ -2389,17 +2418,27 @@ function Dashboard({
               </button>
             </div>
             {priorityTasks.length ? (
-              <div className="grid gap-4 p-4 md:grid-cols-2 sm:p-5">
+              <div className="divide-y divide-line">
                 {priorityTasks.map((task) => (
-                  <DashboardTaskCard
-                    key={task.id}
-                    task={task}
-                    client={clients.find(
-                      (client) => client.id === task.clientId,
-                    )}
-                    onEdit={onEditTask}
-                    updateTask={updateTask}
-                  />
+                  <div className="grid gap-3 px-5 py-3.5 transition hover:bg-zinc-50/70 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center" key={task.id}>
+                    <button className="min-w-0 text-left" onClick={() => onEditTask(task)}>
+                      <p className="truncate text-sm font-semibold text-ink hover:text-blue">{task.title}</p>
+                      <p className="mt-1 truncate text-[11px] text-zinc-500">
+                        {clients.find((client) => client.id === task.clientId)?.name || "Deleted client"}
+                        {" · "}
+                        {task.deadline ? formatDate(task.deadline) : "No deadline"}
+                      </p>
+                    </button>
+                    <PriorityBadge priority={task.priority} />
+                    <select
+                      className="rounded-lg border border-line bg-white px-2 py-1.5 text-[10px] font-semibold text-zinc-600 outline-none focus:border-blue/40"
+                      value={task.status}
+                      onChange={(event) => updateTask(task.id, { status: event.target.value })}
+                      aria-label={`Update ${task.title} status`}
+                    >
+                      {TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}
+                    </select>
+                  </div>
                 ))}
               </div>
             ) : (
@@ -2478,17 +2517,45 @@ function Dashboard({
           <section className="overflow-hidden rounded-xl border border-line bg-white shadow-soft">
             <div className="border-b border-line px-5 py-4">
               <h2 className="text-base font-semibold tracking-tight">
-                Delivery pulse
+                Work Split
               </h2>
               <p className="mt-1 text-xs text-zinc-500">
-                {formatDate(TODAY, {
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                })}
+                Completed, pending and due today.
               </p>
             </div>
             <div className="space-y-4 p-5">
+              <div className="flex items-center gap-5">
+                <div
+                  className="relative h-28 w-28 shrink-0 rounded-full"
+                  style={{
+                    background: `conic-gradient(#002FA7 0 ${completedSplit}%, #18181B ${completedSplit}% ${completedSplit + pendingSplit}%, #A1A1AA ${completedSplit + pendingSplit}% 100%)`,
+                  }}
+                >
+                  <div className="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-white">
+                    <span className="text-xl font-semibold tabular-nums text-ink">{tasks.length}</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wide text-zinc-400">Tasks</span>
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1 space-y-3">
+                  {[
+                    ["Completed", completed.length, "bg-blue"],
+                    ["Pending", pendingWithoutToday, "bg-ink"],
+                    ["Due today", dueTodayTasks.length, "bg-zinc-400"],
+                  ].map(([label, value, dot]) => (
+                    <div className="flex items-center justify-between gap-3 text-xs" key={label}>
+                      <span className="flex items-center gap-2 text-zinc-500">
+                        <span className={`h-2 w-2 rounded-full ${dot}`} />
+                        {label}
+                      </span>
+                      <span className="font-bold tabular-nums text-ink">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="border-t border-line pt-4">
+                <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-400">
+                  Client delivery
+                </p>
               {clients.length ? (
                 clients.slice(0, 6).map((client) => {
                   const clientTasks = tasks.filter(
@@ -2524,6 +2591,7 @@ function Dashboard({
                   No clients yet.
                 </p>
               )}
+              </div>
             </div>
           </section>
 
