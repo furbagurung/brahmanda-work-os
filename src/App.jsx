@@ -649,15 +649,15 @@ function Sidebar({
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-zinc-200 bg-white transition-all duration-300 ease-out ${collapsed ? "w-20" : "w-64"} ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
+        className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-line bg-surface transition-all duration-300 ease-out ${collapsed ? "w-20" : "w-64"} ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
       >
-        <div className="flex h-16 items-center gap-3 border-b border-line px-4">
+        <div className={`flex h-16 items-center border-b border-line ${collapsed ? "justify-center px-3" : "gap-3 px-4"}`}>
           <button
-            className="flex items-center gap-3 truncate"
+            className={`flex min-w-0 items-center ${collapsed ? "justify-center" : "gap-3"} truncate`}
             onClick={() => setActivePage("Dashboard")}
           >
             <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white shadow-soft"
               style={{ backgroundColor: settings.brand_color }}
             >
               <Command size={18} />
@@ -677,12 +677,12 @@ function Sidebar({
             <X size={20} />
           </button>
         </div>
-        <nav className="flex-1 overflow-y-auto px-2.5 py-4">
-          <div className="space-y-5">
+        <nav className="flex-1 overflow-y-auto px-2.5 py-5">
+          <div className="space-y-6">
             {groups.map((group) => (
               <section key={group}>
                 {!collapsed && (
-                  <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-400">
+                  <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
                     {group}
                   </p>
                 )}
@@ -694,25 +694,32 @@ function Sidebar({
                         activePage === label ||
                         (activePage === "Client Detail" && label === "Clients");
                       return (
-                        <button
-                          key={label}
-                          type="button"
-                          onClick={() => {
-                            setActivePage(label);
-                            setOpen(false);
-                          }}
-                          title={collapsed ? label : undefined}
-                          aria-label={collapsed ? label : undefined}
-                          className={`relative flex min-h-9 w-full items-center ${collapsed ? "justify-center" : "gap-3"} rounded-lg px-3 py-2 text-left text-sm transition duration-150 ${isActive ? "bg-blue/10 text-blue" : "text-zinc-600 hover:bg-zinc-50 hover:text-ink"}`}
-                        >
-                          {isActive && !collapsed && (
-                            <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-blue" />
+                        <div className="group relative" key={label}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActivePage(label);
+                              setOpen(false);
+                            }}
+                            aria-label={collapsed ? label : undefined}
+                            className={`relative flex min-h-10 w-full items-center ${collapsed ? "justify-center px-2" : "gap-3 px-3"} rounded-lg py-2 text-left text-sm transition duration-150 ${isActive ? "bg-blue text-white shadow-soft" : "text-zinc-600 hover:bg-zinc-100/80 hover:text-ink"}`}
+                          >
+                            {isActive && !collapsed && (
+                              <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-white/80" />
+                            )}
+                            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${isActive ? "bg-white/10" : "bg-transparent group-hover:bg-white"}`}>
+                              <Icon size={16} strokeWidth={1.8} />
+                            </span>
+                            {!collapsed && (
+                              <span className="font-medium">{label}</span>
+                            )}
+                          </button>
+                          {collapsed && (
+                            <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 translate-x-1 whitespace-nowrap rounded-md bg-ink px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-panel transition duration-150 group-hover:translate-x-0 group-hover:opacity-100">
+                              {label}
+                            </span>
                           )}
-                          <Icon size={17} strokeWidth={1.8} />
-                          {!collapsed && (
-                            <span className="font-medium">{label}</span>
-                          )}
-                        </button>
+                        </div>
                       );
                     })}
                 </div>
@@ -720,11 +727,11 @@ function Sidebar({
             ))}
           </div>
         </nav>
-        <div className="border-t border-line p-4">
+        <div className="border-t border-line p-3">
           <div
-            className={`flex items-center ${collapsed ? "justify-center" : "gap-3"}`}
+            className={`flex items-center rounded-xl border border-line bg-zinc-50/70 ${collapsed ? "justify-center p-2" : "gap-3 p-3"}`}
           >
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-900 text-xs font-bold text-white">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink text-xs font-bold text-white">
               {initials}
             </span>
             {!collapsed && (
@@ -737,7 +744,6 @@ function Sidebar({
                 </p>
               </div>
             )}
-            {!collapsed && <ChevronDown size={15} className="text-zinc-400" />}
           </div>
         </div>
       </aside>
@@ -779,7 +785,7 @@ function Topbar({
     .slice(0, 2)
     .toUpperCase();
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-zinc-200 bg-white/95 px-3 backdrop-blur-md sm:gap-3 md:px-6">
+    <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-line bg-white/90 px-3 backdrop-blur-xl sm:gap-3 md:px-6">
       <button
         className="mr-1 rounded-lg border border-line bg-white p-2 text-zinc-500 hover:border-zinc-400 lg:hidden"
         onClick={() => setOpen(true)}
@@ -801,10 +807,12 @@ function Topbar({
         </p>
       </div>
       <button
-        className="flex min-w-0 flex-1 items-center gap-3 rounded-lg border border-line bg-zinc-50 px-3 py-2 text-left text-sm text-zinc-500 transition hover:border-zinc-300 hover:bg-white xl:mx-5 xl:max-w-xl"
+        className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-white px-3 py-2 text-left text-sm text-zinc-500 shadow-soft transition hover:border-blue/30 hover:text-zinc-700 xl:mx-5 xl:max-w-xl"
         onClick={onOpenSearch}
       >
-        <Search size={15} className="shrink-0" />
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-zinc-500 transition group-hover:bg-blue/5 group-hover:text-blue">
+          <Search size={14} />
+        </span>
         <span className="truncate">Search clients, tasks, reports, proofs</span>
         <kbd className="ml-auto hidden rounded border border-line bg-white px-1.5 py-0.5 text-[10px] font-semibold sm:block">
           Ctrl K
@@ -842,12 +850,12 @@ function Topbar({
       />
       <div className="relative ml-1" ref={profileRef}>
         <button
-          className="flex h-9 items-center gap-2 rounded-lg border border-line bg-white p-1 pr-2 transition hover:border-zinc-300"
+          className="flex h-10 items-center gap-2 rounded-xl border border-line bg-white p-1 pr-2 shadow-soft transition hover:border-zinc-300"
           onClick={() => setProfileOpen((value) => !value)}
           aria-label="Open profile menu"
           aria-expanded={profileOpen}
         >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-900 text-[10px] font-bold text-white">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ink text-[10px] font-bold text-white">
             {initials}
           </span>
           <span className="hidden max-w-28 text-left lg:block">
@@ -861,7 +869,7 @@ function Topbar({
           <ChevronDown size={13} className="hidden text-zinc-400 lg:block" />
         </button>
         {profileOpen && (
-          <div className="absolute right-0 top-11 z-50 w-56 rounded-xl border border-line bg-white p-2 shadow-lg">
+          <div className="absolute right-0 top-12 z-50 w-64 rounded-xl border border-line bg-white p-2 shadow-panel">
             <div className="border-b border-line px-3 py-3">
               <p className="truncate text-sm font-semibold">{user.name}</p>
               <p className="mt-0.5 truncate text-xs text-zinc-500">
@@ -1948,24 +1956,24 @@ function DashboardMetricCard({
 }) {
   const accents = {
     blue: "bg-blue/5 text-blue",
-    emerald: "bg-emerald-50 text-emerald-700",
-    orange: "bg-orange-50 text-orange-700",
-    violet: "bg-violet-50 text-violet-700",
+    emerald: "bg-blue/5 text-blue",
+    orange: "bg-blue/5 text-blue",
+    violet: "bg-blue/5 text-blue",
   };
   return (
-    <article className="group rounded-2xl border border-white/70 bg-white p-5 shadow-[0_8px_24px_rgba(24,24,27,0.045)] ring-1 ring-zinc-200/80 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(24,24,27,0.075)]">
+    <article className="group rounded-xl border border-line bg-white p-4 shadow-soft transition duration-150 hover:border-zinc-300">
       <div className="flex items-start justify-between gap-4">
         <span
-          className={`flex h-10 w-10 items-center justify-center rounded-xl ${accents[accent]}`}
+          className={`flex h-9 w-9 items-center justify-center rounded-lg ${accents[accent]}`}
         >
           <Icon size={18} strokeWidth={1.8} />
         </span>
-        <span className="text-[11px] font-medium text-zinc-400">{detail}</span>
+        <span className="max-w-28 text-right text-[10px] font-medium leading-4 text-zinc-400">{detail}</span>
       </div>
-      <p className="mt-6 text-[1.8rem] font-semibold leading-none tracking-[-0.04em] text-ink tabular-nums">
+      <p className="mt-5 text-[1.75rem] font-semibold leading-none tracking-[-0.04em] text-ink tabular-nums">
         {value}
       </p>
-      <p className="mt-2 text-sm font-medium text-zinc-500">{label}</p>
+      <p className="mt-2 text-xs font-semibold text-zinc-600">{label}</p>
     </article>
   );
 }
@@ -1983,7 +1991,7 @@ function DashboardTaskCard({ task, client, onEdit, updateTask }) {
         .toUpperCase()
     : "";
   return (
-    <article className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-[0_4px_16px_rgba(24,24,27,0.035)] transition duration-200 hover:border-zinc-300 hover:shadow-md">
+    <article className="rounded-xl border border-line bg-white p-4 shadow-soft transition duration-150 hover:border-zinc-300">
       <div className="flex items-start justify-between gap-4">
         <button className="min-w-0 text-left" onClick={() => onEdit(task)}>
           <h3 className="truncate text-sm font-semibold tracking-tight hover:text-blue">
@@ -2163,11 +2171,10 @@ function Dashboard({
         : "border-red-200 bg-red-50 text-red-700";
   return (
     <>
-      <header className="relative overflow-hidden rounded-3xl border border-white/70 bg-white p-6 shadow-[0_16px_50px_rgba(24,24,27,0.07)] ring-1 ring-zinc-200/80 sm:p-8">
-        <div className="absolute right-0 top-0 h-36 w-36 rounded-bl-[5rem] bg-blue/[0.035]" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+      <header className="border-b border-line pb-5">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="mb-4 flex items-center gap-3">
+            <div className="mb-3 flex items-center gap-3">
               <span
                 className={`inline-flex items-center gap-2 rounded-md border px-2 py-1 text-[11px] font-medium ${statusClasses}`}
               >
@@ -2175,7 +2182,7 @@ function Dashboard({
                 {statusLabel}
               </span>
             </div>
-            <h1 className="text-3xl font-semibold tracking-[-0.04em] text-ink sm:text-4xl">
+            <h1 className="text-2xl font-semibold tracking-[-0.03em] text-ink sm:text-3xl">
               Dashboard
             </h1>
             {/* <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-500">
@@ -2199,7 +2206,7 @@ function Dashboard({
         </div>
       </header>
 
-      <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {stats.map(([label, value, detail, Icon, accent]) => (
           <DashboardMetricCard
             key={label}
@@ -2212,8 +2219,8 @@ function Dashboard({
         ))}
       </section>
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="min-w-0 space-y-6">
+      <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-w-0 space-y-5">
           <section>
             <div className="mb-4 flex items-end justify-between gap-4">
               <div>
@@ -2266,7 +2273,7 @@ function Dashboard({
             </div>
           </section>
 
-          <section className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.055)] ring-1 ring-zinc-200/80">
+          <section className="overflow-hidden rounded-xl border border-line bg-white shadow-soft">
             <div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6">
               <div>
                 <h2 className="text-base font-semibold tracking-tight">
@@ -2309,7 +2316,7 @@ function Dashboard({
             )}
           </section>
 
-          <section className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.055)] ring-1 ring-zinc-200/80">
+          <section className="overflow-hidden rounded-xl border border-line bg-white shadow-soft">
             <div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6">
               <div>
                 <h2 className="text-base font-semibold tracking-tight">
@@ -2329,7 +2336,7 @@ function Dashboard({
             <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
               {recurringUpcoming.length ? (
                 recurringUpcoming.map((task) => (
-                  <article className="rounded-2xl bg-canvas p-4" key={task.id}>
+                  <article className="rounded-lg border border-line bg-canvas p-4" key={task.id}>
                     <div className="flex items-start justify-between gap-3">
                       <Repeat2 size={15} className="text-violet-600" />
                       <span className="text-[10px] font-semibold text-violet-700">
@@ -2369,8 +2376,8 @@ function Dashboard({
           </section>
         </div>
 
-        <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
-          <section className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.055)] ring-1 ring-zinc-200/80">
+        <aside className="space-y-5 xl:sticky xl:top-24 xl:self-start">
+          <section className="overflow-hidden rounded-xl border border-line bg-white shadow-soft">
             <div className="border-b border-line px-5 py-4">
               <h2 className="text-base font-semibold tracking-tight">
                 Delivery pulse
@@ -2422,7 +2429,7 @@ function Dashboard({
             </div>
           </section>
 
-          <section className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.055)] ring-1 ring-zinc-200/80">
+          <section className="overflow-hidden rounded-xl border border-line bg-white shadow-soft">
             <div className="flex items-center justify-between border-b border-line px-5 py-4">
               <div>
                 <h2 className="text-base font-semibold tracking-tight">
@@ -2452,7 +2459,7 @@ function Dashboard({
               </div>
             ) : (
               <div className="p-5">
-                <div className="rounded-2xl border border-dashed border-zinc-200 p-5 text-center">
+                <div className="rounded-lg border border-dashed border-zinc-200 p-5 text-center">
                   <CheckCircle2
                     size={20}
                     className="mx-auto text-emerald-600"
@@ -2466,7 +2473,7 @@ function Dashboard({
             )}
           </section>
 
-          <section className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.055)] ring-1 ring-zinc-200/80">
+          <section className="overflow-hidden rounded-xl border border-line bg-white shadow-soft">
             <div className="flex items-center justify-between border-b border-line px-5 py-4">
               <div>
                 <h2 className="text-base font-semibold tracking-tight">

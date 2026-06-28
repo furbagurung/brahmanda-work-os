@@ -4,13 +4,28 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: '#18181B',
-        line: '#E7E8EC',
-        canvas: '#F5F6F8',
-        blue: '#002FA7',
+        ink: 'var(--color-ink)',
+        line: 'var(--color-border)',
+        canvas: 'var(--color-canvas)',
+        surface: 'var(--color-surface)',
+        muted: 'var(--color-muted)',
+        brand: 'var(--color-primary)',
+        blue: 'var(--color-primary)',
       },
       fontFamily: {
         sans: ['"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
+      },
+      borderRadius: {
+        sm: 'var(--radius-sm)',
+        DEFAULT: 'var(--radius-md)',
+        md: 'var(--radius-md)',
+        lg: 'var(--radius-lg)',
+        xl: 'var(--radius-xl)',
+        '2xl': 'var(--radius-2xl)',
+      },
+      boxShadow: {
+        soft: '0 1px 2px rgba(24, 24, 27, 0.035)',
+        panel: 'var(--shadow-panel)',
       },
     },
   },
