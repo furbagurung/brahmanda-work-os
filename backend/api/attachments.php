@@ -11,7 +11,8 @@ bootstrapApi();
 
 const TASK_ATTACHMENT_MAX_SIZE = 25 * 1024 * 1024;
 const TASK_ATTACHMENT_COLUMNS = 'id, task_id, attachment_type, title, url, file_path, file_url,
-    original_filename, mime_type, file_size, is_image, created_at';
+    original_filename, mime_type, file_size, is_image, thumbnail_path, thumbnail_url,
+    optimized_path, optimized_url, created_at';
 
 function taskAttachmentUploadDirectory(): string
 {
@@ -35,6 +36,82 @@ function taskAttachmentPublicUrl(string $filename): string
 
     return $scheme . '://' . $host . ($backendPath === '' ? '' : $backendPath)
         . '/uploads/task-attachments/' . rawurlencode($filename);
+}
+
+function taskAttachmentImageResource(string $sourcePath, string $mimeType)
+{
+    if (!extension_loaded('gd')) {
+        return false;
+    }
+
+    return match ($mimeType) {
+        'image/jpeg' => function_exists('imagecreatefromjpeg') ? @imagecreatefromjpeg($sourcePath) : false,
+        'image/png' => function_exists('imagecreatefrompng') ? @imagecreatefrompng($sourcePath) : false,
+        'image/webp' => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($sourcePath) : false,
+        default => false,
+    };
+}
+
+function taskAttachmentSaveImage($image, string $destination, string $mimeType): bool
+{
+    return match ($mimeType) {
+        'image/jpeg' => function_exists('imagejpeg') && imagejpeg($image, $destination, 82),
+        'image/png' => function_exists('imagepng') && imagepng($image, $destination, 7),
+        'image/webp' => function_exists('imagewebp') && imagewebp($image, $destination, 82),
+        default => false,
+    };
+}
+
+function taskAttachmentCreateDerivative(
+    string $sourcePath,
+    string $destination,
+    string $mimeType,
+    int $maxWidth
+): bool {
+    $source = taskAttachmentImageResource($sourcePath, $mimeType);
+    if ($source === false) {
+        return false;
+    }
+
+    $sourceWidth = imagesx($source);
+    $sourceHeight = imagesy($source);
+    if ($sourceWidth < 1 || $sourceHeight < 1) {
+        imagedestroy($source);
+        return false;
+    }
+
+    $targetWidth = min($sourceWidth, $maxWidth);
+    $targetHeight = max(1, (int) round($sourceHeight * ($targetWidth / $sourceWidth)));
+    $target = imagecreatetruecolor($targetWidth, $targetHeight);
+    if ($target === false) {
+        imagedestroy($source);
+        return false;
+    }
+
+    if (in_array($mimeType, ['image/png', 'image/webp'], true)) {
+        imagealphablending($target, false);
+        imagesavealpha($target, true);
+        $transparent = imagecolorallocatealpha($target, 0, 0, 0, 127);
+        imagefilledrectangle($target, 0, 0, $targetWidth, $targetHeight, $transparent);
+    }
+
+    $resampled = imagecopyresampled(
+        $target,
+        $source,
+        0,
+        0,
+        0,
+        0,
+        $targetWidth,
+        $targetHeight,
+        $sourceWidth,
+        $sourceHeight
+    );
+    $saved = $resampled && taskAttachmentSaveImage($target, $destination, $mimeType);
+    imagedestroy($target);
+    imagedestroy($source);
+
+    return $saved;
 }
 
 function findAttachmentTask(PDO $pdo, int $taskId): array
@@ -69,7 +146,9 @@ try {
             $statement = $pdo->prepare(
                 'SELECT a.id, a.task_id, a.attachment_type, a.title, a.url, a.file_path,
                         a.file_url, a.original_filename, a.mime_type, a.file_size,
-                        a.is_image, a.created_at, t.title AS task_title
+                        a.is_image, a.thumbnail_path, a.thumbnail_url,
+                        a.optimized_path, a.optimized_url, a.created_at,
+                        t.title AS task_title
                  FROM task_attachments a
                  INNER JOIN tasks t ON t.id = a.task_id
                  WHERE t.client_id = ?
@@ -106,41 +185,107 @@ try {
             'image/png' => ['png'],
             'image/webp' => ['webp'],
             'image/gif' => ['gif'],
+            'video/mp4' => ['mp4'],
+            'video/quicktime' => ['mov'],
+            'video/webm' => ['webm'],
             'application/pdf' => ['pdf'],
+            'application/msword' => ['doc'],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => ['docx'],
+            'application/vnd.ms-excel' => ['xls', 'csv'],
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => ['xlsx'],
+            'application/vnd.ms-powerpoint' => ['ppt'],
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation' => ['pptx'],
+            'text/plain' => ['txt', 'csv'],
+            'text/csv' => ['csv'],
+            'application/csv' => ['csv'],
         ];
         $mimeType = (new finfo(FILEINFO_MIME_TYPE))->file((string) $file['tmp_name']);
         $originalFilename = trim(basename((string) $file['name']));
         $originalExtension = strtolower(pathinfo($originalFilename, PATHINFO_EXTENSION));
 
         if (!isset($allowedMimeTypes[$mimeType]) || !in_array($originalExtension, $allowedMimeTypes[$mimeType], true)) {
-            errorResponse('Only JPG, PNG, WebP, GIF, and PDF attachments are allowed.', 422);
+            errorResponse('This file type is not supported. Upload an image, video, PDF, or supported document.', 422);
         }
 
-        $safeExtension = $allowedMimeTypes[$mimeType][0];
-        $storedFilename = bin2hex(random_bytes(20)) . '.' . $safeExtension;
+        $safeExtension = $originalExtension;
+        $storedBaseName = bin2hex(random_bytes(20));
+        $storedFilename = $storedBaseName . '.' . $safeExtension;
         $uploadDirectory = taskAttachmentUploadDirectory();
         if (!is_dir($uploadDirectory) && !mkdir($uploadDirectory, 0755, true) && !is_dir($uploadDirectory)) {
             throw new RuntimeException('The attachment upload directory could not be created.');
         }
 
-        $destination = $uploadDirectory . '/' . $storedFilename;
-        if (!move_uploaded_file((string) $file['tmp_name'], $destination)) {
-            throw new RuntimeException('The attachment could not be stored.');
+        $isImage = str_starts_with($mimeType, 'image/') ? 1 : 0;
+        $filePath = null;
+        $fileUrl = null;
+        $thumbnailPath = null;
+        $thumbnailUrl = null;
+        $optimizedPath = null;
+        $optimizedUrl = null;
+        $generatedPhysicalPaths = [];
+
+        $canOptimize = $isImage === 1
+            && $mimeType !== 'image/gif'
+            && extension_loaded('gd');
+
+        if ($canOptimize) {
+            $optimizedFilename = $storedBaseName . '-optimized.' . $safeExtension;
+            $optimizedDestination = $uploadDirectory . '/' . $optimizedFilename;
+            $optimizedCreated = taskAttachmentCreateDerivative(
+                (string) $file['tmp_name'],
+                $optimizedDestination,
+                $mimeType,
+                1600
+            );
+
+            if ($optimizedCreated) {
+                $generatedPhysicalPaths[] = $optimizedDestination;
+                $optimizedPath = 'uploads/task-attachments/' . $optimizedFilename;
+                $optimizedUrl = taskAttachmentPublicUrl($optimizedFilename);
+                $filePath = $optimizedPath;
+                $fileUrl = $optimizedUrl;
+
+                $thumbnailFilename = $storedBaseName . '-thumbnail.' . $safeExtension;
+                $thumbnailDestination = $uploadDirectory . '/' . $thumbnailFilename;
+                if (taskAttachmentCreateDerivative(
+                    (string) $file['tmp_name'],
+                    $thumbnailDestination,
+                    $mimeType,
+                    400
+                )) {
+                    $generatedPhysicalPaths[] = $thumbnailDestination;
+                    $thumbnailPath = 'uploads/task-attachments/' . $thumbnailFilename;
+                    $thumbnailUrl = taskAttachmentPublicUrl($thumbnailFilename);
+                } elseif (is_file($thumbnailDestination)) {
+                    @unlink($thumbnailDestination);
+                }
+            } elseif (is_file($optimizedDestination)) {
+                @unlink($optimizedDestination);
+            }
         }
 
-        $filePath = 'uploads/task-attachments/' . $storedFilename;
-        $fileUrl = taskAttachmentPublicUrl($storedFilename);
-        $isImage = str_starts_with($mimeType, 'image/') ? 1 : 0;
+        if ($filePath === null || $fileUrl === null) {
+            $destination = $uploadDirectory . '/' . $storedFilename;
+            if (!move_uploaded_file((string) $file['tmp_name'], $destination)) {
+                throw new RuntimeException('The attachment could not be stored.');
+            }
+            $generatedPhysicalPaths[] = $destination;
+            $filePath = 'uploads/task-attachments/' . $storedFilename;
+            $fileUrl = taskAttachmentPublicUrl($storedFilename);
+        }
+
         $title = trim((string) ($_POST['title'] ?? '')) ?: $originalFilename;
 
         try {
             $statement = $pdo->prepare(
                 'INSERT INTO task_attachments
                     (task_id, attachment_type, title, url, file_path, file_url,
-                     original_filename, mime_type, file_size, is_image)
+                     original_filename, mime_type, file_size, is_image,
+                     thumbnail_path, thumbnail_url, optimized_path, optimized_url)
                  VALUES
                     (:task_id, :attachment_type, :title, :url, :file_path, :file_url,
-                     :original_filename, :mime_type, :file_size, :is_image)'
+                     :original_filename, :mime_type, :file_size, :is_image,
+                     :thumbnail_path, :thumbnail_url, :optimized_path, :optimized_url)'
             );
             $statement->execute([
                 ':task_id' => $taskId,
@@ -153,9 +298,17 @@ try {
                 ':mime_type' => $mimeType,
                 ':file_size' => (int) $file['size'],
                 ':is_image' => $isImage,
+                ':thumbnail_path' => $thumbnailPath,
+                ':thumbnail_url' => $thumbnailUrl,
+                ':optimized_path' => $optimizedPath,
+                ':optimized_url' => $optimizedUrl,
             ]);
         } catch (Throwable $exception) {
-            @unlink($destination);
+            foreach ($generatedPhysicalPaths as $generatedPhysicalPath) {
+                if (is_file($generatedPhysicalPath)) {
+                    @unlink($generatedPhysicalPath);
+                }
+            }
             throw $exception;
         }
 
@@ -233,8 +386,13 @@ try {
             errorResponse('Attachment not found.', 404);
         }
 
-        if (!empty($current['file_path'])) {
-            $physicalPath = taskAttachmentUploadDirectory() . '/' . basename((string) $current['file_path']);
+        $storedPaths = array_unique(array_filter([
+            $current['file_path'] ?? null,
+            $current['optimized_path'] ?? null,
+            $current['thumbnail_path'] ?? null,
+        ]));
+        foreach ($storedPaths as $storedPath) {
+            $physicalPath = taskAttachmentUploadDirectory() . '/' . basename((string) $storedPath);
             if (is_file($physicalPath)) {
                 @unlink($physicalPath);
             }

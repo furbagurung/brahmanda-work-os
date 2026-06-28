@@ -32,7 +32,7 @@ import {
   UserRound,
   Users,
   UsersRound,
-  Upload,
+  Video,
   X,
 } from "lucide-react";
 import {
@@ -985,7 +985,6 @@ function TaskForm({
   const [commentText, setCommentText] = useState("");
   const [checklistTitle, setChecklistTitle] = useState("");
   const [collaborationError, setCollaborationError] = useState("");
-  const [attachmentFile, setAttachmentFile] = useState(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [attachmentError, setAttachmentError] = useState("");
   const attachmentInputRef = useRef(null);
@@ -1024,22 +1023,37 @@ function TaskForm({
         (_, attachmentIndex) => attachmentIndex !== index,
       ),
     }));
-  const uploadAttachment = async () => {
-    if (!attachmentFile || !task?.id || String(task.id).startsWith("task-")) {
+  const uploadAttachment = async (file) => {
+    if (!file || !task?.id || String(task.id).startsWith("task-")) {
       return;
     }
-    const allowedTypes = [
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-      "image/gif",
-      "application/pdf",
+    const allowedExtensions = [
+      "jpg",
+      "jpeg",
+      "png",
+      "webp",
+      "gif",
+      "mp4",
+      "mov",
+      "webm",
+      "pdf",
+      "doc",
+      "docx",
+      "xls",
+      "xlsx",
+      "ppt",
+      "pptx",
+      "txt",
+      "csv",
     ];
-    if (!allowedTypes.includes(attachmentFile.type)) {
-      setAttachmentError("Only JPG, PNG, WebP, GIF, and PDF files are allowed.");
+    const extension = file.name.split(".").pop()?.toLowerCase() || "";
+    if (!allowedExtensions.includes(extension)) {
+      setAttachmentError(
+        "Upload an image, video, PDF, or supported document file.",
+      );
       return;
     }
-    if (attachmentFile.size > 25 * 1024 * 1024) {
+    if (file.size > 25 * 1024 * 1024) {
       setAttachmentError("Attachments must be 25MB or smaller.");
       return;
     }
@@ -1047,7 +1061,7 @@ function TaskForm({
     setAttachmentError("");
     try {
       const uploaded = attachmentFromApi(
-        await uploadTaskAttachment(task.id, attachmentFile),
+        await uploadTaskAttachment(task.id, file),
       );
       setForm((current) => ({
         ...current,
@@ -1056,7 +1070,6 @@ function TaskForm({
           { ...uploaded, uploadedThisSession: true },
         ],
       }));
-      setAttachmentFile(null);
       if (attachmentInputRef.current) attachmentInputRef.current.value = "";
     } catch (error) {
       setAttachmentError(error.message);
@@ -1424,36 +1437,35 @@ function TaskForm({
         <FormSection
           icon={Paperclip}
           title="Upload Attachments"
-          description="Images or PDF files up to 25MB."
+          description="Upload images, videos, PDFs, or documents up to 25MB."
         >
           {task?.id && !String(task.id).startsWith("task-") ? (
             <>
               <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-4 sm:col-span-2">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <label className="block flex-1">
+                <div>
+                  <label className="block">
                     <span className="mb-2 block text-xs font-semibold text-zinc-600">
-                      Choose an image or PDF
+                      Choose a file
                     </span>
                     <input
                       ref={attachmentInputRef}
                       className="block w-full rounded-lg border border-zinc-200 bg-white text-sm text-zinc-600 file:mr-3 file:border-0 file:border-r file:border-zinc-200 file:bg-zinc-50 file:px-3 file:py-2.5 file:text-xs file:font-semibold file:text-zinc-700 hover:border-zinc-300"
                       type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                      accept=".jpg,.jpeg,.png,.webp,.gif,.mp4,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
+                      disabled={uploadingAttachment}
                       onChange={(event) => {
-                        setAttachmentFile(event.target.files?.[0] || null);
                         setAttachmentError("");
+                        const file = event.target.files?.[0];
+                        if (file) uploadAttachment(file);
                       }}
                     />
                   </label>
-                  <button
-                    type="button"
-                    className="button-secondary shrink-0"
-                    disabled={!attachmentFile || uploadingAttachment}
-                    onClick={uploadAttachment}
-                  >
-                    <Upload size={14} />
-                    {uploadingAttachment ? "Uploading…" : "Upload"}
-                  </button>
+                  {uploadingAttachment && (
+                    <div className="mt-3 flex items-center gap-2 text-xs font-medium text-zinc-500">
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-200 border-t-blue" />
+                      Uploading attachment…
+                    </div>
+                  )}
                 </div>
                 {attachmentError && (
                   <p className="mt-3 text-xs font-medium text-red-700">
@@ -1470,17 +1482,36 @@ function TaskForm({
                     >
                       {attachment.isImage ? (
                         <a
-                          href={attachment.url}
+                          href={
+                            attachment.optimizedUrl ||
+                            attachment.fileUrl ||
+                            attachment.url
+                          }
                           target="_blank"
                           rel="noreferrer"
                           className="block"
                         >
                           <img
                             className="h-28 w-full object-cover"
-                            src={attachment.url}
+                            src={
+                              attachment.optimizedUrl ||
+                              attachment.fileUrl ||
+                              attachment.url
+                            }
                             alt={attachment.originalFilename || attachment.title}
                           />
                         </a>
+                      ) : String(attachment.mimeType || "").startsWith(
+                          "video/",
+                        ) ? (
+                        <video
+                          className="h-28 w-full bg-zinc-950 object-contain"
+                          src={attachment.url}
+                          controls
+                          preload="metadata"
+                        >
+                          Your browser does not support video playback.
+                        </video>
                       ) : (
                         <a
                           href={attachment.url}
@@ -1497,9 +1528,13 @@ function TaskForm({
                             {attachment.originalFilename || attachment.title}
                           </p>
                           <p className="mt-0.5 text-[10px] text-zinc-400">
+                            {(attachment.originalFilename || attachment.title)
+                              .split(".")
+                              .pop()
+                              ?.toUpperCase() || "FILE"}
                             {attachment.fileSize
-                              ? `${(attachment.fileSize / 1024 / 1024).toFixed(2)} MB`
-                              : attachment.mimeType || "Uploaded file"}
+                              ? ` · ${(attachment.fileSize / 1024 / 1024).toFixed(2)} MB`
+                              : ""}
                           </p>
                         </div>
                         <a
@@ -1508,7 +1543,7 @@ function TaskForm({
                           target="_blank"
                           rel="noreferrer"
                         >
-                          Open
+                          Open / download
                         </a>
                         <button
                           type="button"
@@ -1535,7 +1570,7 @@ function TaskForm({
             </>
           ) : (
             <p className="text-sm text-zinc-500 sm:col-span-2">
-              Save the task first, then reopen it to upload images or PDF files.
+              Save the task first, then reopen it to upload files.
             </p>
           )}
         </FormSection>
@@ -2519,6 +2554,18 @@ const firstTaskImage = (task) =>
       String(attachment.mimeType || "").startsWith("image/"),
   );
 
+const taskCardImageUrl = (attachment) =>
+  attachment?.thumbnailUrl ||
+  attachment?.optimizedUrl ||
+  attachment?.fileUrl ||
+  attachment?.url ||
+  "";
+
+const firstTaskVideo = (task) =>
+  task.attachments?.find((attachment) =>
+    String(attachment.mimeType || "").startsWith("video/"),
+  );
+
 function TaskListRow({
   task,
   client,
@@ -2532,6 +2579,7 @@ function TaskListRow({
     ? Math.round((task.checklistCompleted / task.checklistTotal) * 100)
     : 0;
   const imageAttachment = firstTaskImage(task);
+  const videoAttachment = firstTaskVideo(task);
   return (
     <article
       className={`group relative grid gap-4 border-b border-zinc-100 px-4 py-4 transition last:border-b-0 hover:bg-blue/[0.025] sm:px-5 xl:grid-cols-[32px_minmax(260px,1.5fr)_minmax(150px,.7fr)_minmax(150px,.7fr)_145px_120px_36px] xl:items-center ${selected ? "bg-blue/[0.045]" : "bg-white"}`}
@@ -2545,13 +2593,18 @@ function TaskListRow({
         aria-label={`Select ${task.title}`}
       />
       <button className="min-w-0 text-left" onClick={onEdit}>
-        {imageAttachment && (
+        {imageAttachment ? (
           <img
             className="mb-3 h-14 w-20 rounded-lg border border-zinc-200 object-cover sm:float-left sm:mb-0 sm:mr-3"
-            src={imageAttachment.url}
+            src={taskCardImageUrl(imageAttachment)}
             alt=""
           />
-        )}
+        ) : videoAttachment ? (
+          <span className="mb-3 flex h-14 w-20 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-[10px] font-semibold text-zinc-500 sm:float-left sm:mb-0 sm:mr-3">
+            <Video size={15} className="mr-1" />
+            VIDEO
+          </span>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="truncate text-sm font-semibold tracking-tight text-zinc-900 transition group-hover:text-blue">
             {task.title}
@@ -2644,9 +2697,10 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
     : 0;
   const proofCount = task.attachments?.length || (task.proofLink ? 1 : 0);
   const imageAttachment = firstTaskImage(task);
+  const videoAttachment = firstTaskVideo(task);
   return (
     <article className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-[0_5px_18px_rgba(24,24,27,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-blue/20 hover:shadow-[0_12px_30px_rgba(37,99,235,0.09)]">
-      {imageAttachment && (
+      {imageAttachment ? (
         <button
           className="mb-3 block w-full overflow-hidden rounded-lg"
           onClick={onEdit}
@@ -2654,11 +2708,20 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
         >
           <img
             className="h-24 w-full object-cover transition duration-200 group-hover:scale-[1.01]"
-            src={imageAttachment.url}
+            src={taskCardImageUrl(imageAttachment)}
             alt=""
           />
         </button>
-      )}
+      ) : videoAttachment ? (
+        <button
+          className="mb-3 flex h-20 w-full items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-xs font-semibold text-zinc-500 hover:border-zinc-300 hover:text-zinc-700"
+          onClick={onEdit}
+          aria-label={`Open video attachment for ${task.title}`}
+        >
+          <Video size={17} className="mr-2" />
+          Video attachment
+        </button>
+      ) : null}
       <div className="flex items-start justify-between gap-3">
         <button className="min-w-0 flex-1 text-left" onClick={onEdit}>
           <h3 className="text-sm font-semibold leading-5 tracking-tight text-zinc-900 transition group-hover:text-blue">

@@ -50,7 +50,8 @@ try {
         $placeholders = implode(',', array_fill(0, count($taskIds), '?'));
         $attachmentStatement = $pdo->prepare(
             'SELECT id, task_id, attachment_type, title, url, file_path, file_url,
-                    original_filename, mime_type, file_size, is_image, created_at
+                    original_filename, mime_type, file_size, is_image,
+                    thumbnail_path, thumbnail_url, optimized_path, optimized_url, created_at
              FROM task_attachments
              WHERE task_id IN (' . $placeholders . ')
              ORDER BY created_at ASC, id ASC'

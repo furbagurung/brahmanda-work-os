@@ -123,6 +123,19 @@ The following local files are ignored and must never be committed:
 - `backend/config/app.php`
 - private keys, credentials, secrets, and logs
 
+Uploaded task attachments are local runtime/user data and must never be
+committed to GitHub. `backend/uploads/task-attachments/` is ignored except for
+its `.gitkeep` placeholder.
+
+If uploaded files were tracked before the ignore rule was added, remove them
+from the Git index while keeping the local files:
+
+```bash
+git rm -r --cached backend/uploads/task-attachments
+git add backend/uploads/task-attachments/.gitkeep
+git commit -m "Stop tracking uploaded attachments"
+```
+
 Bearer tokens are stored hashed in MySQL. Production must use HTTPS, a non-demo administrator password, restricted CORS, and a dedicated least-privilege database user.
 
 ## Useful commands
