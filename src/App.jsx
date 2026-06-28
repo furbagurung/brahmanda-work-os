@@ -1925,7 +1925,7 @@ function DeadlineColumn({ title, description, tasks, clients, tone }) {
   };
   const [toneSurface, toneBar] = toneClasses[tone];
   return (
-    <section className="overflow-hidden rounded-2xl border border-white/70 bg-white shadow-[0_8px_24px_rgba(24,24,27,0.045)] ring-1 ring-zinc-200/80">
+    <section className="overflow-hidden rounded-xl border border-line bg-white shadow-soft">
       <div className={`h-1 ${toneBar}`} />
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
@@ -1942,7 +1942,7 @@ function DeadlineColumn({ title, description, tasks, clients, tone }) {
         {tasks.length ? (
           <div className="mt-4 space-y-2">
             {tasks.slice(0, 2).map((task) => (
-              <div className="rounded-xl bg-canvas/80 p-3" key={task.id}>
+              <div className="rounded-lg border border-line bg-canvas/70 p-3" key={task.id}>
                 <p className="truncate text-xs font-semibold text-zinc-800">
                   {task.title}
                 </p>
@@ -1979,7 +1979,7 @@ function DashboardMetricCard({
     violet: "bg-blue/5 text-blue",
   };
   return (
-    <article className={`group relative overflow-hidden rounded-3xl border p-5 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-panel ${featured ? "border-ink bg-gradient-to-br from-ink via-zinc-900 to-blue text-white" : "border-line bg-white hover:border-zinc-300"}`}>
+    <article className={`group relative min-h-40 overflow-hidden rounded-xl border p-5 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-panel ${featured ? "border-ink bg-gradient-to-br from-ink via-zinc-900 to-blue text-white" : "border-line bg-white hover:border-zinc-300"}`}>
       {featured && <span className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-blue/40 blur-2xl" />}
       <div className="flex items-start justify-between gap-4">
         <span
@@ -2158,6 +2158,28 @@ function Dashboard({
       "emerald",
     ],
   ];
+  const reportsReady = new Set(completed.map((task) => task.clientId)).size;
+  const workflowTotal = Math.max(tasks.length, 1);
+  const workflowItems = [
+    {
+      label: "Completed",
+      value: completed.length,
+      percentage: Math.round((completed.length / workflowTotal) * 100),
+      bar: "bg-blue",
+    },
+    {
+      label: "Pending",
+      value: openTasks.length,
+      percentage: Math.round((openTasks.length / workflowTotal) * 100),
+      bar: "bg-ink",
+    },
+    {
+      label: "Due today",
+      value: dueTodayTasks.length,
+      percentage: Math.round((dueTodayTasks.length / workflowTotal) * 100),
+      bar: "bg-zinc-400",
+    },
+  ];
   const priorityTasks = tasks
     .filter((task) => task.status !== "Completed")
     .sort((a, b) => {
@@ -2190,10 +2212,10 @@ function Dashboard({
         : "border-red-200 bg-red-50 text-red-700";
   return (
     <>
-      <div className="flex flex-col gap-3 p-2 sm:p-3 lg:flex-row lg:items-center lg:justify-between">
-          <section className="w-full rounded-2xl border border-line bg-white px-4 py-3 shadow-soft sm:w-auto sm:min-w-[250px]">
+      <div className="flex flex-col gap-3 pt-4 lg:flex-row lg:items-center lg:justify-between">
+          <section className="w-full rounded-xl border border-line bg-white px-4 py-3 shadow-soft sm:w-auto sm:min-w-[260px]">
             <div className="flex items-start gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue/5 text-blue"><CalendarDays size={17} /></span>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue/5 text-blue"><CalendarDays size={17} /></span>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-400">Today</p>
                 <p className="mt-1 text-sm font-semibold text-ink">{formatDate(TODAY, { weekday: "long", month: "long", day: "numeric" })}</p>
@@ -2221,8 +2243,8 @@ function Dashboard({
           </div>
       </div>
 
-      <section className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {stats.map(([label, value, detail, Icon, accent], index) => (
+      <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[stats[1], stats[0], stats[2], stats[4]].map(([label, value, detail, Icon, accent], index) => (
           <DashboardMetricCard
             key={label}
             label={label}
@@ -2230,15 +2252,75 @@ function Dashboard({
             detail={detail}
             icon={Icon}
             accent={accent}
-            featured={index === 1}
+            featured={index === 0}
           />
         ))}
       </section>
 
-      <div className="mt-4 grid gap-4 2xl:grid-cols-[1.35fr_0.65fr]">
+      <div className="mt-5 grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
         <div className="min-w-0 space-y-4">
-          <section>
-            <div className="mb-3 flex items-end justify-between gap-4 px-1">
+          <section className="overflow-hidden rounded-xl border border-line bg-white shadow-soft">
+            <div className="flex items-start justify-between border-b border-line px-5 py-4">
+              <div>
+                <h2 className="text-base font-semibold tracking-tight">
+                  Delivery overview
+                </h2>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Current task flow across the workspace.
+                </p>
+              </div>
+              <Badge variant="info">{tasks.length} tasks</Badge>
+            </div>
+            <div className="grid gap-6 p-5 lg:grid-cols-[1fr_220px]">
+              <div className="space-y-5">
+                {workflowItems.map((item) => (
+                  <div key={item.label}>
+                    <div className="mb-2 flex items-center justify-between text-xs">
+                      <span className="font-semibold text-zinc-600">
+                        {item.label}
+                      </span>
+                      <span className="font-bold tabular-nums text-ink">
+                        {item.value}
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-zinc-100">
+                      <div
+                        className={`h-full rounded-full ${item.bar}`}
+                        style={{ width: `${item.percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+                <div className="rounded-xl border border-line bg-canvas/70 p-4">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue/5 text-blue">
+                    <CheckCircle2 size={16} />
+                  </span>
+                  <p className="mt-4 text-2xl font-semibold tabular-nums text-ink">
+                    {String(completed.length).padStart(2, "0")}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-zinc-500">
+                    Completed work
+                  </p>
+                </div>
+                <div className="rounded-xl border border-line bg-canvas/70 p-4">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600">
+                    <FileText size={16} />
+                  </span>
+                  <p className="mt-4 text-2xl font-semibold tabular-nums text-ink">
+                    {String(reportsReady).padStart(2, "0")}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-zinc-500">
+                    Reports ready
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="overflow-hidden rounded-xl border border-line bg-white shadow-soft">
+            <div className="flex items-end justify-between gap-4 border-b border-line px-5 py-4">
               <div>
                 <h2 className="text-lg font-semibold tracking-tight">
                   Deadline attention
@@ -2254,7 +2336,7 @@ function Dashboard({
                 View reminders
               </button>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
               <DeadlineColumn
                 title="Overdue"
                 description="Past deadline"
@@ -2332,7 +2414,7 @@ function Dashboard({
             )}
           </section>
 
-          <section className="overflow-hidden rounded-xl border border-line bg-white shadow-soft">
+          <section className="hidden">
             <div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6">
               <div>
                 <h2 className="text-base font-semibold tracking-tight">
@@ -2392,7 +2474,7 @@ function Dashboard({
           </section>
         </div>
 
-        <aside className="space-y-4 2xl:sticky 2xl:top-24 2xl:self-start">
+        <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
           <section className="overflow-hidden rounded-xl border border-line bg-white shadow-soft">
             <div className="border-b border-line px-5 py-4">
               <h2 className="text-base font-semibold tracking-tight">
