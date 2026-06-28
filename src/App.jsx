@@ -14,6 +14,7 @@ import {
   ClipboardList,
   Clock3,
   Command,
+  Download,
   FileText,
   History,
   LayoutDashboard,
@@ -70,6 +71,7 @@ import {
   deleteClient as deleteClientApi,
   deleteTask as deleteTaskApi,
   deleteTaskAttachment,
+  downloadTaskAttachment,
   generateReport as generateReportApi,
   getActivityLogs,
   getBillings,
@@ -105,6 +107,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "./services/api";
+import { getAttachmentPreviewUrl } from "./attachmentUtils";
 import {
   deadlineState,
   formatDate,
@@ -1482,23 +1485,17 @@ function TaskForm({
                     >
                       {attachment.isImage ? (
                         <a
-                          href={
-                            attachment.optimizedUrl ||
-                            attachment.fileUrl ||
-                            attachment.url
-                          }
+                          href={getAttachmentPreviewUrl(attachment, "modal")}
                           target="_blank"
                           rel="noreferrer"
                           className="block"
                         >
                           <img
                             className="h-28 w-full object-cover"
-                            src={
-                              attachment.optimizedUrl ||
-                              attachment.fileUrl ||
-                              attachment.url
-                            }
+                            src={getAttachmentPreviewUrl(attachment, "modal")}
                             alt={attachment.originalFilename || attachment.title}
+                            loading="lazy"
+                            decoding="async"
                           />
                         </a>
                       ) : String(attachment.mimeType || "").startsWith(
@@ -1506,7 +1503,7 @@ function TaskForm({
                         ) ? (
                         <video
                           className="h-28 w-full bg-zinc-950 object-contain"
-                          src={attachment.url}
+                          src={getAttachmentPreviewUrl(attachment, "modal")}
                           controls
                           preload="metadata"
                         >
@@ -1514,7 +1511,7 @@ function TaskForm({
                         </video>
                       ) : (
                         <a
-                          href={attachment.url}
+                          href={getAttachmentPreviewUrl(attachment, "modal")}
                           target="_blank"
                           rel="noreferrer"
                           className="flex h-28 items-center justify-center bg-zinc-50 text-zinc-400 hover:text-blue"
@@ -1539,12 +1536,31 @@ function TaskForm({
                         </div>
                         <a
                           className="text-xs font-semibold text-blue hover:underline"
-                          href={attachment.url}
+                          href={getAttachmentPreviewUrl(attachment, "modal")}
                           target="_blank"
                           rel="noreferrer"
                         >
-                          Open / download
+                          Open
                         </a>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-600 hover:text-blue"
+                          onClick={async () => {
+                            try {
+                              await downloadTaskAttachment(
+                                attachment.id,
+                                attachment.originalFilename ||
+                                  attachment.title ||
+                                  "attachment",
+                              );
+                            } catch (error) {
+                              setAttachmentError(error.message);
+                            }
+                          }}
+                        >
+                          <Download size={13} />
+                          Download
+                        </button>
                         <button
                           type="button"
                           className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:bg-red-50 hover:text-red-700"
@@ -2554,13 +2570,6 @@ const firstTaskImage = (task) =>
       String(attachment.mimeType || "").startsWith("image/"),
   );
 
-const taskCardImageUrl = (attachment) =>
-  attachment?.thumbnailUrl ||
-  attachment?.optimizedUrl ||
-  attachment?.fileUrl ||
-  attachment?.url ||
-  "";
-
 const firstTaskVideo = (task) =>
   task.attachments?.find((attachment) =>
     String(attachment.mimeType || "").startsWith("video/"),
@@ -2596,8 +2605,10 @@ function TaskListRow({
         {imageAttachment ? (
           <img
             className="mb-3 h-14 w-20 rounded-lg border border-zinc-200 object-cover sm:float-left sm:mb-0 sm:mr-3"
-            src={taskCardImageUrl(imageAttachment)}
+            src={getAttachmentPreviewUrl(imageAttachment, "card")}
             alt=""
+            loading="lazy"
+            decoding="async"
           />
         ) : videoAttachment ? (
           <span className="mb-3 flex h-14 w-20 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-[10px] font-semibold text-zinc-500 sm:float-left sm:mb-0 sm:mr-3">
@@ -2708,8 +2719,10 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
         >
           <img
             className="h-24 w-full object-cover transition duration-200 group-hover:scale-[1.01]"
-            src={taskCardImageUrl(imageAttachment)}
+            src={getAttachmentPreviewUrl(imageAttachment, "card")}
             alt=""
+            loading="lazy"
+            decoding="async"
           />
         </button>
       ) : videoAttachment ? (

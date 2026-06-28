@@ -11,6 +11,7 @@ import {
 import { PRIORITIES, TASK_STATUSES } from './data'
 import { getReports } from './services/api'
 import { formatDate, formatMoney } from './utils'
+import { getAttachmentPreviewUrl } from './attachmentUtils'
 import { ActivityFeed } from './ActivityPage'
 import ReportShareManager from './ReportShareManager'
 
@@ -45,17 +46,6 @@ const firstTaskImage = (task) => task.attachments?.find((attachment) => (
   || Number(attachment.is_image) === 1
   || String(attachment.mimeType || attachment.mime_type || '').startsWith('image/')
 ))
-
-const taskImagePreviewUrl = (attachment) => (
-  attachment?.thumbnailUrl
-  || attachment?.optimizedUrl
-  || attachment?.fileUrl
-  || attachment?.thumbnail_url
-  || attachment?.optimized_url
-  || attachment?.file_url
-  || attachment?.url
-  || ''
-)
 
 export default function ClientDetailPage({
   client,
@@ -121,7 +111,7 @@ export default function ClientDetailPage({
   }
 
   const taskColumns = [
-    { key: 'thumbnail', label: '', render: (task) => firstTaskImage(task) ? <img className="h-11 w-14 rounded-lg border border-zinc-200 object-cover" src={taskImagePreviewUrl(firstTaskImage(task))} alt="" /> : null },
+    { key: 'thumbnail', label: '', render: (task) => firstTaskImage(task) ? <img className="h-11 w-14 rounded-lg border border-zinc-200 object-cover" src={getAttachmentPreviewUrl(firstTaskImage(task), 'card')} alt="" loading="lazy" decoding="async" /> : null },
     { key: 'title', label: 'Task', render: (task) => <div><p className="font-semibold">{task.title}</p><p className="mt-1 max-w-md text-xs text-zinc-500">{task.category || 'No category'} · {task.assignedUserName || 'Unassigned'}</p>{task.checklistTotal > 0 && <p className="mt-1 text-[11px] text-zinc-500">Checklist {task.checklistCompleted}/{task.checklistTotal}</p>}</div> },
     { key: 'priority', label: 'Priority', render: (task) => <PriorityBadge priority={task.priority} /> },
     { key: 'deadline', label: 'Deadline', render: (task) => <div><p>{formatDate(task.deadline, { year: 'numeric', month: 'short', day: 'numeric' })}</p><div className="mt-1"><DeadlineBadge task={task} /></div></div> },
@@ -130,7 +120,7 @@ export default function ClientDetailPage({
   ]
 
   const completedColumns = [
-    { key: 'thumbnail', label: '', render: (task) => firstTaskImage(task) ? <img className="h-11 w-14 rounded-lg border border-zinc-200 object-cover" src={taskImagePreviewUrl(firstTaskImage(task))} alt="" /> : null },
+    { key: 'thumbnail', label: '', render: (task) => firstTaskImage(task) ? <img className="h-11 w-14 rounded-lg border border-zinc-200 object-cover" src={getAttachmentPreviewUrl(firstTaskImage(task), 'card')} alt="" loading="lazy" decoding="async" /> : null },
     { key: 'title', label: 'Completed work', render: (task) => <div><p className="font-semibold">{task.title}</p><p className="mt-1 text-xs text-zinc-500">{task.category || 'No category'} · {task.assignedUserName || 'Unassigned'}</p></div> },
     { key: 'date', label: 'Completion date', render: (task) => formatDate(task.completedAt, { year: 'numeric', month: 'short', day: 'numeric' }) },
     { key: 'proof', label: 'Proof links', render: (task) => <ProofList task={task} /> },

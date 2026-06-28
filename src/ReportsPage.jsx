@@ -3,6 +3,7 @@ import { CheckCircle2, ClipboardCopy, Download, FileText, Link2, Printer, Receip
 import { Badge, EmptyState, PageHeader, ReportSection, StatusBadge } from './components'
 import { generateReport, saveReport } from './services/api'
 import { formatMoney } from './utils'
+import { getAttachmentPreviewUrl } from './attachmentUtils'
 import ReportShareManager from './ReportShareManager'
 
 const MONTHS = Array.from({ length: 12 }, (_, index) => ({
@@ -57,7 +58,10 @@ export default function ReportsPage({ clients, tasks, settings, isFallback, onAc
   const monthLabel = MONTHS.find((item) => item.value === Number(month))?.label || ''
   const amountFor = (task) => Number(task.billable_amount ?? task.amount ?? 0)
   const billableTotal = Number(report?.extra_billable_work?.total ?? billable.reduce((total, task) => total + amountFor(task), 0))
-  const attachmentsFor = (task) => task.attachments || []
+  const attachmentsFor = (task) => (task.attachments || []).map((attachment) => ({
+    ...attachment,
+    url: getAttachmentPreviewUrl(attachment, 'modal'),
+  }))
   const listText = (items, formatter = (item) => item.title) => items.map((item) => `- ${formatter(item)}`).join('\n') || '- None recorded'
   const completedText = completed.map((task) => {
     const proofs = attachmentsFor(task).map((attachment) => `  Proof: ${attachment.title} — ${attachment.url}`).join('\n')

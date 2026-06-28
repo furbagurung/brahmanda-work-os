@@ -130,6 +130,46 @@ try {
     $currentUser = requireAuth($pdo);
     $method = $_SERVER['REQUEST_METHOD'];
 
+    if ($method === 'GET' && ($_GET['action'] ?? '') === 'download') {
+        $id = queryId();
+        $statement = $pdo->prepare(
+            'SELECT file_path, original_filename, mime_type
+             FROM task_attachments
+             WHERE id = ? AND attachment_type = "file"'
+        );
+        $statement->execute([$id]);
+        $attachment = $statement->fetch();
+        if (!$attachment || empty($attachment['file_path'])) {
+            errorResponse('Attachment file not found.', 404);
+        }
+
+        $uploadDirectory = realpath(taskAttachmentUploadDirectory());
+        $physicalPath = realpath(
+            taskAttachmentUploadDirectory() . '/' . basename((string) $attachment['file_path'])
+        );
+        if (
+            $uploadDirectory === false
+            || $physicalPath === false
+            || !str_starts_with($physicalPath, $uploadDirectory . DIRECTORY_SEPARATOR)
+            || !is_file($physicalPath)
+        ) {
+            errorResponse('Attachment file not found.', 404);
+        }
+
+        $downloadName = preg_replace(
+            '/[\r\n"]+/',
+            '_',
+            basename((string) ($attachment['original_filename'] ?: 'attachment'))
+        );
+        header_remove('Content-Type');
+        header('Content-Type: ' . ($attachment['mime_type'] ?: 'application/octet-stream'));
+        header('Content-Length: ' . filesize($physicalPath));
+        header('Content-Disposition: attachment; filename="' . $downloadName . '"');
+        header('X-Content-Type-Options: nosniff');
+        readfile($physicalPath);
+        exit;
+    }
+
     if ($method === 'GET') {
         $taskId = filter_input(INPUT_GET, 'task_id', FILTER_VALIDATE_INT);
         $clientId = filter_input(INPUT_GET, 'client_id', FILTER_VALIDATE_INT);
@@ -215,14 +255,19 @@ try {
             throw new RuntimeException('The attachment upload directory could not be created.');
         }
 
+        $destination = $uploadDirectory . '/' . $storedFilename;
+        if (!move_uploaded_file((string) $file['tmp_name'], $destination)) {
+            throw new RuntimeException('The attachment could not be stored.');
+        }
+
         $isImage = str_starts_with($mimeType, 'image/') ? 1 : 0;
-        $filePath = null;
-        $fileUrl = null;
+        $filePath = 'uploads/task-attachments/' . $storedFilename;
+        $fileUrl = taskAttachmentPublicUrl($storedFilename);
         $thumbnailPath = null;
         $thumbnailUrl = null;
         $optimizedPath = null;
         $optimizedUrl = null;
-        $generatedPhysicalPaths = [];
+        $generatedPhysicalPaths = [$destination];
 
         $canOptimize = $isImage === 1
             && $mimeType !== 'image/gif'
@@ -232,7 +277,7 @@ try {
             $optimizedFilename = $storedBaseName . '-optimized.' . $safeExtension;
             $optimizedDestination = $uploadDirectory . '/' . $optimizedFilename;
             $optimizedCreated = taskAttachmentCreateDerivative(
-                (string) $file['tmp_name'],
+                $destination,
                 $optimizedDestination,
                 $mimeType,
                 1600
@@ -242,13 +287,11 @@ try {
                 $generatedPhysicalPaths[] = $optimizedDestination;
                 $optimizedPath = 'uploads/task-attachments/' . $optimizedFilename;
                 $optimizedUrl = taskAttachmentPublicUrl($optimizedFilename);
-                $filePath = $optimizedPath;
-                $fileUrl = $optimizedUrl;
 
                 $thumbnailFilename = $storedBaseName . '-thumbnail.' . $safeExtension;
                 $thumbnailDestination = $uploadDirectory . '/' . $thumbnailFilename;
                 if (taskAttachmentCreateDerivative(
-                    (string) $file['tmp_name'],
+                    $destination,
                     $thumbnailDestination,
                     $mimeType,
                     400
@@ -262,16 +305,6 @@ try {
             } elseif (is_file($optimizedDestination)) {
                 @unlink($optimizedDestination);
             }
-        }
-
-        if ($filePath === null || $fileUrl === null) {
-            $destination = $uploadDirectory . '/' . $storedFilename;
-            if (!move_uploaded_file((string) $file['tmp_name'], $destination)) {
-                throw new RuntimeException('The attachment could not be stored.');
-            }
-            $generatedPhysicalPaths[] = $destination;
-            $filePath = 'uploads/task-attachments/' . $storedFilename;
-            $fileUrl = taskAttachmentPublicUrl($storedFilename);
         }
 
         $title = trim((string) ($_POST['title'] ?? '')) ?: $originalFilename;
@@ -291,7 +324,7 @@ try {
                 ':task_id' => $taskId,
                 ':attachment_type' => 'file',
                 ':title' => $title,
-                ':url' => $fileUrl,
+                ':url' => $optimizedUrl ?: $fileUrl,
                 ':file_path' => $filePath,
                 ':file_url' => $fileUrl,
                 ':original_filename' => $originalFilename,

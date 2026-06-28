@@ -84,6 +84,29 @@ export const uploadTaskAttachment = (taskId, file, title = '') => {
   if (title) body.append('title', title)
   return request('attachments.php', { method: 'POST', body })
 }
+export const downloadTaskAttachment = async (id, filename = 'attachment') => {
+  const token = getAuthToken()
+  const response = await fetch(
+    `${API_BASE_URL}/attachments.php?action=download&id=${encodeURIComponent(id)}`,
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+  )
+  if (response.status === 401) {
+    clearAuthSession()
+    window.dispatchEvent(new Event('auth:unauthorized'))
+    throw new Error('Your session has expired. Please log in again.')
+  }
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null)
+    throw new Error(payload?.message || 'Attachment download failed.')
+  }
+
+  const objectUrl = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(objectUrl)
+}
 export const deleteTaskAttachment = (id) => request(`attachments.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 
 export const getDailyLogs = () => request('logs.php')
