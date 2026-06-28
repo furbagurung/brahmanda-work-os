@@ -84,7 +84,8 @@ try {
             $completedIds = array_column($completed, 'id');
             $placeholders = implode(',', array_fill(0, count($completedIds), '?'));
             $attachmentStatement = $pdo->prepare(
-                'SELECT id, task_id, attachment_type, title, url, created_at
+                'SELECT id, task_id, attachment_type, title, url, file_path, file_url,
+                        original_filename, mime_type, file_size, is_image, created_at
                  FROM task_attachments
                  WHERE task_id IN (' . $placeholders . ')
                  ORDER BY created_at ASC, id ASC'

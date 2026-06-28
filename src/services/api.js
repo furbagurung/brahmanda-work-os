@@ -4,11 +4,12 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
 
 async function request(endpoint, options = {}) {
   const token = getAuthToken()
+  const isFormData = options.body instanceof FormData
   const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
     ...options,
     headers: {
       Accept: 'application/json',
-      'Content-Type': 'application/json',
+      ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
@@ -76,6 +77,13 @@ export const deleteTaskChecklist = (id) => request(`task_checklists.php?id=${enc
 export const getTaskAttachments = (taskId) => request(`attachments.php?task_id=${encodeURIComponent(taskId)}`)
 export const getClientAttachments = (clientId) => request(`attachments.php?client_id=${encodeURIComponent(clientId)}`)
 export const createTaskAttachment = (data) => request('attachments.php', jsonOptions('POST', data))
+export const uploadTaskAttachment = (taskId, file, title = '') => {
+  const body = new FormData()
+  body.append('task_id', String(taskId))
+  body.append('file', file)
+  if (title) body.append('title', title)
+  return request('attachments.php', { method: 'POST', body })
+}
 export const deleteTaskAttachment = (id) => request(`attachments.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 
 export const getDailyLogs = () => request('logs.php')
@@ -192,7 +200,7 @@ export function taskToApi(task) {
     recurring_parent_id: task.recurringParentId ? Number(task.recurringParentId) : null,
     status: task.status,
     proof_link: Array.isArray(task.attachments)
-      ? task.attachments[0]?.url || null
+      ? task.attachments.find((attachment) => attachment.type !== 'file')?.url || null
       : task.proofLink || null,
     is_billable: Boolean(task.billable),
     billable_amount: task.billable ? Number(task.amount || 0) : 0,
@@ -260,7 +268,13 @@ export function attachmentFromApi(attachment) {
     taskId: String(attachment.task_id),
     type: attachment.attachment_type || 'link',
     title: attachment.title,
-    url: attachment.url,
+    url: attachment.file_url || attachment.url,
+    filePath: attachment.file_path || '',
+    fileUrl: attachment.file_url || '',
+    originalFilename: attachment.original_filename || '',
+    mimeType: attachment.mime_type || '',
+    fileSize: Number(attachment.file_size || 0),
+    isImage: Number(attachment.is_image) === 1,
     createdAt: attachment.created_at,
   }
 }

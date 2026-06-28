@@ -22,6 +22,7 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  Paperclip,
   Plus,
   ReceiptText,
   Repeat2,
@@ -31,6 +32,7 @@ import {
   UserRound,
   Users,
   UsersRound,
+  Upload,
   X,
 } from "lucide-react";
 import {
@@ -84,6 +86,7 @@ import {
   deleteTaskChecklist,
   deleteTaskComment,
   updateTaskChecklist,
+  uploadTaskAttachment,
   getAssignableUsers,
   logFromApi,
   markTaskCompleted,
@@ -387,6 +390,9 @@ function useWorkspace() {
           const original = originalAttachments.find(
             (item) => item.id === attachment.id,
           );
+          if (attachment.type === "file" || (attachment.id && !original)) {
+            continue;
+          }
           if (
             !original ||
             original.title !== attachment.title ||
@@ -394,7 +400,7 @@ function useWorkspace() {
           ) {
             await createTaskAttachment({
               task_id: Number(taskId),
-              attachment_type: attachment.type || "link",
+              attachment_type: "link",
               title: attachment.title,
               url: attachment.url,
             });
@@ -979,6 +985,10 @@ function TaskForm({
   const [commentText, setCommentText] = useState("");
   const [checklistTitle, setChecklistTitle] = useState("");
   const [collaborationError, setCollaborationError] = useState("");
+  const [attachmentFile, setAttachmentFile] = useState(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [attachmentError, setAttachmentError] = useState("");
+  const attachmentInputRef = useRef(null);
   useEffect(() => {
     if (!task?.id || String(task.id).startsWith("task-")) return;
     Promise.all([getTaskComments(task.id), getTaskChecklists(task.id)])
@@ -1014,6 +1024,58 @@ function TaskForm({
         (_, attachmentIndex) => attachmentIndex !== index,
       ),
     }));
+  const uploadAttachment = async () => {
+    if (!attachmentFile || !task?.id || String(task.id).startsWith("task-")) {
+      return;
+    }
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+      "application/pdf",
+    ];
+    if (!allowedTypes.includes(attachmentFile.type)) {
+      setAttachmentError("Only JPG, PNG, WebP, GIF, and PDF files are allowed.");
+      return;
+    }
+    if (attachmentFile.size > 25 * 1024 * 1024) {
+      setAttachmentError("Attachments must be 25MB or smaller.");
+      return;
+    }
+    setUploadingAttachment(true);
+    setAttachmentError("");
+    try {
+      const uploaded = attachmentFromApi(
+        await uploadTaskAttachment(task.id, attachmentFile),
+      );
+      setForm((current) => ({
+        ...current,
+        attachments: [
+          ...current.attachments,
+          { ...uploaded, uploadedThisSession: true },
+        ],
+      }));
+      setAttachmentFile(null);
+      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
+    } catch (error) {
+      setAttachmentError(error.message);
+    } finally {
+      setUploadingAttachment(false);
+    }
+  };
+  const removeFileAttachment = async (index, attachment) => {
+    setAttachmentError("");
+    if (attachment.uploadedThisSession && attachment.id) {
+      try {
+        await deleteTaskAttachment(attachment.id);
+      } catch (error) {
+        setAttachmentError(error.message);
+        return;
+      }
+    }
+    removeProof(index);
+  };
   const addComment = async () => {
     if (!commentText.trim()) return;
     try {
@@ -1076,8 +1138,10 @@ function TaskForm({
   };
   const submit = async (event) => {
     event.preventDefault();
-    const attachments = form.attachments.filter(
-      (attachment) => attachment.title.trim() && attachment.url.trim(),
+    const attachments = form.attachments.filter((attachment) =>
+      attachment.type === "file"
+        ? attachment.id && attachment.url
+        : attachment.title.trim() && attachment.url.trim(),
     );
     setSaving(true);
     await onSave({
@@ -1086,7 +1150,8 @@ function TaskForm({
         users.find((user) => String(user.id) === String(form.assignedUserId))
           ?.name || "",
       attachments,
-      proofLink: attachments[0]?.url || "",
+      proofLink:
+        attachments.find((attachment) => attachment.type !== "file")?.url || "",
     });
     setSaving(false);
     onClose();
@@ -1313,7 +1378,8 @@ function TaskForm({
             </button>
           </div>
           <div className="mt-4 space-y-3">
-            {form.attachments.map((attachment, index) => (
+            {form.attachments.map((attachment, index) =>
+              attachment.type === "file" ? null : (
               <div
                 key={`${attachment.id}-${index}`}
                 className="grid gap-3 border-t border-line pt-3 sm:grid-cols-[1fr_1.4fr_auto]"
@@ -1346,11 +1412,132 @@ function TaskForm({
                   <X size={16} />
                 </button>
               </div>
-            ))}
-            {!form.attachments.length && (
+              ),
+            )}
+            {!form.attachments.some(
+              (attachment) => attachment.type !== "file",
+            ) && (
               <p className="text-sm text-zinc-400">No proof links added.</p>
             )}
           </div>
+        </FormSection>
+        <FormSection
+          icon={Paperclip}
+          title="Upload Attachments"
+          description="Images or PDF files up to 25MB."
+        >
+          {task?.id && !String(task.id).startsWith("task-") ? (
+            <>
+              <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-4 sm:col-span-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <label className="block flex-1">
+                    <span className="mb-2 block text-xs font-semibold text-zinc-600">
+                      Choose an image or PDF
+                    </span>
+                    <input
+                      ref={attachmentInputRef}
+                      className="block w-full rounded-lg border border-zinc-200 bg-white text-sm text-zinc-600 file:mr-3 file:border-0 file:border-r file:border-zinc-200 file:bg-zinc-50 file:px-3 file:py-2.5 file:text-xs file:font-semibold file:text-zinc-700 hover:border-zinc-300"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                      onChange={(event) => {
+                        setAttachmentFile(event.target.files?.[0] || null);
+                        setAttachmentError("");
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="button-secondary shrink-0"
+                    disabled={!attachmentFile || uploadingAttachment}
+                    onClick={uploadAttachment}
+                  >
+                    <Upload size={14} />
+                    {uploadingAttachment ? "Uploading…" : "Upload"}
+                  </button>
+                </div>
+                {attachmentError && (
+                  <p className="mt-3 text-xs font-medium text-red-700">
+                    {attachmentError}
+                  </p>
+                )}
+              </div>
+              <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+                {form.attachments.map((attachment, index) =>
+                  attachment.type !== "file" ? null : (
+                    <article
+                      key={attachment.id || `${attachment.url}-${index}`}
+                      className="overflow-hidden rounded-xl border border-zinc-200 bg-white"
+                    >
+                      {attachment.isImage ? (
+                        <a
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block"
+                        >
+                          <img
+                            className="h-28 w-full object-cover"
+                            src={attachment.url}
+                            alt={attachment.originalFilename || attachment.title}
+                          />
+                        </a>
+                      ) : (
+                        <a
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex h-28 items-center justify-center bg-zinc-50 text-zinc-400 hover:text-blue"
+                        >
+                          <FileText size={28} />
+                        </a>
+                      )}
+                      <div className="flex items-center gap-3 p-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-semibold text-zinc-800">
+                            {attachment.originalFilename || attachment.title}
+                          </p>
+                          <p className="mt-0.5 text-[10px] text-zinc-400">
+                            {attachment.fileSize
+                              ? `${(attachment.fileSize / 1024 / 1024).toFixed(2)} MB`
+                              : attachment.mimeType || "Uploaded file"}
+                          </p>
+                        </div>
+                        <a
+                          className="text-xs font-semibold text-blue hover:underline"
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open
+                        </a>
+                        <button
+                          type="button"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:bg-red-50 hover:text-red-700"
+                          onClick={() =>
+                            removeFileAttachment(index, attachment)
+                          }
+                          aria-label={`Remove ${attachment.originalFilename || attachment.title}`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </article>
+                  ),
+                )}
+                {!form.attachments.some(
+                  (attachment) => attachment.type === "file",
+                ) && (
+                  <p className="text-sm text-zinc-400">
+                    No uploaded attachments.
+                  </p>
+                )}
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-zinc-500 sm:col-span-2">
+              Save the task first, then reopen it to upload images or PDF files.
+            </p>
+          )}
         </FormSection>
         <FormSection icon={FileText} title="Notes">
           <Field label="Task notes" className="sm:col-span-2">
@@ -2325,6 +2512,13 @@ function AssigneePill({ name }) {
   );
 }
 
+const firstTaskImage = (task) =>
+  task.attachments?.find(
+    (attachment) =>
+      attachment.isImage ||
+      String(attachment.mimeType || "").startsWith("image/"),
+  );
+
 function TaskListRow({
   task,
   client,
@@ -2337,6 +2531,7 @@ function TaskListRow({
   const checklistPercent = task.checklistTotal
     ? Math.round((task.checklistCompleted / task.checklistTotal) * 100)
     : 0;
+  const imageAttachment = firstTaskImage(task);
   return (
     <article
       className={`group relative grid gap-4 border-b border-zinc-100 px-4 py-4 transition last:border-b-0 hover:bg-blue/[0.025] sm:px-5 xl:grid-cols-[32px_minmax(260px,1.5fr)_minmax(150px,.7fr)_minmax(150px,.7fr)_145px_120px_36px] xl:items-center ${selected ? "bg-blue/[0.045]" : "bg-white"}`}
@@ -2350,6 +2545,13 @@ function TaskListRow({
         aria-label={`Select ${task.title}`}
       />
       <button className="min-w-0 text-left" onClick={onEdit}>
+        {imageAttachment && (
+          <img
+            className="mb-3 h-14 w-20 rounded-lg border border-zinc-200 object-cover sm:float-left sm:mb-0 sm:mr-3"
+            src={imageAttachment.url}
+            alt=""
+          />
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="truncate text-sm font-semibold tracking-tight text-zinc-900 transition group-hover:text-blue">
             {task.title}
@@ -2441,8 +2643,22 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
     ? Math.round((task.checklistCompleted / task.checklistTotal) * 100)
     : 0;
   const proofCount = task.attachments?.length || (task.proofLink ? 1 : 0);
+  const imageAttachment = firstTaskImage(task);
   return (
     <article className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-[0_5px_18px_rgba(24,24,27,0.045)] transition duration-200 hover:-translate-y-0.5 hover:border-blue/20 hover:shadow-[0_12px_30px_rgba(37,99,235,0.09)]">
+      {imageAttachment && (
+        <button
+          className="mb-3 block w-full overflow-hidden rounded-lg"
+          onClick={onEdit}
+          aria-label={`Open ${task.title}`}
+        >
+          <img
+            className="h-24 w-full object-cover transition duration-200 group-hover:scale-[1.01]"
+            src={imageAttachment.url}
+            alt=""
+          />
+        </button>
+      )}
       <div className="flex items-start justify-between gap-3">
         <button className="min-w-0 flex-1 text-left" onClick={onEdit}>
           <h3 className="text-sm font-semibold leading-5 tracking-tight text-zinc-900 transition group-hover:text-blue">

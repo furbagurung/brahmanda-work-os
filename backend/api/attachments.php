@@ -9,6 +9,45 @@ require_once __DIR__ . '/../helpers/activity_logger.php';
 
 bootstrapApi();
 
+const TASK_ATTACHMENT_MAX_SIZE = 25 * 1024 * 1024;
+const TASK_ATTACHMENT_COLUMNS = 'id, task_id, attachment_type, title, url, file_path, file_url,
+    original_filename, mime_type, file_size, is_image, created_at';
+
+function taskAttachmentUploadDirectory(): string
+{
+    return dirname(__DIR__) . '/uploads/task-attachments';
+}
+
+function taskAttachmentPublicUrl(string $filename): string
+{
+    $configuredBase = trim((string) appConfig('uploads_base_url', ''));
+    if ($configuredBase !== '') {
+        return rtrim($configuredBase, '/') . '/task-attachments/' . rawurlencode($filename);
+    }
+
+    $forwardedProtocol = trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]);
+    $scheme = $forwardedProtocol !== ''
+        ? $forwardedProtocol
+        : ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http');
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '/api/attachments.php'));
+    $backendPath = rtrim(str_replace('\\', '/', dirname(dirname($scriptName))), '/.');
+
+    return $scheme . '://' . $host . ($backendPath === '' ? '' : $backendPath)
+        . '/uploads/task-attachments/' . rawurlencode($filename);
+}
+
+function findAttachmentTask(PDO $pdo, int $taskId): array
+{
+    $statement = $pdo->prepare('SELECT id, client_id, title FROM tasks WHERE id = ?');
+    $statement->execute([$taskId]);
+    $task = $statement->fetch();
+    if (!$task) {
+        errorResponse('Task not found.', 404);
+    }
+    return $task;
+}
+
 try {
     $pdo = Database::connect();
     $currentUser = requireAuth($pdo);
@@ -20,7 +59,7 @@ try {
 
         if ($taskId && $taskId > 0) {
             $statement = $pdo->prepare(
-                'SELECT id, task_id, attachment_type, title, url, created_at
+                'SELECT ' . TASK_ATTACHMENT_COLUMNS . '
                  FROM task_attachments
                  WHERE task_id = ?
                  ORDER BY created_at ASC, id ASC'
@@ -28,8 +67,9 @@ try {
             $statement->execute([$taskId]);
         } elseif ($clientId && $clientId > 0) {
             $statement = $pdo->prepare(
-                'SELECT a.id, a.task_id, a.attachment_type, a.title, a.url, a.created_at,
-                        t.title AS task_title
+                'SELECT a.id, a.task_id, a.attachment_type, a.title, a.url, a.file_path,
+                        a.file_url, a.original_filename, a.mime_type, a.file_size,
+                        a.is_image, a.created_at, t.title AS task_title
                  FROM task_attachments a
                  INNER JOIN tasks t ON t.id = a.task_id
                  WHERE t.client_id = ?
@@ -43,6 +83,105 @@ try {
         jsonResponse($statement->fetchAll());
     }
 
+    if ($method === 'POST' && isset($_FILES['file'])) {
+        $taskId = filter_var($_POST['task_id'] ?? null, FILTER_VALIDATE_INT);
+        if (!$taskId || $taskId < 1) {
+            errorResponse('A valid task_id is required.', 422);
+        }
+        $task = findAttachmentTask($pdo, $taskId);
+        $file = $_FILES['file'];
+
+        if (!isset($file['error']) || (int) $file['error'] !== UPLOAD_ERR_OK) {
+            errorResponse('The attachment upload failed.', 422);
+        }
+        if ((int) $file['size'] < 1 || (int) $file['size'] > TASK_ATTACHMENT_MAX_SIZE) {
+            errorResponse('Attachments must be 25MB or smaller.', 422);
+        }
+        if (!is_uploaded_file((string) $file['tmp_name'])) {
+            errorResponse('The uploaded file is invalid.', 422);
+        }
+
+        $allowedMimeTypes = [
+            'image/jpeg' => ['jpg', 'jpeg'],
+            'image/png' => ['png'],
+            'image/webp' => ['webp'],
+            'image/gif' => ['gif'],
+            'application/pdf' => ['pdf'],
+        ];
+        $mimeType = (new finfo(FILEINFO_MIME_TYPE))->file((string) $file['tmp_name']);
+        $originalFilename = trim(basename((string) $file['name']));
+        $originalExtension = strtolower(pathinfo($originalFilename, PATHINFO_EXTENSION));
+
+        if (!isset($allowedMimeTypes[$mimeType]) || !in_array($originalExtension, $allowedMimeTypes[$mimeType], true)) {
+            errorResponse('Only JPG, PNG, WebP, GIF, and PDF attachments are allowed.', 422);
+        }
+
+        $safeExtension = $allowedMimeTypes[$mimeType][0];
+        $storedFilename = bin2hex(random_bytes(20)) . '.' . $safeExtension;
+        $uploadDirectory = taskAttachmentUploadDirectory();
+        if (!is_dir($uploadDirectory) && !mkdir($uploadDirectory, 0755, true) && !is_dir($uploadDirectory)) {
+            throw new RuntimeException('The attachment upload directory could not be created.');
+        }
+
+        $destination = $uploadDirectory . '/' . $storedFilename;
+        if (!move_uploaded_file((string) $file['tmp_name'], $destination)) {
+            throw new RuntimeException('The attachment could not be stored.');
+        }
+
+        $filePath = 'uploads/task-attachments/' . $storedFilename;
+        $fileUrl = taskAttachmentPublicUrl($storedFilename);
+        $isImage = str_starts_with($mimeType, 'image/') ? 1 : 0;
+        $title = trim((string) ($_POST['title'] ?? '')) ?: $originalFilename;
+
+        try {
+            $statement = $pdo->prepare(
+                'INSERT INTO task_attachments
+                    (task_id, attachment_type, title, url, file_path, file_url,
+                     original_filename, mime_type, file_size, is_image)
+                 VALUES
+                    (:task_id, :attachment_type, :title, :url, :file_path, :file_url,
+                     :original_filename, :mime_type, :file_size, :is_image)'
+            );
+            $statement->execute([
+                ':task_id' => $taskId,
+                ':attachment_type' => 'file',
+                ':title' => $title,
+                ':url' => $fileUrl,
+                ':file_path' => $filePath,
+                ':file_url' => $fileUrl,
+                ':original_filename' => $originalFilename,
+                ':mime_type' => $mimeType,
+                ':file_size' => (int) $file['size'],
+                ':is_image' => $isImage,
+            ]);
+        } catch (Throwable $exception) {
+            @unlink($destination);
+            throw $exception;
+        }
+
+        $id = (int) $pdo->lastInsertId();
+        logActivity($pdo, $currentUser, [
+            'action_type' => 'added',
+            'module' => 'attachments',
+            'item_id' => $id,
+            'item_title' => $originalFilename,
+            'client_id' => $task['client_id'],
+            'description' => 'Attachment uploaded to ' . $task['title'] . '.',
+            'new_value' => [
+                'task_id' => $taskId,
+                'filename' => $originalFilename,
+                'mime_type' => $mimeType,
+                'file_size' => (int) $file['size'],
+            ],
+        ]);
+
+        $resultStatement = $pdo->prepare(
+            'SELECT ' . TASK_ATTACHMENT_COLUMNS . ' FROM task_attachments WHERE id = ?'
+        );
+        $resultStatement->execute([$id]);
+        jsonResponse($resultStatement->fetch(), 201, 'Attachment uploaded.');
+    }
+
     if ($method === 'POST') {
         $data = requestBody();
         requireFields($data, ['task_id', 'title', 'url']);
@@ -51,13 +190,7 @@ try {
             errorResponse('Attachment URL must be valid.', 422);
         }
 
-        $taskStatement = $pdo->prepare('SELECT id, client_id, title FROM tasks WHERE id = ?');
-        $taskStatement->execute([(int) $data['task_id']]);
-        $task = $taskStatement->fetch();
-        if (!$task) {
-            errorResponse('Task not found.', 404);
-        }
-
+        $task = findAttachmentTask($pdo, (int) $data['task_id']);
         $statement = $pdo->prepare(
             'INSERT INTO task_attachments (task_id, attachment_type, title, url)
              VALUES (:task_id, :attachment_type, :title, :url)'
@@ -71,8 +204,11 @@ try {
 
         $id = (int) $pdo->lastInsertId();
         logActivity($pdo, $currentUser, [
-            'action_type' => 'added', 'module' => 'proofs', 'item_id' => $id,
-            'item_title' => trim((string) $data['title']), 'client_id' => $task['client_id'],
+            'action_type' => 'added',
+            'module' => 'proofs',
+            'item_id' => $id,
+            'item_title' => trim((string) $data['title']),
+            'client_id' => $task['client_id'],
             'description' => 'Proof link added to ' . $task['title'] . '.',
             'new_value' => ['task_id' => $task['id'], 'title' => $data['title'], 'url' => $data['url']],
         ]);
@@ -87,16 +223,32 @@ try {
         );
         $currentStatement->execute([$id]);
         $current = $currentStatement->fetch();
+        if (!$current) {
+            errorResponse('Attachment not found.', 404);
+        }
+
         $statement = $pdo->prepare('DELETE FROM task_attachments WHERE id = ?');
         $statement->execute([$id]);
-
         if ($statement->rowCount() === 0) {
             errorResponse('Attachment not found.', 404);
         }
+
+        if (!empty($current['file_path'])) {
+            $physicalPath = taskAttachmentUploadDirectory() . '/' . basename((string) $current['file_path']);
+            if (is_file($physicalPath)) {
+                @unlink($physicalPath);
+            }
+        }
+
+        $isFile = ($current['attachment_type'] ?? 'link') === 'file';
         logActivity($pdo, $currentUser, [
-            'action_type' => 'deleted', 'module' => 'proofs', 'item_id' => $id,
-            'item_title' => $current['title'] ?? 'Proof link', 'client_id' => $current['client_id'] ?? null,
-            'description' => 'Proof link deleted from ' . ($current['task_title'] ?? 'task') . '.',
+            'action_type' => 'deleted',
+            'module' => $isFile ? 'attachments' : 'proofs',
+            'item_id' => $id,
+            'item_title' => $current['original_filename'] ?: ($current['title'] ?? 'Attachment'),
+            'client_id' => $current['client_id'] ?? null,
+            'description' => ($isFile ? 'Attachment deleted from ' : 'Proof link deleted from ')
+                . ($current['task_title'] ?? 'task') . '.',
             'old_value' => $current,
         ]);
 

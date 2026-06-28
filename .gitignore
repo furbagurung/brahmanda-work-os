@@ -11,3 +11,5 @@ backend/config/*.local.php
 *.log
 credentials*.json
 secrets*.json
+backend/uploads/task-attachments/*
+!backend/uploads/task-attachments/.gitkeep
