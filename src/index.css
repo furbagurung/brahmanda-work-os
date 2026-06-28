@@ -27,7 +27,7 @@
 }
 
 html {
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Geist Variable", Geist, Inter, system-ui, sans-serif;
   color: #18181b;
   background: #f7f7f8;
   font-synthesis: none;
@@ -42,6 +42,7 @@ body {
   background: transparent;
   line-height: 1.5;
   font-size: 14px;
+  font-family: inherit;
 }
 
 button,

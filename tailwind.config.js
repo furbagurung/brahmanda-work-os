@@ -13,7 +13,7 @@ export default {
         blue: 'var(--color-primary)',
       },
       fontFamily: {
-        sans: ['"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
+        sans: ['"Geist Variable"', 'Geist', 'Inter', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         sm: 'var(--radius-sm)',

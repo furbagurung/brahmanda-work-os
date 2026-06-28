@@ -2693,7 +2693,7 @@ function ClientsPage({
         onAction={onNewClient}
       />
       {clients.length ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {clients.map((client) => (
             <ClientCard
               key={client.id}
@@ -2726,7 +2726,7 @@ function TaskFilterControl({
 }) {
   return (
     <label
-      className={`group flex min-w-[148px] flex-1 items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 transition hover:border-zinc-300 focus-within:border-blue/40 focus-within:ring-2 focus-within:ring-blue/10 ${className}`}
+      className={`group flex min-w-[148px] flex-1 items-center gap-2 rounded-xl border border-line bg-white px-3 py-2.5 shadow-soft transition hover:border-zinc-300 focus-within:border-blue/40 focus-within:ring-2 focus-within:ring-blue/10 ${className}`}
     >
       <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">
         {label}
@@ -2792,7 +2792,7 @@ function TaskListRow({
   const videoAttachment = firstTaskVideo(task);
   return (
     <article
-      className={`group relative grid gap-3 border-b border-line px-4 py-3.5 transition last:border-b-0 hover:bg-zinc-50/80 sm:px-5 xl:grid-cols-[28px_minmax(260px,1.5fr)_minmax(150px,.7fr)_minmax(150px,.7fr)_140px_116px_32px] xl:items-center ${selected ? "bg-blue/[0.05]" : "bg-white"}`}
+      className={`group relative grid gap-3 border-b border-line px-4 py-3 transition last:border-b-0 hover:bg-zinc-50/70 sm:px-5 xl:grid-cols-[28px_minmax(270px,1.6fr)_minmax(145px,.65fr)_minmax(135px,.6fr)_128px_110px_32px] xl:items-center ${selected ? "bg-blue/[0.045]" : "bg-white"}`}
     >
       <div className={`absolute inset-y-2 left-0 w-0.5 rounded-r-full bg-blue transition ${selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`} />
       <input
@@ -2805,18 +2805,18 @@ function TaskListRow({
       <button className="min-w-0 text-left" onClick={onEdit}>
         {imageAttachment && imagePreviewUrl ? (
           <img
-            className="mb-3 h-12 w-16 rounded-lg border border-line object-cover sm:float-left sm:mb-0 sm:mr-3"
+            className="mb-3 h-11 w-14 rounded-lg border border-line object-cover sm:float-left sm:mb-0 sm:mr-3"
             src={imagePreviewUrl}
             alt=""
             loading="lazy"
             decoding="async"
           />
         ) : imageAttachment ? (
-          <span className="mb-3 flex h-12 w-16 items-center justify-center rounded-lg border border-line bg-zinc-50 text-[10px] font-medium text-zinc-400 sm:float-left sm:mb-0 sm:mr-3">
+          <span className="mb-3 flex h-11 w-14 items-center justify-center rounded-lg border border-line bg-zinc-50 text-[10px] font-medium text-zinc-400 sm:float-left sm:mb-0 sm:mr-3">
             Image
           </span>
         ) : videoAttachment ? (
-          <span className="mb-3 flex h-12 w-16 items-center justify-center rounded-lg border border-line bg-zinc-50 text-[10px] font-semibold text-zinc-500 sm:float-left sm:mb-0 sm:mr-3">
+          <span className="mb-3 flex h-11 w-14 items-center justify-center rounded-lg border border-line bg-zinc-50 text-[10px] font-semibold text-zinc-500 sm:float-left sm:mb-0 sm:mr-3">
             <Video size={15} className="mr-1" />
             VIDEO
           </span>
@@ -2875,10 +2875,9 @@ function TaskListRow({
           )}
         </div>
       </div>
-      <div className="space-y-2">
-        <StatusBadge status={task.status} />
+      <div>
         <select
-          className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-zinc-600 outline-none transition focus:border-blue/50 focus:ring-2 focus:ring-blue/10"
+          className="w-full rounded-lg border border-line bg-zinc-50 px-2 py-2 text-[11px] font-semibold text-zinc-700 outline-none transition hover:bg-white focus:border-blue/50 focus:ring-2 focus:ring-blue/10"
           value={task.status}
           onChange={(event) =>
             updateTask(task.id, { status: event.target.value })
@@ -2916,7 +2915,7 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
   const imagePreviewUrl = getAttachmentPreviewUrl(imageAttachment, "card");
   const videoAttachment = firstTaskVideo(task);
   return (
-    <article className="group rounded-xl border border-line bg-white p-3.5 shadow-soft transition duration-150 hover:border-zinc-300">
+    <article className="group rounded-xl border border-line bg-white p-3.5 shadow-soft transition duration-150 hover:border-zinc-300 hover:shadow-panel">
       {imageAttachment && imagePreviewUrl ? (
         <button
           className="mb-3 block w-full overflow-hidden rounded-lg"
@@ -2961,7 +2960,6 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
         <ActionMenu onEdit={onEdit} onDelete={onDelete} />
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
-        <StatusBadge status={task.status} />
         <PriorityBadge priority={task.priority} />
         {task.billable && <BillingBadge />}
       </div>
@@ -3185,10 +3183,10 @@ function TasksPage({
         </div>
       ) : (
         <div className="space-y-3">
-          <section className="rounded-xl border border-line bg-zinc-50/70 p-3">
+          <section className="rounded-xl border border-line bg-white p-3 shadow-soft">
             <div className="flex flex-col gap-3 xl:flex-row">
-              <div className="flex min-w-[240px] flex-[1.5] items-center gap-2 rounded-lg border border-line bg-white px-3 transition focus-within:border-blue/40 focus-within:ring-2 focus-within:ring-blue/10">
-                <Search size={15} className="shrink-0 text-zinc-400" />
+              <div className="flex min-w-[240px] flex-[1.5] items-center gap-2 rounded-xl border border-line bg-zinc-50/70 px-3 transition focus-within:border-blue/40 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue/10">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-zinc-400 shadow-soft"><Search size={14} /></span>
                 <input
                   className="w-full bg-transparent py-3 text-sm font-medium outline-none placeholder:text-zinc-400"
                   value={search}
@@ -3353,8 +3351,8 @@ function TasksPage({
               </Button>
             </section>
           )}
-          <section className="overflow-hidden rounded-xl border border-line bg-white shadow-soft">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-zinc-50/60 px-4 py-3 sm:px-5">
+          <section className="overflow-hidden rounded-xl border border-line bg-white shadow-panel">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-4 py-3 sm:px-5">
               <label className="flex items-center gap-3 text-xs font-semibold text-zinc-500">
                 <input
                   className="h-4 w-4 rounded border-zinc-300 text-blue focus:ring-blue/20"
@@ -3451,25 +3449,25 @@ function KanbanPage({
           </div>
         }
       />
-      <section className="overflow-hidden rounded-xl border border-line bg-canvas shadow-soft">
+      <section className="overflow-hidden rounded-xl border border-line bg-zinc-100/60 shadow-panel">
         <div className="flex items-center justify-between border-b border-line bg-white px-4 py-3 sm:px-5">
           <p className="text-xs font-semibold text-zinc-500">
             <strong className="text-zinc-900">{tasks.length}</strong> tasks
             across {TASK_STATUSES.length} delivery stages
           </p>
         </div>
-        <div className="flex gap-3 overflow-x-auto p-3 pb-4 sm:p-4">
+        <div className="flex items-start gap-3 overflow-x-auto p-3 pb-4 sm:p-4">
           {TASK_STATUSES.map((status) => {
             const list = tasks.filter((task) => task.status === status);
             return (
               <section
                 key={status}
-                className="w-[300px] shrink-0 rounded-xl border border-line bg-zinc-50/70 p-2.5 sm:w-[320px]"
+                className="w-[292px] shrink-0 rounded-xl border border-line bg-zinc-50/80 p-2.5 sm:w-[312px]"
               >
                 <div className="sticky top-0 z-10 mb-2 flex items-center justify-between rounded-lg border border-line bg-white px-3 py-2.5">
                   <div className="flex items-center gap-2">
                     <span
-                      className={`h-2.5 w-2.5 rounded-full ${status === "Completed" ? "bg-emerald-500" : status === "In Progress" ? "bg-blue" : status === "Revision" ? "bg-orange-500" : "bg-zinc-400"}`}
+                      className={`h-2.5 w-2.5 rounded-full ${status === "In Progress" ? "bg-blue" : status === "Completed" ? "bg-ink" : "bg-zinc-400"}`}
                     />
                     <h2 className="text-sm font-bold tracking-tight text-zinc-800">
                       {status}
@@ -3493,11 +3491,11 @@ function KanbanPage({
                     />
                   ))}
                   {!list.length && (
-                    <div className="rounded-xl border border-dashed border-zinc-300 bg-white/60 px-4 py-7 text-center">
+                    <div className="rounded-xl border border-dashed border-zinc-300 bg-white/60 px-4 py-5 text-center">
                       <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-100 text-zinc-400">
                         <ClipboardList size={17} />
                       </div>
-                      <p className="mt-3 text-xs font-semibold text-zinc-500">
+                      <p className="mt-2 text-xs font-semibold text-zinc-500">
                         No {status.toLowerCase()} tasks
                       </p>
                     </div>
