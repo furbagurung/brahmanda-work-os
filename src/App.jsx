@@ -1106,7 +1106,7 @@ function TaskForm({
           </Field>
           <Field label="Category">
             <select
-              className="field"
+              className="field h-11 min-h-11 cursor-pointer rounded-xl border-zinc-200 bg-white px-3 py-2.5 font-medium text-zinc-700 hover:border-zinc-300 focus:border-blue/40 focus:ring-2 focus:ring-blue/10"
               value={form.category}
               onChange={(event) => change("category", event.target.value)}
             >
@@ -3219,7 +3219,7 @@ export function LegacyReportsPage({ clients, tasks, isFallback }) {
   const deliverables =
     apiReport?.deliverables ||
     completed.filter((task) =>
-      ["Reels", "Print Design", "Content", "Campaign", "Presentation"].includes(
+      ["Reels", "Print Design", "Creative"].includes(
         task.category,
       ),
     );
