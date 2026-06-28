@@ -2899,6 +2899,45 @@ function TasksPage({
       matchesDeadline
     );
   });
+  const statusOrder = {
+    "In Progress": 1,
+    Revision: 2,
+    "Waiting for Client": 3,
+    New: 4,
+  };
+  const timestamp = (value) => {
+    if (!value) return 0;
+    const parsed = Date.parse(String(value).replace(" ", "T"));
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+  const sortedTasks = [...filtered].sort((a, b) => {
+    const aCompleted = a.status === "Completed";
+    const bCompleted = b.status === "Completed";
+    if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+
+    if (aCompleted && bCompleted) {
+      const aCompletedTime = timestamp(
+        a.completedAtTimestamp || a.completedAt || a.updatedAt || a.createdAt,
+      );
+      const bCompletedTime = timestamp(
+        b.completedAtTimestamp || b.completedAt || b.updatedAt || b.createdAt,
+      );
+      return bCompletedTime - aCompletedTime;
+    }
+
+    const statusDifference =
+      (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
+    if (statusDifference !== 0) return statusDifference;
+
+    const aCreatedTime = timestamp(a.createdAt);
+    const bCreatedTime = timestamp(b.createdAt);
+    if (aCreatedTime && bCreatedTime) return bCreatedTime - aCreatedTime;
+    if (aCreatedTime !== bCreatedTime) return aCreatedTime ? -1 : 1;
+
+    return String(a.deadline || "9999-12-31").localeCompare(
+      String(b.deadline || "9999-12-31"),
+    );
+  });
   const allVisibleSelected =
     filtered.length > 0 && filtered.every((task) => selected.includes(task.id));
   const toggleSelected = (id) =>
@@ -3181,7 +3220,7 @@ function TasksPage({
             </div>
             {filtered.length ? (
               <div>
-                {filtered.map((task) => (
+                {sortedTasks.map((task) => (
                   <TaskListRow
                     key={task.id}
                     task={task}
