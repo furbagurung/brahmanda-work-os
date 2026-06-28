@@ -56,6 +56,18 @@ export const getClient = (id) => request(`clients.php?id=${encodeURIComponent(id
 export const createClient = (data) => request('clients.php', jsonOptions('POST', data))
 export const updateClient = (id, data) => request(`clients.php?id=${encodeURIComponent(id)}`, jsonOptions('PUT', data))
 export const deleteClient = (id) => request(`clients.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+export const uploadClientLogo = (id, file) => {
+  const formData = new FormData()
+  formData.append('logo', file)
+  return request(`clients.php?id=${encodeURIComponent(id)}&action=logo`, {
+    method: 'POST',
+    body: formData,
+  })
+}
+export const removeClientLogo = (id) => request(
+  `clients.php?id=${encodeURIComponent(id)}&action=logo`,
+  { method: 'DELETE' },
+)
 
 export const getTasks = (params = {}) => {
   const query = new URLSearchParams(params)
@@ -177,6 +189,7 @@ export function clientToApi(client) {
     start_date: client.startDate || null,
     status: String(client.status || 'active').toLowerCase().replace(' ', '_'),
     notes: client.notes || null,
+    cover_color: client.coverColor && client.coverColor !== 'auto' ? client.coverColor : null,
   }
 }
 
@@ -201,6 +214,10 @@ export function clientFromApi(client) {
     startDate: client.start_date || '',
     status: client.status || 'active',
     notes: client.notes || '',
+    coverColor: client.cover_color || 'auto',
+    logoPath: client.logo_path || '',
+    logoUrl: client.logo_url || '',
+    logoOriginalName: client.logo_original_name || '',
   }
 }
 

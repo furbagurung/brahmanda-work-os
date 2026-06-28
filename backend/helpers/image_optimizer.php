@@ -26,6 +26,30 @@ function taskAttachmentPublicUrl(string $filename): string
         . '/uploads/task-attachments/' . rawurlencode($filename);
 }
 
+function clientLogoUploadDirectory(): string
+{
+    return dirname(__DIR__) . '/uploads/client-logos';
+}
+
+function clientLogoPublicUrl(string $filename): string
+{
+    $configuredBase = trim((string) appConfig('uploads_base_url', ''));
+    if ($configuredBase !== '') {
+        return rtrim($configuredBase, '/') . '/client-logos/' . rawurlencode($filename);
+    }
+
+    $forwardedProtocol = trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]);
+    $scheme = $forwardedProtocol !== ''
+        ? $forwardedProtocol
+        : ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http');
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '/api/clients.php'));
+    $backendPath = rtrim(str_replace('\\', '/', dirname(dirname($scriptName))), '/.');
+
+    return $scheme . '://' . $host . ($backendPath === '' ? '' : $backendPath)
+        . '/uploads/client-logos/' . rawurlencode($filename);
+}
+
 function taskAttachmentImageResource(string $sourcePath, string $mimeType)
 {
     if (!extension_loaded('gd')) {
@@ -229,4 +253,26 @@ function optimizeTaskAttachmentImage(
     }
 
     return $result;
+}
+
+function optimizeClientLogo(
+    string $sourcePath,
+    string $destination,
+    string $mimeType
+): ?string {
+    $supportError = taskAttachmentImageSupportError($mimeType);
+    if ($supportError !== null) {
+        return $supportError;
+    }
+    $safetyError = taskAttachmentImageSafetyError($sourcePath);
+    if ($safetyError !== null) {
+        return $safetyError;
+    }
+    if (!taskAttachmentCreateDerivative($sourcePath, $destination, $mimeType, 800)) {
+        if (is_file($destination)) {
+            @unlink($destination);
+        }
+        return 'Failed to optimize the client logo.';
+    }
+    return null;
 }

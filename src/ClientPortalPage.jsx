@@ -11,7 +11,7 @@ const money = (value, currency = 'NPR') => new Intl.NumberFormat('en-US', {
 }).format(Number(value || 0))
 
 function PortalSection({ number, title, children }) {
-  return <section className="grid border-t border-zinc-200 py-7 md:grid-cols-[90px_1fr]"><span className="text-3xl font-light text-zinc-300">{number}</span><div><h2 className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">{title}</h2><div className="mt-5 text-sm leading-6 text-zinc-700">{children}</div></div></section>
+  return <section className="grid border-t border-zinc-200 py-7 md:grid-cols-[72px_1fr]"><span className="text-2xl font-light text-zinc-300">{number}</span><div><h2 className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">{title}</h2><div className="mt-4 text-sm leading-6 text-zinc-700">{children}</div></div></section>
 }
 
 export default function ClientPortalPage({ token }) {
@@ -22,7 +22,7 @@ export default function ClientPortalPage({ token }) {
     getPublicPortalReport(token).then(setData).catch(() => setError('This report link is expired or unavailable.'))
   }, [token])
 
-  if (error) return <main className="flex min-h-screen items-center justify-center bg-[#F7F7F8] p-6"><section className="w-full max-w-lg overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_20px_60px_rgba(24,24,27,0.08)]"><div className="h-1.5 bg-[#002FA7]" /><div className="p-8 sm:p-10"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-100"><FileText size={22} className="text-zinc-400" /></div><p className="mt-8 text-xs font-bold uppercase tracking-[0.16em] text-[#002FA7]">Brahmanda Tech</p><h1 className="mt-3 text-2xl font-semibold tracking-tight">Report unavailable</h1><p className="mt-3 text-sm leading-6 text-zinc-500">{error}</p><p className="mt-8 border-t border-zinc-100 pt-5 text-xs text-zinc-400">Contact Brahmanda Tech if you need a new report link.</p></div></section></main>
+  if (error) return <main className="flex min-h-screen items-center justify-center bg-[#F7F7F8] p-6"><section className="w-full max-w-lg overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-panel"><div className="h-1 bg-[#002FA7]" /><div className="p-8 sm:p-10"><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-100"><FileText size={22} className="text-zinc-400" /></div><p className="mt-8 text-xs font-bold uppercase tracking-[0.16em] text-[#002FA7]">Brahmanda Tech</p><h1 className="mt-3 text-2xl font-semibold tracking-tight">Report unavailable</h1><p className="mt-3 text-sm leading-6 text-zinc-500">{error}</p><p className="mt-8 border-t border-zinc-100 pt-5 text-xs text-zinc-400">Contact Brahmanda Tech if you need a new report link.</p></div></section></main>
   if (!data) return <main className="flex min-h-screen items-center justify-center bg-[#F7F7F8]"><div className="h-8 w-8 animate-spin border-2 border-zinc-200 border-t-[#002FA7]" aria-label="Loading report" /></main>
 
   const { report, client, branding } = data
@@ -35,12 +35,12 @@ export default function ClientPortalPage({ token }) {
   const accent = branding.brand_color || '#002FA7'
 
   return <main className="min-h-screen bg-[#F7F7F8] px-4 py-6 text-zinc-900 sm:px-6 sm:py-10">
-    <article className="mx-auto max-w-5xl overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_20px_60px_rgba(24,24,27,0.08)]">
+    <article className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-panel">
       <header className="grid border-b border-zinc-200 lg:grid-cols-[1fr_260px]">
         <div className="p-6 sm:p-10">
           <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: accent }}>{branding.logo_url || branding.agency_name || 'Brahmanda Tech'}</p>
-          <h1 className="mt-6 max-w-2xl text-4xl font-semibold tracking-tight sm:text-5xl">{branding.report_title || 'Monthly Client Report'}</h1>
-          <p className="mt-7 text-xl font-medium">{client.name}</p>
+          <h1 className="mt-6 max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">{branding.report_title || 'Monthly Client Report'}</h1>
+          <p className="mt-6 text-lg font-medium">{client.name}</p>
         </div>
         <div className="flex flex-col justify-between border-t border-zinc-200 p-6 lg:border-l lg:border-t-0">
           <div><p className="text-5xl font-light leading-none" style={{ color: accent }}>{String(report.month).padStart(2, '0')}</p><p className="mt-2 text-sm font-semibold">{month} {report.year}</p></div>

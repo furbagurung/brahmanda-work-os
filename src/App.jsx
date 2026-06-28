@@ -17,6 +17,7 @@ import {
   Download,
   FileText,
   History,
+  ImagePlus,
   LayoutDashboard,
   Link2,
   ListChecks,
@@ -91,6 +92,8 @@ import {
   deleteTaskComment,
   updateTaskChecklist,
   uploadTaskAttachment,
+  uploadClientLogo,
+  removeClientLogo,
   getAssignableUsers,
   logFromApi,
   markTaskCompleted,
@@ -350,22 +353,26 @@ function useWorkspace() {
       };
     });
 
-  const runWithFallback = async (apiAction, fallbackAction) => {
+  const runWithFallback = async (apiAction, fallbackAction, rethrow = false) => {
     if (isFallback) {
-      fallbackAction();
-      return;
+      return fallbackAction();
     }
     setError("");
     try {
-      await apiAction();
+      const result = await apiAction();
       await loadApiData();
+      return result;
     } catch (requestError) {
+      if (rethrow) {
+        setError(`API request failed. ${requestError.message}`);
+        throw requestError;
+      }
       setIsFallback(true);
       setConnectionStatus("error");
       setError(
         `API request failed. Change saved in demo mode only. ${requestError.message}`,
       );
-      fallbackAction();
+      return fallbackAction();
     }
   };
 
@@ -464,14 +471,42 @@ function useWorkspace() {
       };
     });
 
-  const saveClient = async (client) =>
+  const saveClient = async (client, logoChange = {}) =>
     runWithFallback(
       async () => {
         const exists = workspace.clients.some((item) => item.id === client.id);
-        if (exists) await updateClientApi(client.id, clientToApi(client));
-        else await createClientApi(clientToApi(client));
+        const saved = exists
+          ? await updateClientApi(client.id, clientToApi(client))
+          : await createClientApi(clientToApi(client));
+        const clientId = String(client.id || saved?.id || "");
+        if (logoChange.removeLogo && clientId) {
+          await removeClientLogo(clientId);
+        }
+        if (logoChange.logoFile && clientId) {
+          await uploadClientLogo(clientId, logoChange.logoFile);
+        }
+        return { id: clientId };
       },
       () => saveClientLocal(client),
+      Boolean(logoChange.logoFile || logoChange.removeLogo),
+    );
+
+  const saveClientLogo = async (id, file) =>
+    runWithFallback(
+      () => uploadClientLogo(id, file),
+      () => {
+        throw new Error("Client logo uploads require the backend API.");
+      },
+      true,
+    );
+
+  const clearClientLogo = async (id) =>
+    runWithFallback(
+      () => removeClientLogo(id),
+      () => {
+        throw new Error("Client logo removal requires the backend API.");
+      },
+      true,
     );
 
   const deleteClient = async (id) =>
@@ -618,6 +653,8 @@ function useWorkspace() {
     updateTask,
     deleteTask,
     saveClient,
+    saveClientLogo,
+    clearClientLogo,
     deleteClient,
     generateRecurringTasks,
     refreshActivities,
@@ -1790,8 +1827,46 @@ function ClientForm({ client, onSave, onClose }) {
     },
   );
   const [saving, setSaving] = useState(false);
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(client?.logoUrl || "");
+  const [logoPreviewFailed, setLogoPreviewFailed] = useState(false);
+  const [removeLogo, setRemoveLogo] = useState(false);
+  const [logoError, setLogoError] = useState("");
   const change = (key, value) =>
     setForm((current) => ({ ...current, [key]: value }));
+  useEffect(
+    () => () => {
+      if (logoPreview?.startsWith("blob:")) URL.revokeObjectURL(logoPreview);
+    },
+    [logoPreview],
+  );
+  const chooseLogo = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setLogoError("Choose a JPG, PNG, or WEBP image.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setLogoError("Client logo must be 5MB or smaller.");
+      return;
+    }
+    if (logoPreview?.startsWith("blob:")) URL.revokeObjectURL(logoPreview);
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+    setLogoPreviewFailed(false);
+    setRemoveLogo(false);
+    setLogoError("");
+  };
+  const clearLogo = () => {
+    if (logoPreview?.startsWith("blob:")) URL.revokeObjectURL(logoPreview);
+    setLogoFile(null);
+    setLogoPreview("");
+    setLogoPreviewFailed(false);
+    setRemoveLogo(Boolean(client?.logoUrl));
+    setLogoError("");
+  };
   const submit = async (event) => {
     event.preventDefault();
     const initials =
@@ -1803,13 +1878,52 @@ function ClientForm({ client, onSave, onClose }) {
         .slice(0, 2)
         .toUpperCase();
     setSaving(true);
-    await onSave({ ...form, initials });
-    setSaving(false);
-    onClose();
+    setLogoError("");
+    try {
+      await onSave({ ...form, initials }, { logoFile, removeLogo });
+      onClose();
+    } catch (error) {
+      setLogoError(error.message);
+    } finally {
+      setSaving(false);
+    }
   };
   return (
     <form onSubmit={submit}>
       <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
+        <Field label="Client logo" className="sm:col-span-2">
+          <div className="flex items-center gap-4 rounded-xl border border-dashed border-line bg-canvas/70 p-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-white text-lg font-bold text-blue shadow-soft">
+              {logoPreview && !logoPreviewFailed ? (
+                <img className="h-full w-full bg-white object-contain p-1" src={logoPreview} alt="Client logo preview" onError={() => setLogoPreviewFailed(true)} />
+              ) : (
+                <span className="flex h-full w-full items-center justify-center bg-blue/10">
+                  {form.name
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((part) => part.charAt(0))
+                    .join("")
+                    .toUpperCase() || <ImagePlus size={21} className="text-zinc-400" />}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-ink">Client identity image</p>
+              <p className="mt-1 text-xs text-zinc-500">JPG, PNG, or WEBP. Maximum 5MB.</p>
+              {logoError && <p className="mt-2 text-xs font-medium text-red-600">{logoError}</p>}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <label className="button-secondary cursor-pointer px-3 py-2 text-xs">
+                  <ImagePlus size={14} />
+                  {logoPreview ? "Change logo" : "Choose logo"}
+                  <input className="hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseLogo} />
+                </label>
+                {logoPreview && <button className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50" type="button" onClick={clearLogo}><Trash2 size={14} />Remove</button>}
+              </div>
+            </div>
+          </div>
+        </Field>
         <Field label="Client name">
           <input
             className="field"
@@ -4002,19 +4116,18 @@ function BillingPage({ clients, billings, updateTask }) {
   return (
     <>
       <PageHeader
-        eyebrow="Revenue operations"
         title="Billing"
-        description="Track billable client work, invoice progress, and payment collection in one ledger."
+        description="Track billable work, invoices and payment collection."
       />
       <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => (
           <article
             key={metric.label}
-            className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-[0_6px_22px_rgba(24,24,27,0.04)] sm:p-5"
+            className="rounded-xl border border-line bg-white p-5 shadow-soft transition hover:-translate-y-0.5 hover:shadow-panel"
           >
             <div className="flex items-start justify-between">
               <span
-                className={`flex h-9 w-9 items-center justify-center rounded-xl ${metric.tone}`}
+                className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue/5 text-blue"
               >
                 <metric.icon size={17} />
               </span>
@@ -4033,7 +4146,7 @@ function BillingPage({ clients, billings, updateTask }) {
         ))}
       </div>
       {billable.length ? (
-        <section className="overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-[0_10px_34px_rgba(24,24,27,0.05)]">
+        <section className="overflow-hidden rounded-xl border border-line bg-white shadow-panel">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-5 py-4">
             <div>
               <h2 className="text-sm font-semibold text-zinc-900">
@@ -4058,7 +4171,7 @@ function BillingPage({ clients, billings, updateTask }) {
             {billable.map((task) => (
               <article
                 key={task.id}
-                className="grid gap-4 px-5 py-5 transition hover:bg-blue/[0.02] lg:grid-cols-[minmax(260px,1.4fr)_150px_130px_150px_150px] lg:items-center"
+                className="grid gap-4 px-5 py-4 transition hover:bg-zinc-50/70 lg:grid-cols-[minmax(260px,1.4fr)_150px_130px_150px_150px] lg:items-center"
               >
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -4100,7 +4213,7 @@ function BillingPage({ clients, billings, updateTask }) {
                     Payment
                   </span>
                   <select
-                    className={`w-full rounded-xl border px-3 py-2 text-xs font-bold outline-none transition focus:ring-4 focus:ring-blue/10 ${task.paymentStatus === "Paid" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-orange-200 bg-orange-50 text-orange-700"}`}
+                    className={`w-full rounded-lg border px-3 py-2 text-xs font-bold outline-none transition focus:ring-2 focus:ring-blue/10 ${task.paymentStatus === "Paid" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-zinc-200 bg-zinc-50 text-zinc-700"}`}
                     value={task.paymentStatus || "Unpaid"}
                     onChange={(event) =>
                       updateTask(task.id, { paymentStatus: event.target.value })
@@ -4115,7 +4228,7 @@ function BillingPage({ clients, billings, updateTask }) {
                     Invoice
                   </span>
                   <select
-                    className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-bold text-zinc-600 outline-none transition focus:border-blue/40 focus:ring-4 focus:ring-blue/10"
+                    className="w-full rounded-lg border border-line bg-zinc-50 px-3 py-2 text-xs font-bold text-zinc-600 outline-none transition focus:border-blue/40 focus:ring-2 focus:ring-blue/10"
                     value={task.invoiceStatus || "Not invoiced"}
                     onChange={(event) =>
                       updateTask(task.id, { invoiceStatus: event.target.value })
@@ -4131,7 +4244,7 @@ function BillingPage({ clients, billings, updateTask }) {
           </div>
         </section>
       ) : (
-        <div className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-sm">
+        <div className="rounded-xl border border-line bg-white p-6 shadow-soft">
           <EmptyState
             title="No billable work yet"
             description="Tasks marked as billable will appear here with payment and invoice tracking."
@@ -4500,6 +4613,10 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
         onEditTask={setTaskModal}
         onDeleteTask={deleteTask}
         updateTask={workspace.updateTask}
+        onEditClient={() => setClientModal(selectedClient)}
+        onUpdateClient={workspace.saveClient}
+        onUploadLogo={(file) => workspace.saveClientLogo(selectedClient.id, file)}
+        onRemoveLogo={() => workspace.clearClientLogo(selectedClient.id)}
       />
     ) : (
       <EmptyState

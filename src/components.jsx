@@ -186,12 +186,42 @@ export function TaskCard({ task, client, onEdit, onDelete, onStatusChange, statu
   )
 }
 
+export function getClientInitials(name, fallback = '') {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean)
+  if (parts.length) return parts.slice(0, 2).map((part) => part.charAt(0)).join('').toUpperCase()
+  return String(fallback || '?').trim().slice(0, 2).toUpperCase()
+}
+
+export function ClientIdentity({ client, className = '', imageClassName = '' }) {
+  const [imageFailed, setImageFailed] = useState(false)
+  const logoUrl = client?.logoUrl || ''
+
+  useEffect(() => setImageFailed(false), [logoUrl])
+
+  return (
+    <span className={`flex items-center justify-center overflow-hidden bg-white font-bold text-blue ${className}`}>
+      {logoUrl && !imageFailed ? (
+        <img
+          className={`h-full w-full bg-white object-contain ${imageClassName}`}
+          src={logoUrl}
+          alt={`${client?.name || 'Client'} logo`}
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <span className="flex h-full w-full items-center justify-center bg-blue/10 text-current">
+          {getClientInitials(client?.name, client?.initials)}
+        </span>
+      )}
+    </span>
+  )
+}
+
 export function ClientCard({ client, metrics, onView, onEdit, onDelete }) {
   const completion = metrics.total ? Math.round((metrics.completed / metrics.total) * 100) : 0
   const active = String(client.status || 'active').toLowerCase() === 'active'
   return (
     <Card interactive className="group min-h-[260px] p-5 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-panel">
-      <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white shadow-soft" style={{ backgroundColor: client.color }}>{client.initials}</div><div className="min-w-0"><button className="block max-w-full truncate text-left text-base font-bold tracking-tight group-hover:text-blue" onClick={onView}>{client.name}</button><p className="mt-1 truncate text-xs text-zinc-500">{client.contact || 'No contact person'}</p></div></div><ActionMenu onEdit={onEdit} onDelete={onDelete} /></div>
+      <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><ClientIdentity client={client} className="h-11 w-11 shrink-0 rounded-xl text-sm shadow-soft" imageClassName="p-1" /><div className="min-w-0"><button className="block max-w-full truncate text-left text-base font-bold tracking-tight group-hover:text-blue" onClick={onView}>{client.name}</button><p className="mt-1 truncate text-xs text-zinc-500">{client.contact || 'No contact person'}</p></div></div><ActionMenu onEdit={onEdit} onDelete={onDelete} /></div>
       <div className="mt-5 flex items-center justify-between"><Badge variant={active ? 'success' : 'warning'}>{active ? 'Active' : String(client.status || '').replaceAll('_', ' ')}</Badge><span className="text-xs font-semibold tabular-nums text-zinc-500">{completion}% delivered</span></div>
       <div className="mt-4 grid grid-cols-3 rounded-xl border border-line bg-canvas/70 p-3"><div><div className="text-xl font-semibold tabular-nums">{metrics.total}</div><div className="text-[10px] font-medium text-zinc-400">Tasks</div></div><div><div className="text-xl font-semibold tabular-nums">{metrics.pending}</div><div className="text-[10px] font-medium text-zinc-400">Pending</div></div><div className="min-w-0"><div className="truncate text-sm font-semibold tabular-nums">{formatMoney(metrics.billable)}</div><div className="text-[10px] font-medium text-zinc-400">Billable</div></div></div>
       <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-zinc-100"><div className="h-full rounded-full bg-blue transition-all" style={{ width: `${completion}%` }} /></div>
