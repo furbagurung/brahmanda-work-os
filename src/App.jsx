@@ -116,6 +116,7 @@ import {
   getAttachmentPreviewUrl,
   optimizeAttachmentImageForUpload,
 } from "./attachmentUtils";
+import { optimizeClientLogo } from "./clientLogoUtils";
 import {
   deadlineState,
   formatDate,
@@ -1840,21 +1841,21 @@ function ClientForm({ client, onSave, onClose }) {
     },
     [logoPreview],
   );
-  const chooseLogo = (event) => {
+  const chooseLogo = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      setLogoError("Choose a JPG, PNG, or WEBP image.");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setLogoError("Client logo must be 5MB or smaller.");
+    setLogoError("");
+    let optimizedFile;
+    try {
+      optimizedFile = await optimizeClientLogo(file);
+    } catch (error) {
+      setLogoError(error.message);
       return;
     }
     if (logoPreview?.startsWith("blob:")) URL.revokeObjectURL(logoPreview);
-    setLogoFile(file);
-    setLogoPreview(URL.createObjectURL(file));
+    setLogoFile(optimizedFile);
+    setLogoPreview(URL.createObjectURL(optimizedFile));
     setLogoPreviewFailed(false);
     setRemoveLogo(false);
     setLogoError("");
@@ -1895,7 +1896,7 @@ function ClientForm({ client, onSave, onClose }) {
           <div className="flex items-center gap-4 rounded-xl border border-dashed border-line bg-canvas/70 p-4">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-white text-lg font-bold text-blue shadow-soft">
               {logoPreview && !logoPreviewFailed ? (
-                <img className="h-full w-full bg-white object-contain p-1" src={logoPreview} alt="Client logo preview" onError={() => setLogoPreviewFailed(true)} />
+                <img className="h-full w-full bg-white object-cover object-center" src={logoPreview} alt="Client logo preview" onError={() => setLogoPreviewFailed(true)} />
               ) : (
                 <span className="flex h-full w-full items-center justify-center bg-blue/10">
                   {form.name

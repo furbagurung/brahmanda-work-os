@@ -13,6 +13,7 @@ import { PRIORITIES, TASK_STATUSES } from './data'
 import { getReports } from './services/api'
 import { formatDate, formatMoney } from './utils'
 import { getAttachmentPreviewUrl } from './attachmentUtils'
+import { optimizeClientLogo } from './clientLogoUtils'
 import { ActivityFeed } from './ActivityPage'
 import ReportShareManager from './ReportShareManager'
 
@@ -117,6 +118,11 @@ export default function ClientDetailPage({
   useEffect(() => {
     setCurrentLogoUrl(client.logoUrl || '')
   }, [client.logoUrl])
+  useEffect(() => {
+    if (!logoError) return undefined
+    const timeout = window.setTimeout(() => setLogoError(''), 4500)
+    return () => window.clearTimeout(timeout)
+  }, [logoError])
 
   useEffect(() => {
     const closeMenus = (event) => {
@@ -143,24 +149,24 @@ export default function ClientDetailPage({
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setLogoError('Choose a JPG, PNG, or WEBP image.')
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setLogoError('Client logo must be 5MB or smaller.')
+    setLogoError('')
+    let optimizedFile
+    try {
+      optimizedFile = await optimizeClientLogo(file)
+    } catch (error) {
+      setLogoError(error.message)
       return
     }
     const previous = currentLogoUrl
-    const preview = URL.createObjectURL(file)
+    const preview = URL.createObjectURL(optimizedFile)
     setCurrentLogoUrl(preview)
     setLogoUploading(true)
-    setLogoError('')
     try {
-      const result = await onUploadLogo(file)
+      const result = await onUploadLogo(optimizedFile)
       if (result?.logo_url) {
         setCurrentLogoUrl(`${result.logo_url}?v=${Date.now()}`)
       }
+      setLogoError('')
     } catch (error) {
       setCurrentLogoUrl(previous)
       setLogoError(error.message)
@@ -269,7 +275,6 @@ export default function ClientDetailPage({
           <ClientIdentity
             client={{ ...client, logoUrl: currentLogoUrl }}
             className="h-full w-full text-2xl"
-            imageClassName="p-2"
           />
           <button className="absolute inset-0 z-10 flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl bg-zinc-950/65 text-[10px] font-semibold text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 disabled:cursor-wait" type="button" disabled={logoUploading} onClick={() => logoInputRef.current?.click()} aria-label={logoUploading ? 'Uploading client logo' : `Change ${client.name} logo`}>
             <Camera size={17} className={logoUploading ? 'animate-pulse' : ''} />
@@ -277,7 +282,6 @@ export default function ClientDetailPage({
           </button>
           <input ref={logoInputRef} className="hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadLogo} />
         </div>
-        {logoError && <p className="mt-2 text-xs font-medium text-red-600">{logoError}</p>}
         <div className="mt-4 flex flex-wrap items-center gap-3"><h1 className="text-2xl font-semibold tracking-tight text-ink">{client.name}</h1><Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">{displayStatus(client.status)}</Badge></div>
         <p className="mt-1 text-sm text-zinc-500">{client.servicePackage || 'Client workspace'}</p>
         <div className="mt-4 flex flex-wrap gap-2">
@@ -291,6 +295,7 @@ export default function ClientDetailPage({
         </div>
       </div>
     </section>
+    {logoError && <div className="fixed bottom-5 right-5 z-50 max-w-sm rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-medium text-red-700 shadow-panel" role="alert">{logoError}</div>}
 
     <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{summary.map(([label, value, icon]) => <SummaryCard key={label} label={label} value={value} icon={icon} />)}</div>
 

@@ -202,7 +202,7 @@ export function ClientIdentity({ client, className = '', imageClassName = '' }) 
     <span className={`flex items-center justify-center overflow-hidden bg-white font-bold text-blue ${className}`}>
       {logoUrl && !imageFailed ? (
         <img
-          className={`h-full w-full bg-white object-contain ${imageClassName}`}
+          className={`h-full w-full bg-white object-cover object-center ${imageClassName}`}
           src={logoUrl}
           alt={`${client?.name || 'Client'} logo`}
           onError={() => setImageFailed(true)}
@@ -221,7 +221,7 @@ export function ClientCard({ client, metrics, onView, onEdit, onDelete }) {
   const active = String(client.status || 'active').toLowerCase() === 'active'
   return (
     <Card interactive className="group min-h-[260px] p-5 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-panel">
-      <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><ClientIdentity client={client} className="h-11 w-11 shrink-0 rounded-xl text-sm shadow-soft" imageClassName="p-1" /><div className="min-w-0"><button className="block max-w-full truncate text-left text-base font-bold tracking-tight group-hover:text-blue" onClick={onView}>{client.name}</button><p className="mt-1 truncate text-xs text-zinc-500">{client.contact || 'No contact person'}</p></div></div><ActionMenu onEdit={onEdit} onDelete={onDelete} /></div>
+      <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><ClientIdentity client={client} className="h-11 w-11 shrink-0 rounded-xl text-sm shadow-soft" /><div className="min-w-0"><button className="block max-w-full truncate text-left text-base font-bold tracking-tight group-hover:text-blue" onClick={onView}>{client.name}</button><p className="mt-1 truncate text-xs text-zinc-500">{client.contact || 'No contact person'}</p></div></div><ActionMenu onEdit={onEdit} onDelete={onDelete} /></div>
       <div className="mt-5 flex items-center justify-between"><Badge variant={active ? 'success' : 'warning'}>{active ? 'Active' : String(client.status || '').replaceAll('_', ' ')}</Badge><span className="text-xs font-semibold tabular-nums text-zinc-500">{completion}% delivered</span></div>
       <div className="mt-4 grid grid-cols-3 rounded-xl border border-line bg-canvas/70 p-3"><div><div className="text-xl font-semibold tabular-nums">{metrics.total}</div><div className="text-[10px] font-medium text-zinc-400">Tasks</div></div><div><div className="text-xl font-semibold tabular-nums">{metrics.pending}</div><div className="text-[10px] font-medium text-zinc-400">Pending</div></div><div className="min-w-0"><div className="truncate text-sm font-semibold tabular-nums">{formatMoney(metrics.billable)}</div><div className="text-[10px] font-medium text-zinc-400">Billable</div></div></div>
       <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-zinc-100"><div className="h-full rounded-full bg-blue transition-all" style={{ width: `${completion}%` }} /></div>
