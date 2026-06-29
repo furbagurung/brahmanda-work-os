@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useRef, useState } from 'react'
 import {
-  ArrowDownRight, ArrowUpRight, CalendarDays, Check, ChevronRight, CircleDollarSign,
-  ExternalLink, ListChecks, MoreHorizontal, Pencil, ReceiptText, Repeat2, Trash2, UserRound, X,
+  ArrowDownRight, ArrowUpRight, CalendarDays, Check, ChevronDown, ChevronRight, CircleDollarSign,
+  ExternalLink, ListChecks, MoreHorizontal, Pencil, ReceiptText, Repeat2, Search, Trash2, UserRound, X,
 } from 'lucide-react'
 
 import { deadlineState, formatDate, formatMoney } from './utils'
@@ -10,7 +10,7 @@ const statusStyle = {
   New: 'border-zinc-300 bg-zinc-50 text-zinc-700',
   'In Progress': 'border-blue/20 bg-blue/5 text-blue',
   'Waiting for Client': 'border-amber-200 bg-amber-50 text-amber-800',
-  Revision: 'border-red-200 bg-red-50 text-red-700',
+  Revision: 'border-orange-200 bg-orange-50 text-orange-700',
   Completed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
 }
 
@@ -92,24 +92,50 @@ export function Badge({ children, className = '', variant = 'neutral' }) {
   return <span className={`inline-flex items-center whitespace-nowrap rounded-md border px-2 py-0.5 text-[10px] font-semibold leading-4 ${badgeVariants[variant] || ''} ${className}`}>{children}</span>
 }
 
+export const getStatusTone = (status) => statusStyle[status] || statusStyle.New
+export const getStatusLabel = (status) =>
+  status === 'New' ? 'Not Started' : status
+export const getPriorityTone = (priority) => priorityStyle[priority] || priorityStyle.Low
+export const getStatusDotTone = (status) => ({
+  New: 'bg-slate-400',
+  'In Progress': 'bg-blue',
+  'Waiting for Client': 'bg-amber-500',
+  Revision: 'bg-orange-500',
+  Completed: 'bg-emerald-600',
+}[status] || 'bg-slate-400')
+
+export function getDeadlineTone(state) {
+  const styles = {
+    Overdue: 'border-red-200 bg-red-50 text-red-700',
+    'Due Today': 'border-amber-200 bg-amber-50 text-amber-800',
+    'Due Tomorrow': 'border-amber-200 bg-amber-50 text-amber-800',
+    'Due This Week': 'border-blue/20 bg-blue/5 text-blue',
+    Upcoming: 'border-zinc-200 bg-zinc-50 text-zinc-600',
+  }
+  return styles[state] || ''
+}
+
+export function getBillingTone(value) {
+  if (!value || value === 'Billable') return 'border-blue/20 bg-blue/5 text-blue'
+  if (value === 'Paid' || value === 'Sent') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  if (value === 'Overdue') return 'border-red-200 bg-red-50 text-red-700'
+  if (['Pending', 'Unpaid', 'Draft', 'Pending Review'].includes(value)) return 'border-amber-200 bg-amber-50 text-amber-800'
+  return 'border-zinc-200 bg-zinc-50 text-zinc-700'
+}
+
 export function StatusBadge({ status }) {
-  return <Badge className={statusStyle[status] || statusStyle.New}>{status}</Badge>
+  return <Badge className={getStatusTone(status)}>{getStatusLabel(status)}</Badge>
 }
 
 export function PriorityBadge({ priority }) {
-  return <Badge className={priorityStyle[priority] || priorityStyle.Low}>{priority}</Badge>
+  return <Badge className={getPriorityTone(priority)}>{priority}</Badge>
 }
 
 export function DeadlineBadge({ task }) {
   const state = deadlineState(task)
-  const styles = {
-    Overdue: 'border-red-200 bg-red-50 text-red-700',
-    'Due Today': 'border-orange-200 bg-orange-50 text-orange-800',
-    'Due Tomorrow': 'border-amber-200 bg-amber-50 text-amber-800',
-    'Due This Week': 'border-blue/20 bg-blue/5 text-blue',
-  }
-  if (!styles[state]) return null
-  return <Badge className={styles[state]}>{state}</Badge>
+  const tone = getDeadlineTone(state)
+  if (!tone) return null
+  return <Badge className={tone}>{state}</Badge>
 }
 
 export function RecurringBadge({ task }) {
@@ -180,7 +206,7 @@ export function TaskCard({ task, client, onEdit, onDelete, onStatusChange, statu
       </div>
       {task.checklistTotal > 0 && <div className="mt-3 rounded-xl bg-canvas p-3"><div className="mb-2 flex items-center justify-between text-[10px] font-medium text-zinc-500"><span className="flex items-center gap-1"><ListChecks size={11} />Checklist</span><span>{task.checklistCompleted}/{task.checklistTotal}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-zinc-200"><div className="h-full rounded-full bg-blue" style={{ width: `${(task.checklistCompleted / task.checklistTotal) * 100}%` }} /></div></div>}
       <div className="mt-4 border-t border-line pt-3">
-        <select className="w-full rounded-lg bg-canvas px-2 py-2 text-xs font-semibold outline-none transition hover:bg-zinc-100" value={task.status} onChange={(event) => onStatusChange(task.id, event.target.value)} aria-label="Change task status">{statuses.map((status) => <option key={status}>{status}</option>)}</select>
+        <select className="w-full rounded-lg bg-canvas px-2 py-2 text-xs font-semibold outline-none transition hover:bg-zinc-100" value={task.status} onChange={(event) => onStatusChange(task.id, event.target.value)} aria-label="Change task status">{statuses.map((status) => <option key={status} value={status}>{getStatusLabel(status)}</option>)}</select>
       </div>
     </Card>
   )
@@ -194,7 +220,7 @@ export function getClientInitials(name, fallback = '') {
 
 export function ClientIdentity({ client, className = '', imageClassName = '' }) {
   const [imageFailed, setImageFailed] = useState(false)
-  const logoUrl = client?.logoUrl || ''
+  const logoUrl = client?.logoUrl || client?.logo_url || ''
 
   useEffect(() => setImageFailed(false), [logoUrl])
 
@@ -213,6 +239,160 @@ export function ClientIdentity({ client, className = '', imageClassName = '' }) 
         </span>
       )}
     </span>
+  )
+}
+
+export function ClientCombobox({
+  clients,
+  value,
+  onChange,
+  placeholder = 'Select client',
+  className = '',
+  required = true,
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [activeIndex, setActiveIndex] = useState(0)
+  const rootRef = useRef(null)
+  const searchRef = useRef(null)
+  const selectedClient = clients.find((client) => String(client.id) === String(value))
+  const filteredClients = clients.filter((client) =>
+    String(client.name || '').toLowerCase().includes(search.trim().toLowerCase()),
+  )
+
+  useEffect(() => {
+    if (!open) return undefined
+    const close = (event) => !rootRef.current?.contains(event.target) && setOpen(false)
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    setSearch('')
+    setActiveIndex(0)
+    requestAnimationFrame(() => searchRef.current?.focus())
+  }, [open])
+
+  const selectClient = (client) => {
+    onChange(String(client.id))
+    setOpen(false)
+  }
+
+  const handleListNavigation = (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setOpen(false)
+      return
+    }
+    if (!filteredClients.length) return
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActiveIndex((index) => (index + 1) % filteredClients.length)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveIndex((index) => (index - 1 + filteredClients.length) % filteredClients.length)
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      selectClient(filteredClients[activeIndex])
+    }
+  }
+
+  return (
+    <div ref={rootRef} className={`relative ${className}`}>
+      <select
+        className="pointer-events-none absolute h-px w-px opacity-0"
+        value={value}
+        onChange={() => {}}
+        required={required}
+        tabIndex={-1}
+        aria-hidden="true"
+      >
+        <option value="">Select client</option>
+        {clients.map((client) => (
+          <option key={client.id} value={client.id}>{client.name}</option>
+        ))}
+      </select>
+      <button
+        type="button"
+        className={`flex h-11 w-full items-center gap-3 rounded-xl border bg-white px-3 text-left text-sm shadow-soft outline-none transition ${open ? 'border-blue/40 ring-2 ring-blue/10' : 'border-zinc-200 hover:border-zinc-300'}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (!open && ['ArrowDown', 'Enter', ' '].includes(event.key)) {
+            event.preventDefault()
+            setOpen(true)
+          }
+        }}
+      >
+        {selectedClient ? (
+          <ClientIdentity client={selectedClient} className="h-7 w-7 shrink-0 rounded-lg text-[10px]" />
+        ) : (
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-400">
+            <UserRound size={13} />
+          </span>
+        )}
+        <span className={`min-w-0 flex-1 truncate font-medium ${selectedClient ? 'text-zinc-800' : 'text-zinc-400'}`}>
+          {selectedClient?.name || placeholder}
+        </span>
+        <ChevronDown size={15} className={`shrink-0 text-zinc-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-[70] mt-2 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-panel">
+          <div className="border-b border-zinc-100 p-2.5">
+            <div className="flex items-center gap-2 rounded-lg bg-zinc-50 px-3 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue/10">
+              <Search size={14} className="shrink-0 text-zinc-400" />
+              <input
+                ref={searchRef}
+                className="client-combobox-search min-w-0 flex-1 bg-transparent py-2.5 text-sm outline-none placeholder:text-zinc-400"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value)
+                  setActiveIndex(0)
+                }}
+                onKeyDown={handleListNavigation}
+                placeholder="Search clients..."
+                aria-label="Search clients"
+                role="combobox"
+                aria-expanded="true"
+              />
+            </div>
+          </div>
+          <div className="max-h-64 overflow-y-auto p-1.5" role="listbox">
+            {filteredClients.map((client, index) => {
+              const selected = String(client.id) === String(value)
+              const detail =
+                client.servicePackage ||
+                client.service_package ||
+                String(client.status || '').replaceAll('_', ' ')
+              return (
+                <button
+                  key={client.id}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition ${selected || index === activeIndex ? 'bg-blue/5' : 'hover:bg-zinc-50'}`}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => selectClient(client)}
+                >
+                  <ClientIdentity client={client} className="h-9 w-9 shrink-0 rounded-lg border border-zinc-200 text-[10px] shadow-soft" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-zinc-800">{client.name}</span>
+                    {detail && <span className="mt-0.5 block truncate text-[11px] capitalize text-zinc-400">{detail}</span>}
+                  </span>
+                  {selected && <Check size={15} className="shrink-0 text-blue" />}
+                </button>
+              )
+            })}
+            {!filteredClients.length && (
+              <p className="px-3 py-6 text-center text-xs text-zinc-400">No clients found.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -246,8 +426,7 @@ export function ReportSection({ title, children }) {
 }
 
 export function BillingBadge({ value, type }) {
-  const styles = value === 'Paid' || value === 'Sent' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : value === 'Draft' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-zinc-200 bg-zinc-50 text-zinc-700'
-  return <Badge className={styles}>{type === 'invoice' && <ReceiptText size={12} className="mr-1" />}{value}</Badge>
+  return <Badge className={getBillingTone(value)}>{type === 'invoice' && <ReceiptText size={12} className="mr-1" />}{value || 'Billable'}</Badge>
 }
 
 export function ProofLink({ href }) {

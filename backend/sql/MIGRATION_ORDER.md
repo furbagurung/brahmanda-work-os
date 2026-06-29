@@ -32,6 +32,7 @@ Apply only migrations that have not already been applied. The historical order i
 10. `add_task_assignment.sql`
 11. `add_client_portal_shares.sql`
 12. `add_notifications.sql`
+13. `add_task_order.sql`
 
 Example:
 
@@ -43,6 +44,7 @@ mysql -u DB_USER -p DB_NAME < backend/sql/add_task_reminders.sql
 mysql -u DB_USER -p DB_NAME < backend/sql/add_recurring_tasks.sql
 mysql -u DB_USER -p DB_NAME < backend/sql/add_activity_logs.sql
 mysql -u DB_USER -p DB_NAME < backend/sql/add_settings.sql
+mysql -u DB_USER -p DB_NAME < backend/sql/add_task_order.sql
 ```
 
 Use `SHOW COLUMNS FROM tasks`, `SHOW COLUMNS FROM users`, and `SHOW TABLES` to determine what is already installed. An `add_*` migration may fail with a duplicate-column error if it is run twice.

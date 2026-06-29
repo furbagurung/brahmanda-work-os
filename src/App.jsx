@@ -1,9 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  closestCorners,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   BarChart3,
   BellRing,
-  BriefcaseBusiness,
   CalendarDays,
   CalendarRange,
   CheckCircle2,
@@ -46,6 +63,7 @@ import {
   BillingBadge,
   Button,
   ClientCard,
+  ClientCombobox,
   DeadlineBadge,
   EmptyState,
   Modal,
@@ -56,6 +74,9 @@ import {
   StatCard,
   StatusBadge,
   Table,
+  getBillingTone,
+  getStatusLabel,
+  getStatusDotTone,
 } from "./components";
 import {
   CATEGORIES,
@@ -105,6 +126,7 @@ import {
   reportFromApi,
   updateClient as updateClientApi,
   updateTask as updateTaskApi,
+  reorderTasks as reorderTasksApi,
   generateRecurringTasks as generateRecurringTasksApi,
   updateSettings as updateSettingsApi,
   deleteNotification as deleteNotificationApi,
@@ -173,7 +195,6 @@ const navigation = [
   { label: "Dashboard", icon: LayoutDashboard, group: "Workspace" },
   { label: "Clients", icon: Users, group: "Workspace" },
   { label: "Tasks", icon: ClipboardList, group: "Workspace" },
-  { label: "Kanban Board", icon: BriefcaseBusiness, group: "Workspace" },
   { label: "Daily Logs", icon: CalendarDays, group: "Planning" },
   { label: "Reminders", icon: BellRing, group: "Planning" },
   { label: "Calendar", icon: CalendarRange, group: "Planning" },
@@ -312,8 +333,17 @@ function useWorkspace() {
       const previous = current.tasks.find((item) => item.id === task.id);
       const completedAt =
         task.status === "Completed" ? previous?.completedAt || TODAY : "";
+      const nextTaskOrder = exists
+        ? Number(task.taskOrder ?? previous?.taskOrder ?? 0)
+        : Math.max(
+            0,
+            ...current.tasks
+              .filter((item) => item.status === task.status)
+              .map((item) => Number(item.taskOrder || 0)),
+          ) + 1000;
       const normalized = {
         ...task,
+        taskOrder: nextTaskOrder,
         amount: task.billable ? Number(task.amount || 0) : 0,
         completedAt,
         paymentStatus: task.billable
@@ -339,9 +369,20 @@ function useWorkspace() {
 
   const updateTaskLocal = (id, patch) =>
     setWorkspace((current) => {
+      const currentTask = current.tasks.find((task) => task.id === id);
+      const movedTaskOrder =
+        patch.status && currentTask && patch.status !== currentTask.status
+          ? Math.max(
+              0,
+              ...current.tasks
+                .filter((task) => task.status === patch.status)
+                .map((task) => Number(task.taskOrder || 0)),
+            ) + 1000
+          : null;
       const tasks = current.tasks.map((task) => {
         if (task.id !== id) return task;
         const next = { ...task, ...patch };
+        if (movedTaskOrder !== null) next.taskOrder = movedTaskOrder;
         if (patch.status === "Completed" && !task.completedAt)
           next.completedAt = TODAY;
         if (patch.status && patch.status !== "Completed") next.completedAt = "";
@@ -431,7 +472,7 @@ function useWorkspace() {
     return result;
   };
 
-  const updateTask = async (id, patch) => {
+  const updateTask = async (id, patch, options = {}) => {
     const current = workspace.tasks.find((task) => task.id === id);
     if (!current) return;
     await runWithFallback(
@@ -448,11 +489,45 @@ function useWorkspace() {
         }
       },
       () => updateTaskLocal(id, patch),
+      Boolean(options.rethrow),
     );
-    if ("status" in patch) toast.success("Task status updated.");
+    if (options.feedbackMessage) toast.success(options.feedbackMessage);
+    else if ("status" in patch) toast.success("Task status updated.");
     else if ("paymentStatus" in patch || "invoiceStatus" in patch)
       toast.success("Billing item updated.");
     else toast.success("Task updated.");
+  };
+
+  const reorderBoardTasks = async (items, feedbackMessage) => {
+    await runWithFallback(
+      () => reorderTasksApi(items),
+      () =>
+        setWorkspace((current) => {
+          const updates = new Map(items.map((item) => [String(item.id), item]));
+          const tasks = current.tasks.map((task) => {
+            const update = updates.get(String(task.id));
+            return update
+              ? {
+                  ...task,
+                  status: update.status,
+                  taskOrder: Number(update.task_order),
+                  completedAt:
+                    update.status === "Completed"
+                      ? task.completedAt || TODAY
+                      : "",
+                }
+              : task;
+          });
+          return {
+            ...current,
+            tasks,
+            logs: tasks.filter((task) => task.status === "Completed"),
+            billings: tasks.filter((task) => task.billable),
+          };
+        }),
+      true,
+    );
+    if (feedbackMessage) toast.success(feedbackMessage);
   };
 
   const deleteTask = async (id) => {
@@ -680,6 +755,7 @@ function useWorkspace() {
     connectionStatus,
     saveTask,
     updateTask,
+    reorderBoardTasks,
     deleteTask,
     saveClient,
     saveClientLogo,
@@ -1031,9 +1107,17 @@ const blankTask = (clientId = "") => ({
   invoiceStatus: "Not invoiced",
 });
 
-function FormSection({ icon: Icon, title, description, children }) {
+function FormSection({
+  icon: Icon,
+  title,
+  description,
+  children,
+  allowOverflow = false,
+}) {
   return (
-    <section className="overflow-hidden rounded-xl border border-line bg-white">
+    <section
+      className={`${allowOverflow ? "overflow-visible" : "overflow-hidden"} rounded-xl border border-line bg-white`}
+    >
       <header className="flex items-start gap-3 border-b border-line bg-canvas/70 px-4 py-3.5">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-blue/10 bg-blue/5 text-blue">
           <Icon size={15} />
@@ -1349,26 +1433,24 @@ function TaskForm({
               onChange={(event) => change("status", event.target.value)}
             >
               {TASK_STATUSES.map((item) => (
-                <option key={item}>{item}</option>
+                <option key={item} value={item}>{getStatusLabel(item)}</option>
               ))}
             </select>
           </Field>
         </FormSection>
-        <FormSection icon={UserRound} title="Client & Assignment">
-          <Field label="Client">
-            <select
-              className="field"
+        <FormSection
+          icon={UserRound}
+          title="Client & Assignment"
+          allowOverflow
+        >
+          <div>
+            <span className="mb-2 block text-sm font-semibold">Client</span>
+            <ClientCombobox
+              clients={clients}
               value={form.clientId}
-              onChange={(event) => change("clientId", event.target.value)}
-              required
-            >
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+              onChange={(clientId) => change("clientId", clientId)}
+            />
+          </div>
           <Field label="Assigned user">
             <select
               className="field"
@@ -2070,6 +2152,7 @@ function DeadlineColumn({ title, description, tasks, clients, tone }) {
     red: ["bg-red-50 text-red-700", "bg-red-600"],
     orange: ["bg-orange-50 text-orange-700", "bg-orange-500"],
     blue: ["bg-blue/5 text-blue", "bg-blue"],
+    slate: ["bg-slate-100 text-slate-700", "bg-slate-400"],
   };
   const [toneSurface, toneBar] = toneClasses[tone];
   return (
@@ -2122,9 +2205,9 @@ function DashboardMetricCard({
 }) {
   const accents = {
     blue: "bg-blue/5 text-blue",
-    emerald: "bg-blue/5 text-blue",
-    orange: "bg-blue/5 text-blue",
-    violet: "bg-blue/5 text-blue",
+    emerald: "bg-emerald-50 text-emerald-700",
+    orange: "bg-orange-50 text-orange-700",
+    violet: "bg-violet-50 text-violet-700",
   };
   return (
     <article className={`group relative min-h-40 overflow-hidden rounded-xl border p-5 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-panel ${featured ? "border-ink bg-gradient-to-br from-ink via-zinc-900 to-blue text-white" : "border-line bg-white hover:border-zinc-300"}`}>
@@ -2212,7 +2295,7 @@ function DashboardTaskCard({ task, client, onEdit, updateTask }) {
           }
         >
           {TASK_STATUSES.map((status) => (
-            <option key={status}>{status}</option>
+            <option key={status} value={status}>{getStatusLabel(status)}</option>
           ))}
         </select>
       </div>
@@ -2310,7 +2393,7 @@ function Dashboard({
   const workflowTotal = Math.max(tasks.length, 1);
   const statusFlow = [
     {
-      label: "New",
+      label: getStatusLabel("New"),
       value: tasks.filter((task) => task.status === "New").length,
       bar: "bg-zinc-300",
     },
@@ -2322,17 +2405,17 @@ function Dashboard({
     {
       label: "Waiting",
       value: tasks.filter((task) => task.status === "Waiting for Client").length,
-      bar: "bg-zinc-400",
+      bar: "bg-amber-500",
     },
     {
       label: "Revision",
       value: tasks.filter((task) => task.status === "Revision").length,
-      bar: "bg-zinc-500",
+      bar: "bg-orange-500",
     },
     {
       label: "Completed",
       value: completed.length,
-      bar: "bg-ink",
+      bar: "bg-emerald-600",
     },
   ];
   const maxStatusCount = Math.max(...statusFlow.map((item) => item.value), 1);
@@ -2341,10 +2424,10 @@ function Dashboard({
   const dueTodaySplit = Math.round((dueTodayTasks.length / workflowTotal) * 100);
   const pendingSplit = Math.max(100 - completedSplit - dueTodaySplit, 0);
   const deadlineSummary = [
-    { label: "Overdue", value: overdueTasks.length },
-    { label: "Due today", value: dueTodayTasks.length },
-    { label: "This week", value: dueThisWeekTasks.length },
-    { label: "Upcoming", value: upcomingTasks.length },
+    { label: "Overdue", value: overdueTasks.length, tone: "border-red-200 bg-red-50 text-red-700" },
+    { label: "Due today", value: dueTodayTasks.length, tone: "border-amber-200 bg-amber-50 text-amber-800" },
+    { label: "This week", value: dueThisWeekTasks.length, tone: "border-blue/20 bg-blue/5 text-blue" },
+    { label: "Upcoming", value: upcomingTasks.length, tone: "border-slate-200 bg-slate-50 text-slate-700" },
   ];
   const priorityTasks = tasks
     .filter((task) => task.status !== "Completed")
@@ -2482,9 +2565,9 @@ function Dashboard({
                   </p>
                 </div>
                 {deadlineSummary.map((item) => (
-                  <div className="rounded-xl border border-line bg-white p-4" key={item.label}>
-                    <p className="text-xl font-semibold tabular-nums text-ink">{item.value}</p>
-                    <p className="mt-1 text-[10px] font-semibold text-zinc-500">{item.label}</p>
+                  <div className={`rounded-xl border p-4 ${item.tone}`} key={item.label}>
+                    <p className="text-xl font-semibold tabular-nums">{item.value}</p>
+                    <p className="mt-1 text-[10px] font-semibold opacity-80">{item.label}</p>
                   </div>
                 ))}
               </div>
@@ -2543,7 +2626,7 @@ function Dashboard({
                 description="Beyond seven days"
                 tasks={upcomingTasks}
                 clients={clients}
-                tone="blue"
+                tone="slate"
               />
             </div>
           </section>
@@ -2584,7 +2667,7 @@ function Dashboard({
                       onChange={(event) => updateTask(task.id, { status: event.target.value })}
                       aria-label={`Update ${task.title} status`}
                     >
-                      {TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}
+                      {TASK_STATUSES.map((status) => <option key={status} value={status}>{getStatusLabel(status)}</option>)}
                     </select>
                   </div>
                 ))}
@@ -2676,7 +2759,7 @@ function Dashboard({
                 <div
                   className="relative h-28 w-28 shrink-0 rounded-full"
                   style={{
-                    background: `conic-gradient(#002FA7 0 ${completedSplit}%, #18181B ${completedSplit}% ${completedSplit + pendingSplit}%, #A1A1AA ${completedSplit + pendingSplit}% 100%)`,
+                    background: `conic-gradient(#059669 0 ${completedSplit}%, #64748B ${completedSplit}% ${completedSplit + pendingSplit}%, #F59E0B ${completedSplit + pendingSplit}% 100%)`,
                   }}
                 >
                   <div className="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-white">
@@ -2686,9 +2769,9 @@ function Dashboard({
                 </div>
                 <div className="min-w-0 flex-1 space-y-3">
                   {[
-                    ["Completed", completed.length, "bg-blue"],
-                    ["Pending", pendingWithoutToday, "bg-ink"],
-                    ["Due today", dueTodayTasks.length, "bg-zinc-400"],
+                    ["Completed", completed.length, "bg-emerald-600"],
+                    ["Pending", pendingWithoutToday, "bg-slate-500"],
+                    ["Due today", dueTodayTasks.length, "bg-amber-500"],
                   ].map(([label, value, dot]) => (
                     <div className="flex items-center justify-between gap-3 text-xs" key={label}>
                       <span className="flex items-center gap-2 text-zinc-500">
@@ -2874,13 +2957,12 @@ function TaskFilterControl({
 }) {
   return (
     <label
-      className={`group flex min-w-[148px] flex-1 items-center gap-2 rounded-xl border border-line bg-white px-3 py-2.5 shadow-soft transition hover:border-zinc-300 focus-within:border-blue/40 focus-within:ring-2 focus-within:ring-blue/10 ${className}`}
+      className={`filter-control group ${className}`}
     >
       <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">
         {label}
       </span>
       <select
-        className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-zinc-700 outline-none"
         value={value}
         onChange={onChange}
       >
@@ -3033,7 +3115,7 @@ function TaskListRow({
           aria-label={`Update ${task.title} status`}
         >
           {TASK_STATUSES.map((status) => (
-            <option key={status}>{status}</option>
+            <option key={status} value={status}>{getStatusLabel(status)}</option>
           ))}
         </select>
       </div>
@@ -3054,24 +3136,71 @@ function TaskListRow({
   );
 }
 
-function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
-  const checklistPercent = task.checklistTotal
-    ? Math.round((task.checklistCompleted / task.checklistTotal) * 100)
-    : 0;
-  const proofCount = task.attachments?.length || (task.proofLink ? 1 : 0);
+function BoardDateBadge({ task }) {
+  if (!task.deadline) return null;
+  const state = deadlineState(task);
+  const completed = task.status === "Completed";
+  const tone = completed
+    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+    : state === "Overdue"
+      ? "border-red-200 bg-red-50 text-red-700"
+      : state === "Due Today"
+        ? "border-amber-200 bg-amber-50 text-amber-800"
+        : ["Due Tomorrow", "Due This Week"].includes(state)
+          ? "border-blue/20 bg-blue/5 text-blue"
+          : "border-slate-200 bg-slate-50 text-slate-600";
+  const Icon = completed ? CheckCircle2 : Clock3;
+  return (
+    <span className={`inline-flex h-6 items-center gap-1 rounded-md border px-1.5 text-[10px] font-semibold ${tone}`}>
+      <Icon size={11} />
+      {formatDate(task.deadline, { month: "short", day: "numeric" })}
+    </span>
+  );
+}
+
+function BoardAssigneeAvatar({ name }) {
+  if (!name) {
+    return (
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 text-zinc-400" title="Unassigned">
+        <UserRound size={11} />
+      </span>
+    );
+  }
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+  return (
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue text-[9px] font-bold text-white shadow-soft" title={name}>
+      {initials}
+    </span>
+  );
+}
+
+function KanbanTaskCard({
+  task,
+  client,
+  onEdit,
+  onDelete,
+  overlay = false,
+}) {
+  const proofCount = (task.attachments?.length || 0) + (task.proofLink ? 1 : 0);
   const imageAttachment = firstTaskImage(task);
   const imagePreviewUrl = getAttachmentPreviewUrl(imageAttachment, "card");
   const videoAttachment = firstTaskVideo(task);
   return (
-    <article className="group rounded-xl border border-line bg-white p-3.5 shadow-soft transition duration-150 hover:border-zinc-300 hover:shadow-panel">
+    <article className={`group overflow-hidden rounded-xl border border-line bg-white shadow-soft transition duration-150 hover:border-zinc-300 hover:shadow-panel ${overlay ? "w-[304px] rotate-1 shadow-xl" : ""}`}>
       {imageAttachment && imagePreviewUrl ? (
         <button
-          className="mb-3 block w-full overflow-hidden rounded-lg"
+          className="block w-full overflow-hidden border-b border-line"
           onClick={onEdit}
           aria-label={`Open ${task.title}`}
         >
           <img
-            className="h-20 w-full object-cover"
+            className="h-24 w-full object-cover"
             src={imagePreviewUrl}
             alt=""
             loading="lazy"
@@ -3080,7 +3209,7 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
         </button>
       ) : imageAttachment ? (
         <button
-          className="mb-3 flex h-20 w-full items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-xs font-medium text-zinc-400"
+          className="flex h-20 w-full items-center justify-center border-b border-line bg-zinc-50 text-xs font-medium text-zinc-400"
           onClick={onEdit}
           aria-label={`Open ${task.title}`}
         >
@@ -3088,7 +3217,7 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
         </button>
       ) : videoAttachment ? (
         <button
-          className="mb-3 flex h-20 w-full items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-xs font-semibold text-zinc-500 hover:border-zinc-300 hover:text-zinc-700"
+          className="flex h-20 w-full items-center justify-center border-b border-line bg-zinc-50 text-xs font-semibold text-zinc-500 hover:text-zinc-700"
           onClick={onEdit}
           aria-label={`Open video attachment for ${task.title}`}
         >
@@ -3096,78 +3225,424 @@ function KanbanTaskCard({ task, client, onEdit, onDelete, updateTask }) {
           Video attachment
         </button>
       ) : null}
-      <div className="flex items-start justify-between gap-3">
-        <button className="min-w-0 flex-1 text-left" onClick={onEdit}>
+      <div className="p-3">
+        <div className="flex items-start justify-between gap-2">
+          <button className="min-w-0 flex-1 text-left" onClick={onEdit}>
           <h3 className="text-sm font-semibold leading-5 tracking-tight text-zinc-900 transition group-hover:text-blue">
             {task.title}
           </h3>
           <p className="mt-1 truncate text-xs font-medium text-zinc-400">
             {client?.name || "Deleted client"}
           </p>
-        </button>
-        <ActionMenu onEdit={onEdit} onDelete={onDelete} />
-      </div>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        <PriorityBadge priority={task.priority} />
-        {task.billable && <BillingBadge />}
-      </div>
-      <div className="mt-3 rounded-lg border border-line bg-zinc-50/70 p-2.5">
-        <AssigneePill name={task.assignedUserName} />
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          <DeadlineBadge task={task} />
+          </button>
+          {!overlay && <ActionMenu onEdit={onEdit} onDelete={onDelete} />}
+        </div>
+        <div className="mt-3 flex min-w-0 items-center gap-1.5">
+          <PriorityBadge priority={task.priority} />
+          <BoardDateBadge task={task} />
           {task.reminderDate && (
-            <Badge className="border-orange-200 bg-orange-50 text-orange-700">
-              <BellRing size={11} className="mr-1" />
-              Reminder
-            </Badge>
-          )}
-        </div>
-      </div>
-      {task.checklistTotal > 0 && (
-        <div className="mt-3">
-          <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold text-zinc-400">
-            <span>Checklist progress</span>
-            <span>
-              {task.checklistCompleted}/{task.checklistTotal}
+            <span className="flex h-6 w-6 items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-amber-700" title="Reminder set">
+              <BellRing size={11} />
             </span>
+          )}
+          <span className="flex-1" />
+          <div className="flex items-center gap-2 text-[10px] font-medium text-zinc-500">
+            {proofCount > 0 && (
+              <span className="inline-flex items-center gap-1" title={`${proofCount} attachment or proof item${proofCount === 1 ? "" : "s"}`}>
+                <Paperclip size={12} />
+                {proofCount}
+              </span>
+            )}
+            {task.checklistTotal > 0 && (
+              <span className="inline-flex items-center gap-1" title="Checklist progress">
+                <ListChecks size={12} />
+                {task.checklistCompleted}/{task.checklistTotal}
+              </span>
+            )}
+            {task.isRecurring && (
+              <span className="inline-flex items-center text-violet-600" title="Recurring task">
+                <Repeat2 size={12} />
+              </span>
+            )}
+            {task.billable && (
+              <span className="inline-flex items-center text-emerald-700" title="Billable task">
+                <CircleDollarSign size={12} />
+              </span>
+            )}
+            <BoardAssigneeAvatar name={task.assignedUserName} />
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-zinc-100">
-            <div
-              className="h-full rounded-full bg-blue"
-              style={{ width: `${checklistPercent}%` }}
-            />
-          </div>
         </div>
-      )}
-      <div className="mt-3 flex items-center justify-between border-t border-line pt-3">
-        <div className="flex items-center gap-3 text-[11px] font-medium text-zinc-400">
-          {proofCount > 0 && (
-            <span className="inline-flex items-center gap-1">
-              <Link2 size={13} />
-              {proofCount} proof{proofCount === 1 ? "" : "s"}
-            </span>
-          )}
-          {task.isRecurring && (
-            <span className="inline-flex items-center gap-1 text-violet-600">
-              <Repeat2 size={13} />
-              Recurring
-            </span>
-          )}
-        </div>
-        <select
-          className="max-w-[128px] rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-[10px] font-bold text-zinc-600 outline-none focus:border-blue/50"
-          value={task.status}
-          onChange={(event) =>
-            updateTask(task.id, { status: event.target.value })
-          }
-          aria-label={`Move ${task.title}`}
-        >
-          {TASK_STATUSES.map((status) => (
-            <option key={status}>{status}</option>
-          ))}
-        </select>
       </div>
     </article>
+  );
+}
+
+const boardColumnTone = {
+  New: "border-slate-200 bg-slate-50/80",
+  "In Progress": "border-blue/15 bg-blue/[0.035]",
+  "Waiting for Client": "border-amber-200 bg-amber-50/65",
+  Revision: "border-orange-200 bg-orange-50/65",
+  Completed: "border-emerald-200 bg-emerald-50/60",
+};
+
+const boardHeaderTone = {
+  New: "border-slate-200 bg-slate-100 text-slate-700",
+  "In Progress": "border-blue/15 bg-blue/10 text-blue",
+  "Waiting for Client": "border-amber-200 bg-amber-100/80 text-amber-800",
+  Revision: "border-orange-200 bg-orange-100/80 text-orange-700",
+  Completed: "border-emerald-200 bg-emerald-100/80 text-emerald-700",
+};
+
+function SortableBoardCard({ task, client, onEdit, onDelete }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: `task-${task.id}`,
+    data: { type: "task", task },
+    transition: {
+      duration: 140,
+      easing: "cubic-bezier(0.2, 0, 0, 1)",
+    },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`touch-manipulation cursor-grab rounded-xl active:cursor-grabbing ${isDragging ? "opacity-25" : ""}`}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...attributes}
+      {...listeners}
+    >
+      <KanbanTaskCard
+        task={task}
+        client={client}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
+    </div>
+  );
+}
+
+function BoardColumn({
+  status,
+  tasks,
+  clients,
+  onNewTask,
+  onEditTask,
+  onDeleteTask,
+  highlighted,
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `column-${status}`,
+    data: { type: "column", status },
+  });
+
+  return (
+    <section
+      ref={setNodeRef}
+      className={`flex w-[304px] shrink-0 flex-col rounded-xl border p-2.5 transition sm:w-[320px] ${boardColumnTone[status]} ${isOver || highlighted ? "ring-2 ring-blue/20 ring-offset-2" : ""}`}
+    >
+      <header className="mb-2 flex items-center justify-between gap-3 px-1 py-1.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={`inline-flex min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${boardHeaderTone[status]}`}>
+            <span className={`h-2 w-2 shrink-0 rounded-full ${getStatusDotTone(status)}`} />
+            <span className="truncate">{getStatusLabel(status)}</span>
+          </span>
+          <span className="text-[11px] font-medium tabular-nums text-zinc-500">
+            {tasks.length}
+          </span>
+        </div>
+        <button
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-blue"
+          type="button"
+          onClick={() => onNewTask({ status })}
+          aria-label={`Add task to ${getStatusLabel(status)}`}
+        >
+          <Plus size={15} />
+        </button>
+      </header>
+      <SortableContext
+        items={tasks.map((task) => `task-${task.id}`)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div className="min-h-24 flex-1 space-y-2.5">
+          {tasks.map((task) => (
+            <SortableBoardCard
+              key={task.id}
+              task={task}
+              client={clients.find((client) => client.id === task.clientId)}
+              onEdit={() => onEditTask(task)}
+              onDelete={() => onDeleteTask(task.id)}
+            />
+          ))}
+          {!tasks.length && (
+            <div className="flex min-h-24 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-300/80 bg-white/55 px-4 text-center">
+              <ClipboardList size={16} className="text-zinc-400" />
+              <p className="mt-2 text-xs font-medium text-zinc-500">No tasks here</p>
+            </div>
+          )}
+        </div>
+      </SortableContext>
+      <button
+        className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-zinc-300/90 bg-white/60 px-3 py-2.5 text-xs font-semibold text-zinc-500 transition hover:border-blue/30 hover:bg-white hover:text-blue"
+        type="button"
+        onClick={() => onNewTask({ status })}
+      >
+        <Plus size={14} />
+        Add task
+      </button>
+    </section>
+  );
+}
+
+const sortBoardTasks = (tasks) => [...tasks].sort((a, b) => {
+  const aOrder = Number(a.taskOrder || 0);
+  const bOrder = Number(b.taskOrder || 0);
+  if (aOrder > 0 && bOrder > 0 && aOrder !== bOrder) return aOrder - bOrder;
+  if (aOrder > 0 && bOrder === 0) return -1;
+  if (bOrder > 0 && aOrder === 0) return 1;
+  const createdDifference = Date.parse(a.createdAt || 0) - Date.parse(b.createdAt || 0);
+  if (!Number.isNaN(createdDifference) && createdDifference !== 0) return createdDifference;
+  return String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+});
+
+function positionBoardTask(baseTasks, movedTask, over) {
+  const destinationStatus =
+    over?.data.current?.type === "column"
+      ? over.data.current.status
+      : over?.data.current?.task?.status;
+  if (!movedTask || !destinationStatus) return null;
+
+  const currentTask =
+    baseTasks.find((task) => String(task.id) === String(movedTask.id)) ||
+    movedTask;
+  const fullDestinationTasks = sortBoardTasks(
+    baseTasks.filter((task) => task.status === destinationStatus),
+  );
+  const withoutMoved = baseTasks.filter(
+    (task) => String(task.id) !== String(movedTask.id),
+  );
+  const destinationTasks = sortBoardTasks(
+    withoutMoved.filter((task) => task.status === destinationStatus),
+  );
+  const overTaskId =
+    over?.data.current?.type === "task"
+      ? String(over.data.current.task.id)
+      : "";
+  let insertAt = destinationTasks.length;
+  if (overTaskId) {
+    const overIndex = fullDestinationTasks.findIndex(
+      (task) => String(task.id) === overTaskId,
+    );
+    if (overIndex >= 0) {
+      insertAt = Math.min(overIndex, destinationTasks.length);
+    }
+  }
+  destinationTasks.splice(insertAt, 0, {
+    ...currentTask,
+    status: destinationStatus,
+  });
+  const destinationOrder = new Map(
+    destinationTasks.map((task, index) => [
+      String(task.id),
+      (index + 1) * 1000,
+    ]),
+  );
+  const positioned = baseTasks.map((task) => {
+    if (String(task.id) === String(movedTask.id)) {
+      return {
+        ...task,
+        status: destinationStatus,
+        taskOrder: destinationOrder.get(String(task.id)),
+      };
+    }
+    if (task.status === destinationStatus && destinationOrder.has(String(task.id))) {
+      return { ...task, taskOrder: destinationOrder.get(String(task.id)) };
+    }
+    return task;
+  });
+  return {
+    tasks: positioned,
+    destinationStatus,
+  };
+}
+
+function TaskBoard({
+  clients,
+  tasks,
+  visibleTaskIds,
+  onNewTask,
+  onEditTask,
+  onDeleteTask,
+  reorderTasks,
+}) {
+  const [activeTask, setActiveTask] = useState(null);
+  const [overStatus, setOverStatus] = useState("");
+  const [optimisticTasks, setOptimisticTasks] = useState(null);
+  const lastDragTargetRef = useRef("");
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { distance: 6 },
+    }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const effectiveTasks = optimisticTasks || tasks;
+  const visibleTasks = effectiveTasks.filter((task) => visibleTaskIds.has(String(task.id)));
+
+  const handleDragEnd = async ({ active, over }) => {
+    const movedTask = active.data.current?.task;
+    setActiveTask(null);
+    setOverStatus("");
+    const hoveredDestinationStatus =
+      over?.data.current?.type === "column"
+        ? over.data.current.status
+        : over?.data.current?.task?.status;
+    const positioned =
+      optimisticTasks && hoveredDestinationStatus
+        ? {
+            tasks: optimisticTasks,
+            destinationStatus: hoveredDestinationStatus,
+          }
+        : positionBoardTask(tasks, movedTask, over);
+    lastDragTargetRef.current = "";
+    if (!positioned) {
+      setOptimisticTasks(null);
+      return;
+    }
+    const originalTask =
+      tasks.find((task) => String(task.id) === String(movedTask.id)) ||
+      movedTask;
+    const { destinationStatus } = positioned;
+    const affectedStatuses = new Set([
+      originalTask.status,
+      destinationStatus,
+    ]);
+    const orderedByStatus = {};
+    affectedStatuses.forEach((status) => {
+      orderedByStatus[status] = sortBoardTasks(
+        positioned.tasks.filter((task) => task.status === status),
+      );
+    });
+    const updates = [];
+    const nextTasks = positioned.tasks.map((task) => {
+      for (const status of affectedStatuses) {
+        const index = orderedByStatus[status].findIndex((item) => String(item.id) === String(task.id));
+        if (index >= 0) {
+          const next = { ...task, status, taskOrder: (index + 1) * 1000 };
+          updates.push({ id: task.id, status, task_order: next.taskOrder });
+          return next;
+        }
+      }
+      return task;
+    });
+    const unchanged = updates.every((update) => {
+      const current = effectiveTasks.find((task) => String(task.id) === String(update.id));
+      return current?.status === update.status && Number(current?.taskOrder || 0) === update.task_order;
+    });
+    if (unchanged) return;
+
+    setOptimisticTasks(nextTasks);
+    try {
+      await reorderTasks(
+        updates,
+        originalTask.status === destinationStatus
+          ? ""
+          : `Moved to ${destinationStatus}`,
+      );
+    } catch {
+      setOptimisticTasks(null);
+      return;
+    }
+    setOptimisticTasks(null);
+  };
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCorners}
+      onDragStart={({ active }) => {
+        lastDragTargetRef.current = "";
+        setOptimisticTasks(null);
+        setActiveTask(active.data.current?.task || null);
+      }}
+      onDragOver={({ active, over }) => {
+        const nextStatus =
+          over?.data.current?.type === "column"
+            ? over.data.current.status
+            : over?.data.current?.task?.status || "";
+        setOverStatus(nextStatus);
+        if (!over) return;
+        const targetKey = `${active.id}:${nextStatus}:${over.id}`;
+        if (targetKey === lastDragTargetRef.current) return;
+        lastDragTargetRef.current = targetKey;
+        setOptimisticTasks((current) => {
+          const baseTasks = current || tasks;
+          const currentTask = baseTasks.find(
+            (task) =>
+              String(task.id) ===
+              String(active.data.current?.task?.id),
+          );
+          if (!current && currentTask?.status === nextStatus) {
+            return current;
+          }
+          const positioned = positionBoardTask(
+            baseTasks,
+            active.data.current?.task,
+            over,
+          );
+          return positioned?.tasks || current;
+        });
+      }}
+      onDragCancel={() => {
+        lastDragTargetRef.current = "";
+        setActiveTask(null);
+        setOverStatus("");
+        setOptimisticTasks(null);
+      }}
+      onDragEnd={handleDragEnd}
+    >
+      <section className="overflow-hidden rounded-xl border border-line bg-white shadow-panel">
+        <div className="flex items-center justify-between border-b border-line px-4 py-3 sm:px-5">
+          <p className="text-xs font-medium text-zinc-500">
+            Drag tasks between stages to update delivery status.
+          </p>
+          <span className="text-xs font-semibold tabular-nums text-zinc-700">
+            {visibleTasks.length} tasks
+          </span>
+        </div>
+        <div className="flex items-start gap-3 overflow-x-auto bg-zinc-50/50 p-3 pb-5 sm:p-4">
+          {TASK_STATUSES.map((status) => (
+            <BoardColumn
+              key={status}
+              status={status}
+              tasks={sortBoardTasks(visibleTasks.filter((task) => task.status === status))}
+              clients={clients}
+              onNewTask={onNewTask}
+              onEditTask={onEditTask}
+              onDeleteTask={onDeleteTask}
+              highlighted={overStatus === status}
+            />
+          ))}
+        </div>
+      </section>
+      <DragOverlay dropAnimation={null}>
+        {activeTask ? (
+          <KanbanTaskCard
+            task={activeTask}
+            client={clients.find((client) => client.id === activeTask.clientId)}
+            onEdit={() => {}}
+            onDelete={() => {}}
+            overlay
+          />
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }
 
@@ -3179,7 +3654,9 @@ function TasksPage({
   onEditTask,
   onDeleteTask,
   updateTask,
-  setActivePage,
+  reorderTasks,
+  view,
+  onViewChange,
 }) {
   const [search, setSearch] = useState("");
   const [clientFilter, setClientFilter] = useState("All");
@@ -3306,13 +3783,24 @@ function TasksPage({
         description={`${filtered.length} of ${tasks.length} tasks shown.`}
         action={
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => setActivePage("Kanban Board")}
-            >
-              <LayoutDashboard size={15} />
-              Board view
-            </Button>
+            <div className="inline-flex rounded-lg border border-line bg-white p-1 shadow-soft">
+              <button
+                className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-semibold transition ${view === "list" ? "bg-ink text-white" : "text-zinc-500 hover:bg-zinc-50 hover:text-ink"}`}
+                type="button"
+                onClick={() => onViewChange("list")}
+              >
+                <ListChecks size={14} />
+                List
+              </button>
+              <button
+                className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-semibold transition ${view === "board" ? "bg-ink text-white" : "text-zinc-500 hover:bg-zinc-50 hover:text-ink"}`}
+                type="button"
+                onClick={() => onViewChange("board")}
+              >
+                <LayoutDashboard size={14} />
+                Board
+              </button>
+            </div>
             <Button onClick={onNewTask}>
               <Plus size={15} />
               Create task
@@ -3378,7 +3866,7 @@ function TasksPage({
               >
                 <option>All</option>
                 {TASK_STATUSES.map((status) => (
-                  <option key={status}>{status}</option>
+                  <option key={status} value={status}>{getStatusLabel(status)}</option>
                 ))}
               </TaskFilterControl>
               <TaskFilterControl
@@ -3420,7 +3908,7 @@ function TasksPage({
               </button>
             </div>
           </section>
-          {selected.length > 0 && (
+          {view === "list" && selected.length > 0 && (
             <section className="sticky top-3 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-blue/20 bg-white/95 p-3 shadow-panel backdrop-blur">
               <div className="mr-2 flex items-center gap-2 rounded-lg bg-blue px-3 py-2 text-xs font-bold text-white">
                 <CheckCircle2 size={14} />
@@ -3433,7 +3921,7 @@ function TasksPage({
               >
                 <option value="">Change status</option>
                 {TASK_STATUSES.map((status) => (
-                  <option key={status}>{status}</option>
+                  <option key={status} value={status}>{getStatusLabel(status)}</option>
                 ))}
               </select>
               <Button
@@ -3499,6 +3987,17 @@ function TasksPage({
               </Button>
             </section>
           )}
+          {view === "board" ? (
+            <TaskBoard
+              clients={clients}
+              tasks={tasks}
+              visibleTaskIds={new Set(filtered.map((task) => String(task.id)))}
+              onNewTask={onNewTask}
+              onEditTask={onEditTask}
+              onDeleteTask={onDeleteTask}
+              reorderTasks={reorderTasks}
+            />
+          ) : (
           <section className="overflow-hidden rounded-xl border border-line bg-white shadow-panel">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-4 py-3 sm:px-5">
               <label className="flex items-center gap-3 text-xs font-semibold text-zinc-500">
@@ -3564,103 +4063,9 @@ function TasksPage({
               </div>
             )}
           </section>
+          )}
         </div>
       )}
-    </>
-  );
-}
-
-function KanbanPage({
-  clients,
-  tasks,
-  onNewTask,
-  onEditTask,
-  onDeleteTask,
-  updateTask,
-  setActivePage,
-}) {
-  return (
-    <>
-      <PageHeader
-        title="Kanban Board"
-        description={`${tasks.length} tasks across ${TASK_STATUSES.length} delivery stages.`}
-        action={
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => setActivePage("Tasks")}>
-              <ListChecks size={15} />
-              List view
-            </Button>
-            <Button onClick={onNewTask}>
-              <Plus size={15} />
-              Create task
-            </Button>
-          </div>
-        }
-      />
-      <section className="overflow-hidden rounded-xl border border-line bg-zinc-100/60 shadow-panel">
-        <div className="flex items-center justify-between border-b border-line bg-white px-4 py-3 sm:px-5">
-          <p className="text-xs font-semibold text-zinc-500">
-            <strong className="text-zinc-900">{tasks.length}</strong> tasks
-            across {TASK_STATUSES.length} delivery stages
-          </p>
-        </div>
-        <div className="flex items-start gap-3 overflow-x-auto p-3 pb-4 sm:p-4">
-          {TASK_STATUSES.map((status) => {
-            const list = tasks.filter((task) => task.status === status);
-            return (
-              <section
-                key={status}
-                className="w-[292px] shrink-0 rounded-xl border border-line bg-zinc-50/80 p-2.5 sm:w-[312px]"
-              >
-                <div className="sticky top-0 z-10 mb-2 flex items-center justify-between rounded-lg border border-line bg-white px-3 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`h-2.5 w-2.5 rounded-full ${status === "In Progress" ? "bg-blue" : status === "Completed" ? "bg-ink" : "bg-zinc-400"}`}
-                    />
-                    <h2 className="text-sm font-bold tracking-tight text-zinc-800">
-                      {status}
-                    </h2>
-                  </div>
-                  <span className="flex h-6 min-w-6 items-center justify-center rounded-md bg-blue/5 px-2 text-[11px] font-bold tabular-nums text-blue">
-                    {list.length}
-                  </span>
-                </div>
-                <div className="space-y-2.5">
-                  {list.map((task) => (
-                    <KanbanTaskCard
-                      key={task.id}
-                      task={task}
-                      client={clients.find(
-                        (client) => client.id === task.clientId,
-                      )}
-                      onEdit={() => onEditTask(task)}
-                      onDelete={() => onDeleteTask(task.id)}
-                      updateTask={updateTask}
-                    />
-                  ))}
-                  {!list.length && (
-                    <div className="rounded-xl border border-dashed border-zinc-300 bg-white/60 px-4 py-5 text-center">
-                      <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-100 text-zinc-400">
-                        <ClipboardList size={17} />
-                      </div>
-                      <p className="mt-2 text-xs font-semibold text-zinc-500">
-                        No {status.toLowerCase()} tasks
-                      </p>
-                    </div>
-                  )}
-                  <button
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-zinc-300 bg-white/70 px-3 py-2.5 text-xs font-semibold text-zinc-500 transition hover:border-blue/40 hover:bg-white hover:text-blue"
-                    onClick={() => onNewTask({ status })}
-                  >
-                    <Plus size={14} />
-                    Add task to {status}
-                  </button>
-                </div>
-              </section>
-            );
-          })}
-        </div>
-      </section>
     </>
   );
 }
@@ -3914,7 +4319,7 @@ export function LegacyReportsPage({ clients, tasks, isFallback }) {
       }).format(new Date(`${month}-01T00:00:00Z`))
     : "";
   const amountFor = (task) => Number(task.billable_amount ?? task.amount ?? 0);
-  const reportText = `${client?.name || "Client"} — ${monthLabel}\n\nWork completed:\n${completed.map((task) => `- ${task.title}`).join("\n") || "- No completed work recorded"}\n\nDesigns/content delivered:\n${deliverables.map((task) => `- ${task.title}`).join("\n") || "- No design or content deliverables recorded"}\n\nPending tasks:\n${pending.map((task) => `- ${task.title} (${task.status})`).join("\n") || "- No pending tasks"}\n\nExtra billable work:\n${billable.map((task) => `- ${task.title}: ${formatMoney(amountFor(task))}`).join("\n") || "- No extra billable work"}\n\nNext month plan:\n- Complete pending deliverables\n- Review campaign performance\n- Confirm next month priorities with the client`;
+  const reportText = `${client?.name || "Client"} — ${monthLabel}\n\nWork completed:\n${completed.map((task) => `- ${task.title}`).join("\n") || "- No completed work recorded"}\n\nDesigns/content delivered:\n${deliverables.map((task) => `- ${task.title}`).join("\n") || "- No design or content deliverables recorded"}\n\nPending tasks:\n${pending.map((task) => `- ${task.title} (${getStatusLabel(task.status)})`).join("\n") || "- No pending tasks"}\n\nExtra billable work:\n${billable.map((task) => `- ${task.title}: ${formatMoney(amountFor(task))}`).join("\n") || "- No extra billable work"}\n\nNext month plan:\n- Complete pending deliverables\n- Review campaign performance\n- Confirm next month priorities with the client`;
   const generate = async () => {
     setGenerating(true);
     setReportError("");
@@ -4247,7 +4652,7 @@ function BillingPage({ clients, billings, updateTask }) {
                     Payment
                   </span>
                   <select
-                    className={`w-full rounded-lg border px-3 py-2 text-xs font-bold outline-none transition focus:ring-2 focus:ring-blue/10 ${task.paymentStatus === "Paid" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-zinc-200 bg-zinc-50 text-zinc-700"}`}
+                    className={`w-full rounded-lg border px-3 py-2 text-xs font-bold outline-none transition focus:ring-2 focus:ring-blue/10 ${getBillingTone(task.paymentStatus || "Unpaid")}`}
                     value={task.paymentStatus || "Unpaid"}
                     onChange={(event) =>
                       updateTask(task.id, { paymentStatus: event.target.value })
@@ -4262,7 +4667,7 @@ function BillingPage({ clients, billings, updateTask }) {
                     Invoice
                   </span>
                   <select
-                    className="w-full rounded-lg border border-line bg-zinc-50 px-3 py-2 text-xs font-bold text-zinc-600 outline-none transition focus:border-blue/40 focus:ring-2 focus:ring-blue/10"
+                    className={`w-full rounded-lg border px-3 py-2 text-xs font-bold outline-none transition focus:ring-2 focus:ring-blue/10 ${getBillingTone(task.invoiceStatus || "Not invoiced")}`}
                     value={task.invoiceStatus || "Not invoiced"}
                     onChange={(event) =>
                       updateTask(task.id, { invoiceStatus: event.target.value })
@@ -4293,9 +4698,13 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   const workspace = useWorkspace();
   const initialClientId =
     window.location.hash.match(/^#clients\/(.+)$/)?.[1] || "";
+  const legacyKanbanRoute =
+    /\/kanban\/?$/.test(window.location.pathname) ||
+    /^#\/?kanban\/?$/.test(window.location.hash);
   const [activePage, setActivePage] = useState(
-    initialClientId ? "Client Detail" : "Dashboard",
+    initialClientId ? "Client Detail" : legacyKanbanRoute ? "Tasks" : "Dashboard",
   );
+  const [taskView, setTaskView] = useState(legacyKanbanRoute ? "board" : "list");
   const [selectedClientId, setSelectedClientId] = useState(
     initialClientId ? decodeURIComponent(initialClientId) : "",
   );
@@ -4363,8 +4772,10 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     window.confirm("Delete this client and all of its tasks?") &&
     workspace.deleteClient(id);
   const navigatePage = (page) => {
-    setActivePage(page);
-    if (page !== "Client Detail") {
+    const nextPage = page === "Kanban Board" ? "Tasks" : page;
+    if (page === "Kanban Board") setTaskView("board");
+    setActivePage(nextPage);
+    if (nextPage !== "Client Detail") {
       setSelectedClientId("");
       if (window.location.hash.startsWith("#clients/"))
         window.history.pushState(
@@ -4618,6 +5029,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     onEditTask: setTaskModal,
     onDeleteTask: deleteTask,
     updateTask: workspace.updateTask,
+    reorderTasks: workspace.reorderBoardTasks,
     setActivePage: navigatePage,
     onOpenNotification: openNotification,
   };
@@ -4660,8 +5072,13 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
         onAction={() => navigatePage("Clients")}
       />
     ),
-    Tasks: <TasksPage {...shared} />,
-    "Kanban Board": <KanbanPage {...shared} />,
+    Tasks: (
+      <TasksPage
+        {...shared}
+        view={taskView}
+        onViewChange={setTaskView}
+      />
+    ),
     "Daily Logs": (
       <DailyLogsPage clients={workspace.clients} logs={workspace.logs} />
     ),
@@ -4745,6 +5162,12 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
       />
     ),
   };
+  const canvasClass =
+    activePage === "Dashboard"
+      ? "dashboard-canvas"
+      : ["Tasks", "Clients"].includes(activePage)
+        ? "wide-canvas"
+        : "page-canvas";
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -4786,8 +5209,8 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
           onReadAllNotifications={readAllNotifications}
           onViewNotifications={() => navigatePage("Notifications")}
         />
-        <main className="p-4 md:p-6">
-          <div className="mx-auto w-full max-w-[1220px]">
+        <main className="app-content-shell">
+          <div className={canvasClass}>
           {workspace.error && (
             <div className="mb-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               {workspace.error}

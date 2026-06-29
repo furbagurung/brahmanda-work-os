@@ -189,3 +189,7 @@ WHERE t.proof_link IS NOT NULL
       SELECT 1 FROM task_attachments a
       WHERE a.task_id = t.id AND a.url = t.proof_link
   );
+
+UPDATE tasks
+SET task_order = LEAST(id, 2147483) * 1000
+WHERE task_order = 0;

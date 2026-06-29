@@ -21,7 +21,7 @@ const typeMeta = {
   report_ready: [CheckCircle2, 'border-l-emerald-600', 'bg-emerald-50 text-emerald-700'],
   report_shared: [FileText, 'border-l-emerald-600', 'bg-emerald-50 text-emerald-700'],
   recurring_task_generated: [Repeat2, 'border-l-blue', 'bg-blue/5 text-blue'],
-  unpaid_billing: [CircleDollarSign, 'border-l-red-600', 'bg-red-50 text-red-700'],
+  unpaid_billing: [CircleDollarSign, 'border-l-amber-500', 'bg-amber-50 text-amber-800'],
   system: [BellRing, 'border-l-zinc-400', 'bg-zinc-100 text-zinc-700'],
 }
 

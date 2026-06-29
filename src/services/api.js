@@ -75,6 +75,7 @@ export const getTasks = (params = {}) => {
 }
 export const createTask = (data) => request('tasks.php', jsonOptions('POST', data))
 export const updateTask = (id, data) => request(`tasks.php?id=${encodeURIComponent(id)}`, jsonOptions('PUT', data))
+export const reorderTasks = (tasks) => request('tasks.php?action=reorder', jsonOptions('POST', { tasks }))
 export const deleteTask = (id) => request(`tasks.php?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 export const markTaskCompleted = (id) => request(`tasks.php?id=${encodeURIComponent(id)}&action=complete`, { method: 'PATCH' })
 export const generateRecurringTasks = () => request('tasks.php?action=generate_recurring', { method: 'POST' })
@@ -239,6 +240,7 @@ export function taskToApi(task) {
     next_occurrence_date: task.nextOccurrenceDate || null,
     recurring_parent_id: task.recurringParentId ? Number(task.recurringParentId) : null,
     status: task.status,
+    task_order: Number(task.taskOrder || 0),
     proof_link: Array.isArray(task.attachments)
       ? task.attachments.find((attachment) => attachment.type !== 'file')?.url || null
       : task.proofLink || null,
@@ -270,6 +272,7 @@ export function taskFromApi(task) {
     nextOccurrenceDate: task.next_occurrence_date || '',
     recurringParentId: task.recurring_parent_id ? String(task.recurring_parent_id) : '',
     status: task.status,
+    taskOrder: Number(task.task_order || 0),
     proofLink: task.proof_link || '',
     billable: Number(task.is_billable) === 1,
     amount: Number(task.billable_amount || 0),

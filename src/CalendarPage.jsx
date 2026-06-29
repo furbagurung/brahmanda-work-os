@@ -3,7 +3,7 @@ import {
   BellRing, CalendarDays, ChevronLeft, ChevronRight, Pencil, UserRound, X,
 } from 'lucide-react'
 
-import { Badge, DeadlineBadge, PageHeader, PriorityBadge, StatusBadge } from './components'
+import { Badge, DeadlineBadge, PageHeader, PriorityBadge, StatusBadge, getStatusLabel } from './components'
 import { PRIORITIES, TASK_STATUSES } from './data'
 import { formatDate, todayDateString } from './utils'
 import { calendarDays } from './calendarUtils'
@@ -41,7 +41,7 @@ function DatePanel({ date, events, clients, onClose, onEditTask, updateTask }) {
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <DeadlineBadge task={event.task} />
               <StatusBadge status={event.task.status} />
-              <select className="border border-line bg-white px-2 py-1.5 text-xs font-semibold" value={event.task.status} onChange={(changeEvent) => updateTask(event.task.id, { status: changeEvent.target.value })} aria-label={`Update status for ${event.task.title}`}>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select>
+              <select className="border border-line bg-white px-2 py-1.5 text-xs font-semibold" value={event.task.status} onChange={(changeEvent) => updateTask(event.task.id, { status: changeEvent.target.value })} aria-label={`Update status for ${event.task.title}`}>{TASK_STATUSES.map((status) => <option key={status} value={status}>{getStatusLabel(status)}</option>)}</select>
             </div>
           </article>
         }) : <p className="p-8 text-sm text-zinc-500">No deadlines or reminders on this date.</p>}
@@ -92,7 +92,7 @@ export default function CalendarPage({ clients, tasks, onEditTask, updateTask })
     <div className="panel mb-5 grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
       <select className="field" value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option>All</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select>
       <select className="field" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option>All</option>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select>
-      <select className="field" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>All</option>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select>
+      <select className="field" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>All</option>{TASK_STATUSES.map((status) => <option key={status} value={status}>{getStatusLabel(status)}</option>)}</select>
       <select className="field" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}><option>All</option><option>Deadlines only</option><option>Reminders only</option></select>
     </div>
 

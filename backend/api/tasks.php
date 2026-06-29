@@ -107,6 +107,7 @@ function taskValues(array $data): array
         ':next_occurrence_date' => $data['next_occurrence_date'] ?: null,
         ':recurring_parent_id' => !empty($data['recurring_parent_id']) ? (int) $data['recurring_parent_id'] : null,
         ':status' => $data['status'] ?: 'New',
+        ':task_order' => max(0, (int) ($data['task_order'] ?? 0)),
         ':proof_link' => $data['proof_link'] ?: null,
         ':is_billable' => boolValue($data['is_billable'] ?? false),
         ':billable_amount' => boolValue($data['is_billable'] ?? false) ? (float) ($data['billable_amount'] ?? 0) : 0,
@@ -116,6 +117,92 @@ function taskValues(array $data): array
             ? ($data['completed_at'] ?: date('Y-m-d H:i:s'))
             : null,
     ];
+}
+
+function nextTaskOrder(PDO $pdo, string $status): int
+{
+    $statement = $pdo->prepare('SELECT COALESCE(MAX(task_order), 0) + 1000 FROM tasks WHERE status = ?');
+    $statement->execute([$status]);
+    return (int) $statement->fetchColumn();
+}
+
+function reorderTasks(PDO $pdo, array $currentUser, array $items): void
+{
+    if ($items === []) {
+        errorResponse('At least one task is required for reordering.', 422);
+    }
+
+    $validStatuses = ['New', 'In Progress', 'Waiting for Client', 'Revision', 'Completed'];
+    $normalized = [];
+    foreach ($items as $item) {
+        $id = (int) ($item['id'] ?? 0);
+        $status = (string) ($item['status'] ?? '');
+        $taskOrder = (int) ($item['task_order'] ?? -1);
+        if ($id < 1 || isset($normalized[$id])) {
+            errorResponse('Task reorder IDs must be valid and unique.', 422);
+        }
+        if (!in_array($status, $validStatuses, true)) {
+            errorResponse('Invalid task status in reorder request.', 422);
+        }
+        if ($taskOrder < 0) {
+            errorResponse('task_order must be zero or greater.', 422);
+        }
+        $normalized[$id] = [
+            'id' => $id,
+            'status' => $status,
+            'task_order' => $taskOrder,
+        ];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($normalized), '?'));
+    $select = $pdo->prepare('SELECT * FROM tasks WHERE id IN (' . $placeholders . ') FOR UPDATE');
+    $select->execute(array_keys($normalized));
+    $existing = [];
+    foreach ($select->fetchAll() as $task) {
+        $existing[(int) $task['id']] = $task;
+    }
+    if (count($existing) !== count($normalized)) {
+        errorResponse('One or more tasks could not be found.', 404);
+    }
+
+    $update = $pdo->prepare(
+        'UPDATE tasks
+         SET status = :status,
+             task_order = :task_order,
+             completed_at = CASE
+                 WHEN :status_for_completion = "Completed" THEN COALESCE(completed_at, NOW())
+                 ELSE NULL
+             END
+         WHERE id = :id'
+    );
+
+    foreach ($normalized as $id => $item) {
+        $current = $existing[$id];
+        $update->execute([
+            ':status' => $item['status'],
+            ':task_order' => $item['task_order'],
+            ':status_for_completion' => $item['status'],
+            ':id' => $id,
+        ]);
+
+        if ($current['status'] !== $item['status']) {
+            $task = findTask($pdo, $id);
+            syncBilling($pdo, $task);
+            if ($task['status'] === 'Completed') {
+                createDailyLog($pdo, $task);
+            }
+            logActivity($pdo, $currentUser, [
+                'action_type' => $task['status'] === 'Completed' ? 'completed' : 'updated',
+                'module' => 'tasks',
+                'item_id' => $id,
+                'item_title' => $task['title'],
+                'client_id' => $task['client_id'],
+                'description' => 'Task moved to ' . $task['status'] . '.',
+                'old_value' => $current,
+                'new_value' => $task,
+            ]);
+        }
+    }
 }
 
 function validateRecurrence(array $data): void
@@ -181,11 +268,11 @@ function generateRecurringTasks(PDO $pdo, array $currentUser): array
         'INSERT INTO tasks
             (client_id, assigned_user_id, title, description, category, priority, deadline, reminder_date, reminder_note,
              is_recurring, recurrence_type, recurrence_interval, recurrence_end_date, next_occurrence_date,
-             recurring_parent_id, status, proof_link, is_billable, billable_amount, payment_status,
+             recurring_parent_id, status, task_order, proof_link, is_billable, billable_amount, payment_status,
              invoice_status, completed_at)
          VALUES
             (:client_id, :assigned_user_id, :title, :description, :category, :priority, :deadline, NULL, NULL,
-             0, NULL, 1, NULL, NULL, :recurring_parent_id, "New", NULL, :is_billable,
+             0, NULL, 1, NULL, NULL, :recurring_parent_id, "New", :task_order, NULL, :is_billable,
              :billable_amount, "Unpaid", "Not invoiced", NULL)'
     );
     $advance = $pdo->prepare(
@@ -205,6 +292,7 @@ function generateRecurringTasks(PDO $pdo, array $currentUser): array
             ':priority' => $template['priority'],
             ':deadline' => $occurrenceDate,
             ':recurring_parent_id' => $template['id'],
+            ':task_order' => nextTaskOrder($pdo, 'New'),
             ':is_billable' => (int) $template['is_billable'],
             ':billable_amount' => (float) $template['billable_amount'],
         ]);
@@ -300,6 +388,18 @@ try {
     }
 
     if ($method === 'POST') {
+        if (($_GET['action'] ?? '') === 'reorder') {
+            $data = requestBody();
+            $items = $data['tasks'] ?? null;
+            if (!is_array($items)) {
+                errorResponse('The tasks field must be an array.', 422);
+            }
+            $pdo->beginTransaction();
+            reorderTasks($pdo, $currentUser, $items);
+            $pdo->commit();
+            jsonResponse(['updated_count' => count($items)], 200, 'Task order updated.');
+        }
+
         if (($_GET['action'] ?? '') === 'generate_recurring') {
             $pdo->beginTransaction();
             $generatedIds = generateRecurringTasks($pdo, $currentUser);
@@ -327,6 +427,7 @@ try {
             'next_occurrence_date' => null,
             'recurring_parent_id' => null,
             'status' => 'New',
+            'task_order' => null,
             'proof_link' => null,
             'is_billable' => false,
             'billable_amount' => 0,
@@ -337,17 +438,20 @@ try {
         validateRecurrence($data);
 
         $pdo->beginTransaction();
+        if (empty($data['task_order'])) {
+            $data['task_order'] = nextTaskOrder($pdo, (string) $data['status']);
+        }
 
         $statement = $pdo->prepare(
             'INSERT INTO tasks
                 (client_id, assigned_user_id, title, description, category, priority, deadline, reminder_date, reminder_note,
                  is_recurring, recurrence_type, recurrence_interval, recurrence_end_date, next_occurrence_date,
-                 recurring_parent_id, status, proof_link,
+                 recurring_parent_id, status, task_order, proof_link,
                  is_billable, billable_amount, payment_status, invoice_status, completed_at)
              VALUES
                 (:client_id, :assigned_user_id, :title, :description, :category, :priority, :deadline, :reminder_date, :reminder_note,
                  :is_recurring, :recurrence_type, :recurrence_interval, :recurrence_end_date, :next_occurrence_date,
-                 :recurring_parent_id, :status, :proof_link,
+                 :recurring_parent_id, :status, :task_order, :proof_link,
                  :is_billable, :billable_amount, :payment_status, :invoice_status, :completed_at)'
         );
         $statement->execute(taskValues($data));
@@ -390,11 +494,17 @@ try {
     if ($method === 'PUT' || ($method === 'PATCH' && ($_GET['action'] ?? '') !== 'complete')) {
         $id = queryId();
         $current = findTask($pdo, $id);
-        $data = array_merge($current, requestBody());
+        $requestData = requestBody();
+        $data = array_merge($current, $requestData);
         requireFields($data, ['client_id', 'title']);
         validateRecurrence($data);
 
         $pdo->beginTransaction();
+        if ($current['status'] !== $data['status']
+            && (!array_key_exists('task_order', $requestData)
+                || (int) $requestData['task_order'] === (int) $current['task_order'])) {
+            $data['task_order'] = nextTaskOrder($pdo, (string) $data['status']);
+        }
 
         $values = taskValues($data);
         $values[':id'] = $id;
@@ -416,6 +526,7 @@ try {
                 next_occurrence_date = :next_occurrence_date,
                 recurring_parent_id = :recurring_parent_id,
                 status = :status,
+                task_order = :task_order,
                 proof_link = :proof_link,
                 is_billable = :is_billable,
                 billable_amount = :billable_amount,
@@ -479,10 +590,15 @@ try {
 
         $statement = $pdo->prepare(
             'UPDATE tasks
-             SET status = "Completed", completed_at = COALESCE(completed_at, NOW())
-             WHERE id = ?'
+             SET status = "Completed",
+                 task_order = :task_order,
+                 completed_at = COALESCE(completed_at, NOW())
+             WHERE id = :id'
         );
-        $statement->execute([$id]);
+        $statement->execute([
+            ':task_order' => nextTaskOrder($pdo, 'Completed'),
+            ':id' => $id,
+        ]);
 
         $task = findTask($pdo, $id);
         createDailyLog($pdo, $task);

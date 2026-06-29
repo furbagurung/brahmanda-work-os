@@ -8,7 +8,7 @@ import {
 
 import {
   ActionMenu, Badge, BillingBadge, ClientIdentity, DeadlineBadge, EmptyState, PriorityBadge, ProofLink,
-  StatusBadge, Table,
+  StatusBadge, Table, getBillingTone, getStatusLabel,
 } from './components'
 import { PRIORITIES, TASK_STATUSES } from './data'
 import { getReports } from './services/api'
@@ -211,7 +211,7 @@ export default function ClientDetailPage({
     { key: 'title', label: 'Task', render: (task) => <div><p className="font-semibold">{task.title}</p><p className="mt-1 max-w-md text-xs text-zinc-500">{task.category || 'No category'} · {task.assignedUserName || 'Unassigned'}</p>{task.checklistTotal > 0 && <p className="mt-1 text-[11px] text-zinc-500">Checklist {task.checklistCompleted}/{task.checklistTotal}</p>}</div> },
     { key: 'priority', label: 'Priority', render: (task) => <PriorityBadge priority={task.priority} /> },
     { key: 'deadline', label: 'Deadline', render: (task) => <div><p>{formatDate(task.deadline, { year: 'numeric', month: 'short', day: 'numeric' })}</p><div className="mt-1"><DeadlineBadge task={task} /></div></div> },
-    { key: 'status', label: 'Status', render: (task) => <select className="rounded-lg border border-line bg-zinc-50 px-2 py-2 text-xs font-semibold outline-none focus:border-blue/40" value={task.status} onChange={(event) => updateTask(task.id, { status: event.target.value })}>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select> },
+    { key: 'status', label: 'Status', render: (task) => <select className="rounded-lg border border-line bg-zinc-50 px-2 py-2 text-xs font-semibold outline-none focus:border-blue/40" value={task.status} onChange={(event) => updateTask(task.id, { status: event.target.value })}>{TASK_STATUSES.map((status) => <option key={status} value={status}>{getStatusLabel(status)}</option>)}</select> },
     { key: 'actions', label: '', render: (task) => <ActionMenu onEdit={() => onEditTask(task)} onDelete={() => onDeleteTask(task.id)} /> },
   ]
 
@@ -226,8 +226,8 @@ export default function ClientDetailPage({
   const billingColumns = [
     { key: 'title', label: 'Billable work', render: (billing) => <div><p className="font-semibold">{billing.title}</p><p className="mt-1 text-xs text-zinc-500">{formatDate(billing.deadline, { year: 'numeric', month: 'short', day: 'numeric' })}</p></div> },
     { key: 'amount', label: 'Amount', render: (billing) => <span className="font-semibold">{formatMoney(billing.amount)}</span> },
-    { key: 'payment', label: 'Payment', render: (billing) => <select className="rounded-lg border border-line bg-zinc-50 px-2 py-2 text-xs font-semibold outline-none focus:border-blue/40" value={billing.paymentStatus || 'Unpaid'} onChange={(event) => updateTask(billing.id, { paymentStatus: event.target.value })}><option>Unpaid</option><option>Paid</option></select> },
-    { key: 'invoice', label: 'Invoice', render: (billing) => <select className="rounded-lg border border-line bg-zinc-50 px-2 py-2 text-xs font-semibold outline-none focus:border-blue/40" value={billing.invoiceStatus || 'Not invoiced'} onChange={(event) => updateTask(billing.id, { invoiceStatus: event.target.value })}><option>Not invoiced</option><option>Draft</option><option>Sent</option></select> },
+    { key: 'payment', label: 'Payment', render: (billing) => <select className={`rounded-lg border px-2 py-2 text-xs font-semibold outline-none ${getBillingTone(billing.paymentStatus || 'Unpaid')}`} value={billing.paymentStatus || 'Unpaid'} onChange={(event) => updateTask(billing.id, { paymentStatus: event.target.value })}><option>Unpaid</option><option>Paid</option></select> },
+    { key: 'invoice', label: 'Invoice', render: (billing) => <select className={`rounded-lg border px-2 py-2 text-xs font-semibold outline-none ${getBillingTone(billing.invoiceStatus || 'Not invoiced')}`} value={billing.invoiceStatus || 'Not invoiced'} onChange={(event) => updateTask(billing.id, { invoiceStatus: event.target.value })}><option>Not invoiced</option><option>Draft</option><option>Sent</option></select> },
     { key: 'status', label: 'Status', render: (billing) => <div className="flex flex-wrap gap-2"><BillingBadge value={billing.paymentStatus || 'Unpaid'} /><BillingBadge type="invoice" value={billing.invoiceStatus || 'Not invoiced'} /></div> },
   ]
 
@@ -300,7 +300,7 @@ export default function ClientDetailPage({
         <section className="panel p-5"><div className="flex items-center gap-3 border-b border-line pb-4"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600"><CircleDollarSign size={16} /></span><div><h2 className="font-semibold">Account summary</h2><p className="mt-1 text-xs text-zinc-500">Client terms and billing state</p></div></div><dl className="mt-4 space-y-4"><DetailItem label="Service package">{client.servicePackage}</DetailItem><DetailItem label="Monthly fee">{formatMoney(client.monthlyFee)}</DetailItem><DetailItem label="Start date">{client.startDate ? formatDate(client.startDate, { year: 'numeric', month: 'long', day: 'numeric' }) : 'Not added'}</DetailItem><DetailItem label="Billing status">{clientBillings.some((item) => item.paymentStatus !== 'Paid') ? 'Outstanding items' : clientBillings.length ? 'Paid' : 'No billable work'}</DetailItem></dl></section>
       </div>}
 
-      {activeTab === 'Tasks' && <section className="panel"><div className="flex flex-col gap-3 border-b border-line p-4 md:flex-row md:items-center md:justify-between"><div className="grid gap-3 sm:grid-cols-2"><select className="field min-w-44" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>All</option>{TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}</select><select className="field min-w-44" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option>All</option>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select></div><button className="button-primary" onClick={() => onNewTask({ clientId: client.id })}><Plus size={15} />Add task</button></div><Table columns={taskColumns} data={filteredTasks} emptyMessage="No tasks match the selected filters." /></section>}
+      {activeTab === 'Tasks' && <section className="panel"><div className="flex flex-col gap-3 border-b border-line p-4 md:flex-row md:items-center md:justify-between"><div className="grid gap-3 sm:grid-cols-2"><select className="field min-w-44" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>All</option>{TASK_STATUSES.map((status) => <option key={status} value={status}>{getStatusLabel(status)}</option>)}</select><select className="field min-w-44" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option>All</option>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select></div><button className="button-primary" onClick={() => onNewTask({ clientId: client.id })}><Plus size={15} />Add task</button></div><Table columns={taskColumns} data={filteredTasks} emptyMessage="No tasks match the selected filters." /></section>}
 
       {activeTab === 'Completed Work' && <section className="panel"><Table columns={completedColumns} data={completedTasks} emptyMessage="No completed work has been recorded for this client." /></section>}
 
@@ -313,7 +313,7 @@ export default function ClientDetailPage({
         {!isFallback && <div className="border-t border-line"><div className="p-5"><h3 className="font-semibold">Report share links</h3><p className="mt-1 text-xs text-zinc-500">Active, inactive, and expired client portal links.</p></div><ReportShareManager clientId={client.id} allowCreate={false} /></div>}
       </section>}
 
-      {activeTab === 'Proof Links' && <section className="panel">{clientTasks.some((task) => task.attachments?.length || task.proofLink) ? <div className="divide-y divide-line">{clientTasks.filter((task) => task.attachments?.length || task.proofLink).map((task) => <div key={task.id} className="grid gap-3 p-5 sm:grid-cols-[minmax(220px,0.7fr)_1fr]"><div><h3 className="text-sm font-semibold">{task.title}</h3><p className="mt-1 text-xs text-zinc-500">{task.status}</p></div><ProofList task={task} /></div>)}</div> : <EmptyState title="No proof links" description="Proof links added to this client's tasks will appear here." />}</section>}
+      {activeTab === 'Proof Links' && <section className="panel">{clientTasks.some((task) => task.attachments?.length || task.proofLink) ? <div className="divide-y divide-line">{clientTasks.filter((task) => task.attachments?.length || task.proofLink).map((task) => <div key={task.id} className="grid gap-3 p-5 sm:grid-cols-[minmax(220px,0.7fr)_1fr]"><div><h3 className="text-sm font-semibold">{task.title}</h3><p className="mt-1 text-xs text-zinc-500">{getStatusLabel(task.status)}</p></div><ProofList task={task} /></div>)}</div> : <EmptyState title="No proof links" description="Proof links added to this client's tasks will appear here." />}</section>}
       {activeTab === 'Activity' && <section className="panel"><ActivityFeed activities={activities} /></section>}
     </div>
 
