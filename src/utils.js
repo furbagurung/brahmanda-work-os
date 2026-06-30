@@ -9,14 +9,17 @@ export function setWorkspaceDateFormat(dateFormat) {
   workspaceDateFormat = dateFormat || 'MMM d, yyyy'
 }
 
-export function formatMoney(value, currency = workspaceCurrency) {
+export function formatCurrencyNPR(value) {
   const amount = Number(value || 0)
-  if (currency === 'NPR') return `Rs ${amount.toLocaleString()}`
-  try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)
-  } catch {
-    return `${currency} ${amount.toLocaleString()}`
-  }
+  return `NPR ${amount.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+  })}`
+}
+
+export function formatMoney(value, currency = workspaceCurrency) {
+  void currency
+  return formatCurrencyNPR(value)
 }
 
 export function formatDate(value, options = null) {

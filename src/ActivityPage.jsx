@@ -2,6 +2,7 @@ import { ChevronDown, Filter } from 'lucide-react'
 
 import { Badge, EmptyState, PageHeader } from './components'
 import { formatActivityDate } from './activityUtils'
+import { formatCurrencyNPR } from './utils'
 
 const actionStyles = {
   created: 'border-emerald-200 bg-emerald-50 text-emerald-700',
@@ -21,8 +22,8 @@ const fieldLabels = {
   status: 'Status', task_status: 'Status', deadline: 'Deadline', due_date: 'Deadline',
   reminder_date: 'Reminder date', assigned_user_id: 'Assigned user',
   assigned_user_name: 'Assigned user', assignee: 'Assigned user', priority: 'Priority',
-  billable: 'Billable', is_billable: 'Billable', amount: 'Billable amount',
-  billable_amount: 'Billable amount', payment_status: 'Payment status',
+  billable: 'Extra billable', is_billable: 'Extra billable', amount: 'Extra billable amount',
+  billable_amount: 'Extra billable amount', payment_status: 'Payment status',
   invoice_status: 'Invoice status', title: 'Title', name: 'Name', email: 'Email',
   role: 'Role', client_name: 'Client',
 }
@@ -41,7 +42,7 @@ const parseValue = (value) => {
 
 const humanValue = (key, value) => {
   if (value === null || value === undefined || value === '') return key.includes('assigned') ? 'Unassigned' : 'Not set'
-  if (['amount', 'billable_amount'].includes(key)) return `Rs ${Number(value || 0).toLocaleString('en-US')}`
+  if (['amount', 'billable_amount'].includes(key)) return formatCurrencyNPR(value)
   if (key.includes('date') || key === 'deadline') {
     const date = new Date(`${String(value).slice(0, 10)}T00:00:00`)
     return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date)

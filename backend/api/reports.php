@@ -152,6 +152,29 @@ try {
         $billableTotal = array_reduce($billable, function (float $total, array $task): float {
             return $total + (float) $task['billable_amount'];
         }, 0.0);
+        $includedPackageTasks = array_values(array_filter($completed, function (array $task): bool {
+            return (int) $task['is_billable'] !== 1;
+        }));
+
+        $monthlyFee = (float) ($client['monthly_fee'] ?? 0);
+        $invoiceStatement = $pdo->prepare(
+            'SELECT id, monthly_fee, extra_amount, total_amount, paid_amount, status, notes
+             FROM monthly_invoices
+             WHERE client_id = :client_id
+               AND invoice_month = :month
+               AND invoice_year = :year
+             LIMIT 1'
+        );
+        $invoiceStatement->execute([
+            ':client_id' => $clientId,
+            ':month' => $month,
+            ':year' => $year,
+        ]);
+        $monthlyInvoice = $invoiceStatement->fetch() ?: null;
+        $invoiceMonthlyFee = (float) ($monthlyInvoice['monthly_fee'] ?? $monthlyFee);
+        $invoiceExtraAmount = (float) ($monthlyInvoice['extra_amount'] ?? $billableTotal);
+        $invoiceTotalAmount = (float) ($monthlyInvoice['total_amount'] ?? ($invoiceMonthlyFee + $invoiceExtraAmount));
+        $invoicePaidAmount = (float) ($monthlyInvoice['paid_amount'] ?? 0);
 
         $savedReportStatement = $pdo->prepare(
             'SELECT id, status, created_at
@@ -181,10 +204,24 @@ try {
             'deliverables' => $deliverables,
             'technical_work' => $technicalWork,
             'revisions_completed' => $revisions,
+            'included_package_tasks' => $includedPackageTasks,
             'pending_tasks' => $pending,
             'extra_billable_work' => [
                 'items' => $billable,
                 'total' => $billableTotal,
+            ],
+            'billing_summary' => [
+                'monthly_fee' => $invoiceMonthlyFee,
+                'service_package' => $client['service_package'] ?? null,
+                'included_task_count' => count($includedPackageTasks),
+                'extra_billable_task_count' => count($billable),
+                'extra_amount' => $invoiceExtraAmount,
+                'total_invoice_amount' => $invoiceTotalAmount,
+                'paid_amount' => $invoicePaidAmount,
+                'outstanding_amount' => max(0, $invoiceTotalAmount - $invoicePaidAmount),
+                'payment_status' => $monthlyInvoice['status'] ?? ($invoicePaidAmount > 0 ? ($invoicePaidAmount >= $invoiceTotalAmount ? 'Paid' : 'Partial') : 'Unpaid'),
+                'notes' => $monthlyInvoice['notes'] ?? null,
+                'invoice_id' => $monthlyInvoice['id'] ?? null,
             ],
             'next_month_plan' => [
                 'Complete pending deliverables and revisions.',

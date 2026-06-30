@@ -74,8 +74,9 @@ export function QuickTaskForm({ clients, defaults = {}, onSave, onClose }) {
       <label><span className={fieldLabel}>Reminder date</span><input className="field" type="date" value={form.reminderDate} onChange={(event) => change('reminderDate', event.target.value)} /></label>
       <div><span className={fieldLabel}>Status</span><ModernSelect options={TASK_STATUS_COMBOBOX_OPTIONS} value={form.status} onChange={(status) => change('status', status)} required /></div>
       <label><span className={fieldLabel}>Proof link</span><input className="field" type="url" value={form.proofLink} onChange={(event) => change('proofLink', event.target.value)} placeholder="https://" /></label>
-      <label className="flex items-center gap-3 border border-line p-3 text-sm font-semibold sm:col-span-2"><input type="checkbox" checked={form.billable} onChange={(event) => change('billable', event.target.checked)} className="h-4 w-4 accent-blue" />Billable work</label>
+      <label className="flex items-center gap-3 border border-line p-3 text-sm font-semibold sm:col-span-2"><input type="checkbox" checked={form.billable} onChange={(event) => change('billable', event.target.checked)} className="h-4 w-4 accent-blue" />Extra billable work</label>
       {form.billable && <label><span className={fieldLabel}>Billable amount</span><input className="field" type="number" min="0" value={form.amount} onChange={(event) => change('amount', event.target.value)} required /></label>}
+      {!form.billable && <p className="text-xs leading-5 text-zinc-500 sm:col-span-2">This task is included in the client package.</p>}
     </div>
     <div className="flex justify-end gap-3 border-t border-line bg-canvas p-4 sm:px-6"><button type="button" className="button-secondary" onClick={onClose}><X size={15} />Cancel</button><button className="button-primary" disabled={saving}>{saving ? 'Saving…' : 'Add task'}</button></div>
   </form>

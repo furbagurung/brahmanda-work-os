@@ -115,6 +115,7 @@ import {
   createTaskComment,
   deleteTaskChecklist,
   deleteTaskComment,
+  generateMonthlyInvoice,
   updateTaskChecklist,
   uploadTaskAttachment,
   uploadClientLogo,
@@ -125,7 +126,9 @@ import {
   taskFromApi,
   taskToApi,
   updateBilling as updateBillingApi,
+  updateMonthlyInvoice,
   attachmentFromApi,
+  monthlyInvoiceFromApi,
   reportFromApi,
   updateClient as updateClientApi,
   updateTask as updateTaskApi,
@@ -209,6 +212,86 @@ const navigation = [
   { label: "Team", icon: UsersRound, group: "Administration" },
   { label: "Settings", icon: Settings, group: "Administration" },
 ];
+const PAGE_ROUTES = {
+  Dashboard: "dashboard",
+  Clients: "clients",
+  Tasks: "tasks",
+  "Daily Logs": "daily-logs",
+  Reminders: "reminders",
+  Calendar: "calendar",
+  "Recurring Tasks": "recurring-tasks",
+  Notifications: "notifications",
+  Activity: "activity",
+  Reports: "reports",
+  Billing: "billing",
+  Team: "team",
+  Settings: "settings",
+};
+const ROUTE_PAGES = Object.fromEntries(
+  Object.entries(PAGE_ROUTES).map(([page, route]) => [route, page]),
+);
+
+function normalizeRoutePath(value) {
+  return String(value || "")
+    .replace(/^#/, "")
+    .replace(/^\//, "")
+    .replace(/\/$/, "");
+}
+
+function routeFromLocation() {
+  const hash = normalizeRoutePath(window.location.hash);
+  if (hash) return hash;
+  const path = normalizeRoutePath(window.location.pathname);
+  if (path) return `${path}${window.location.search || ""}`;
+  return "";
+}
+
+function routeStateFromLocation() {
+  const route = routeFromLocation();
+  if (!route) return { page: "Dashboard", taskView: "list", clientId: "" };
+  const [pathPart, query = ""] = route.split("?");
+  const path = normalizeRoutePath(pathPart);
+  const params = new URLSearchParams(query);
+
+  if (path === "kanban") {
+    return { page: "Tasks", taskView: "board", clientId: "" };
+  }
+  if (path === "tasks") {
+    const view = params.get("view") === "board" ? "board" : "list";
+    return { page: "Tasks", taskView: view, clientId: "" };
+  }
+  if (path.startsWith("clients/")) {
+    const clientId = path.slice("clients/".length);
+    return {
+      page: clientId ? "Client Detail" : "Clients",
+      taskView: "list",
+      clientId: clientId ? decodeURIComponent(clientId) : "",
+    };
+  }
+  if (path === "clients") {
+    return { page: "Clients", taskView: "list", clientId: "" };
+  }
+  const page = ROUTE_PAGES[path];
+  return { page: page || "Dashboard", taskView: "list", clientId: "" };
+}
+
+function routeForPage(page, { taskView = "list", clientId = "" } = {}) {
+  if (page === "Client Detail" && clientId) {
+    return `#/clients/${encodeURIComponent(clientId)}`;
+  }
+  if (page === "Tasks") {
+    return `#/tasks?view=${taskView === "board" ? "board" : "list"}`;
+  }
+  return `#/${PAGE_ROUTES[page] || PAGE_ROUTES.Dashboard}`;
+}
+
+function pushAppRoute(page, options = {}, replace = false) {
+  const route = routeForPage(page, options);
+  if (window.location.hash === route) return;
+  const nextUrl = `${window.location.pathname}${window.location.search}${route}`;
+  const method = replace ? "replaceState" : "pushState";
+  window.history[method]({}, "", nextUrl);
+}
 
 function useWorkspace() {
   const [workspace, setWorkspace] = useState(() => {
@@ -226,6 +309,7 @@ function useWorkspace() {
         billings:
           parsed.billings ||
           (parsed.tasks || initialTasks).filter((task) => task.billable),
+        monthlyInvoices: parsed.monthlyInvoices || [],
         reports: parsed.reports || [],
         activities: parsed.activities || [],
         settings: { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) },
@@ -237,6 +321,7 @@ function useWorkspace() {
         tasks: initialTasks,
         logs: [],
         billings: [],
+        monthlyInvoices: [],
         reports: [],
         activities: [],
         settings: DEFAULT_SETTINGS,
@@ -294,6 +379,9 @@ function useWorkspace() {
       ),
       logs: logs.map(logFromApi),
       billings: (billing.items || []).map(billingFromApi),
+      monthlyInvoices: (billing.monthly_invoices || []).map(
+        monthlyInvoiceFromApi,
+      ),
       reports: reports.map(reportFromApi),
       activities: activities.map(activityFromApi),
       settings: { ...DEFAULT_SETTINGS, ...settings },
@@ -338,17 +426,14 @@ function useWorkspace() {
         task.status === "Completed" ? previous?.completedAt || TODAY : "";
       const nextTaskOrder = exists
         ? Number(task.taskOrder ?? previous?.taskOrder ?? 0)
-        : Math.max(
-            0,
-            ...current.tasks
-              .filter((item) => item.status === task.status)
-              .map((item) => Number(item.taskOrder || 0)),
-          ) + 1000;
+        : topTaskOrderForStatus(current.tasks, task.status);
       const normalized = {
         ...task,
         taskOrder: nextTaskOrder,
         amount: task.billable ? Number(task.amount || 0) : 0,
         completedAt,
+        createdAt: exists ? task.createdAt || previous?.createdAt || "" : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         paymentStatus: task.billable
           ? task.paymentStatus || previous?.paymentStatus || "Unpaid"
           : undefined,
@@ -432,6 +517,15 @@ function useWorkspace() {
           ? await updateTaskApi(task.id, taskToApi(task))
           : await createTaskApi(taskToApi(task));
         const taskId = exists ? task.id : String(response.id);
+        if (!exists) {
+          saveTaskLocal({
+            ...task,
+            id: taskId,
+            taskOrder: topTaskOrderForStatus(workspace.tasks, task.status),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        }
         const originalAttachments = current?.attachments || [];
         const submittedAttachments = task.attachments || [];
 
@@ -623,6 +717,9 @@ function useWorkspace() {
           billings: current.billings.filter(
             (billing) => billing.clientId !== id,
           ),
+          monthlyInvoices: (current.monthlyInvoices || []).filter(
+            (invoice) => invoice.clientId !== id,
+          ),
         })),
     );
     toast.success("Client deleted.");
@@ -741,6 +838,7 @@ function useWorkspace() {
       tasks: initialTasks,
       logs: initialTasks.filter((task) => task.status === "Completed"),
       billings: initialTasks.filter((task) => task.billable),
+      monthlyInvoices: [],
       reports: [],
       activities: [],
       settings: DEFAULT_SETTINGS,
@@ -1109,6 +1207,15 @@ const blankTask = (clientId = "") => ({
   paymentStatus: "Unpaid",
   invoiceStatus: "Not invoiced",
 });
+
+const topTaskOrderForStatus = (tasks, status) => {
+  const orders = tasks
+    .filter((task) => task.status === status)
+    .map((task) => Number(task.taskOrder || 0))
+    .filter((order) => order > 0);
+  if (!orders.length) return 1000;
+  return Math.max(1, Math.min(...orders) - 1000);
+};
 
 function FormSection({
   icon: Icon,
@@ -1608,6 +1715,11 @@ function TaskForm({
                 required
               />
             </Field>
+          )}
+          {!form.billable && (
+            <p className="text-xs leading-5 text-zinc-500 sm:col-span-2">
+              This task will be treated as included in the monthly package.
+            </p>
           )}
         </FormSection>
         <FormSection
@@ -2336,6 +2448,13 @@ function Dashboard({
 }) {
   const completed = tasks.filter((task) => task.status === "Completed");
   const billable = tasks.filter((task) => task.billable);
+  const activeClients = clients.filter(
+    (client) => String(client.status || "active").toLowerCase() === "active",
+  );
+  const monthlyRevenue = activeClients.reduce(
+    (sum, client) => sum + Number(client.monthlyFee || 0),
+    0,
+  );
   const todayTasks = tasks.filter((task) => task.deadline === TODAY);
   const openTasks = tasks.filter((task) => task.status !== "Completed");
   const overdueTasks = openTasks
@@ -2363,18 +2482,18 @@ function Dashboard({
     .slice(0, 4);
   const stats = [
     [
-      "Active clients",
-      String(clients.length).padStart(2, "0"),
-      "Client workspaces",
-      Users,
-      "blue",
-    ],
-    [
       "Today’s tasks",
       String(todayTasks.length).padStart(2, "0"),
       `${todayTasks.filter((task) => task.status !== "Completed").length} open`,
       ClipboardList,
       "orange",
+    ],
+    [
+      "Active clients",
+      String(activeClients.length).padStart(2, "0"),
+      "Client workspaces",
+      Users,
+      "blue",
     ],
     [
       "Pending tasks",
@@ -2384,6 +2503,13 @@ function Dashboard({
       "violet",
     ],
     [
+      "Monthly Revenue",
+      formatMoney(monthlyRevenue),
+      "Active monthly packages",
+      CircleDollarSign,
+      "blue",
+    ],
+    [
       "Completed work",
       String(completed.length).padStart(2, "0"),
       "Stored in daily logs",
@@ -2391,7 +2517,7 @@ function Dashboard({
       "emerald",
     ],
     [
-      "Billable work",
+      "Extra billable work",
       formatMoney(billable.reduce((sum, task) => sum + Number(task.amount), 0)),
       `${billable.length} items`,
       CircleDollarSign,
@@ -2512,7 +2638,7 @@ function Dashboard({
       </div>
 
       <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[stats[1], stats[0], stats[2], stats[4]].map(([label, value, detail, Icon, accent], index) => (
+        {stats.slice(0, 4).map(([label, value, detail, Icon, accent], index) => (
           <DashboardMetricCard
             key={label}
             label={label}
@@ -3146,7 +3272,7 @@ function TaskListRow({
           </Badge>
         ) : (
           <span className="text-[11px] font-medium text-zinc-400">
-            Non-billable
+            Included in package
           </span>
         )}
       </div>
@@ -3284,7 +3410,7 @@ function KanbanTaskCard({
               </span>
             )}
             {task.billable && (
-              <span className="inline-flex items-center text-emerald-700" title="Billable task">
+              <span className="inline-flex items-center text-emerald-700" title="Extra billable task">
                 <CircleDollarSign size={12} />
               </span>
             )}
@@ -3425,9 +3551,12 @@ const sortBoardTasks = (tasks) => [...tasks].sort((a, b) => {
   if (aOrder > 0 && bOrder > 0 && aOrder !== bOrder) return aOrder - bOrder;
   if (aOrder > 0 && bOrder === 0) return -1;
   if (bOrder > 0 && aOrder === 0) return 1;
-  const createdDifference = Date.parse(a.createdAt || 0) - Date.parse(b.createdAt || 0);
-  if (!Number.isNaN(createdDifference) && createdDifference !== 0) return createdDifference;
-  return String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+  const aCreatedAt = Date.parse(a.createdAt || a.updatedAt || "");
+  const bCreatedAt = Date.parse(b.createdAt || b.updatedAt || "");
+  const aCreatedRank = Number.isNaN(aCreatedAt) ? 0 : aCreatedAt;
+  const bCreatedRank = Number.isNaN(bCreatedAt) ? 0 : bCreatedAt;
+  if (aCreatedRank !== bCreatedRank) return bCreatedRank - aCreatedRank;
+  return String(b.id).localeCompare(String(a.id), undefined, { numeric: true });
 });
 
 function positionBoardTask(baseTasks, movedTask, over) {
@@ -3714,16 +3843,14 @@ function TasksPage({
       matchesDeadline
     );
   });
-  const statusOrder = {
-    "In Progress": 1,
-    Revision: 2,
-    "Waiting for Client": 3,
-    New: 4,
-  };
   const timestamp = (value) => {
     if (!value) return 0;
     const parsed = Date.parse(String(value).replace(" ", "T"));
     return Number.isNaN(parsed) ? 0 : parsed;
+  };
+  const idRank = (value) => {
+    const numeric = Number(value);
+    return Number.isNaN(numeric) ? 0 : numeric;
   };
   const sortedTasks = [...filtered].sort((a, b) => {
     const aCompleted = a.status === "Completed";
@@ -3737,21 +3864,16 @@ function TasksPage({
       const bCompletedTime = timestamp(
         b.completedAtTimestamp || b.completedAt || b.updatedAt || b.createdAt,
       );
-      return bCompletedTime - aCompletedTime;
+      if (aCompletedTime !== bCompletedTime)
+        return bCompletedTime - aCompletedTime;
+      return idRank(b.id) - idRank(a.id);
     }
 
-    const statusDifference =
-      (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
-    if (statusDifference !== 0) return statusDifference;
+    const aCreatedTime = timestamp(a.createdAt || a.updatedAt);
+    const bCreatedTime = timestamp(b.createdAt || b.updatedAt);
+    if (aCreatedTime !== bCreatedTime) return bCreatedTime - aCreatedTime;
 
-    const aCreatedTime = timestamp(a.createdAt);
-    const bCreatedTime = timestamp(b.createdAt);
-    if (aCreatedTime && bCreatedTime) return bCreatedTime - aCreatedTime;
-    if (aCreatedTime !== bCreatedTime) return aCreatedTime ? -1 : 1;
-
-    return String(a.deadline || "9999-12-31").localeCompare(
-      String(b.deadline || "9999-12-31"),
-    );
+    return idRank(b.id) - idRank(a.id);
   });
   const allVisibleSelected =
     filtered.length > 0 && filtered.every((task) => selected.includes(task.id));
@@ -3915,7 +4037,7 @@ function TasksPage({
                 aria-pressed={billableOnly}
               >
                 <CircleDollarSign size={14} />
-                Billable
+                Extra billable
               </button>
               <button
                   className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition ${recurringOnly ? "border-blue bg-blue text-white" : "border-line bg-white text-zinc-600 hover:border-zinc-300"}`}
@@ -4127,13 +4249,13 @@ function DailyLogsPage({ clients, logs }) {
       tone: "bg-violet-50 text-violet-700",
     },
     {
-      label: "Billable delivered",
+      label: "Extra billable delivered",
       value: formatMoney(
         completed
           .filter((task) => task.billable)
           .reduce((sum, task) => sum + Number(task.amount), 0),
       ),
-      detail: "Completed billable value",
+      detail: "Completed extra value",
       icon: CircleDollarSign,
       tone: "bg-orange-50 text-orange-700",
     },
@@ -4143,7 +4265,7 @@ function DailyLogsPage({ clients, logs }) {
       <PageHeader
         eyebrow="Delivery record"
         title="Daily Logs"
-        description="A chronological record of completed client work, proof, and billable delivery."
+        description="A chronological record of completed client work, proof, and package delivery."
       />
       <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => (
@@ -4275,7 +4397,7 @@ function DailyLogsPage({ clients, logs }) {
                             </Badge>
                           ) : (
                             <span className="text-[11px] font-medium text-zinc-400">
-                              Non-billable
+                              Included in package
                             </span>
                           )}
                         </div>
@@ -4532,99 +4654,838 @@ export function LegacyReportsPage({ clients, tasks, isFallback }) {
   );
 }
 
-function BillingPage({ clients, billings, updateTask }) {
-  const billable = billings;
-  const total = billable.reduce((sum, task) => sum + Number(task.amount), 0);
-  const paid = billable
-    .filter((task) => task.paymentStatus === "Paid")
-    .reduce((sum, task) => sum + Number(task.amount), 0);
-  const unpaidCount = billable.filter(
-    (task) => task.paymentStatus !== "Paid",
-  ).length;
-  const metrics = [
+function BillingPage({
+  clients,
+  tasks,
+  billings,
+  monthlyInvoices = [],
+  updateTask,
+  isFallback,
+}) {
+  const currentMonth = Number(TODAY.slice(5, 7));
+  const currentYear = Number(TODAY.slice(0, 4));
+  const [month, setMonth] = useState(currentMonth);
+  const [year, setYear] = useState(currentYear);
+  const [monthlyRows, setMonthlyRows] = useState(monthlyInvoices);
+  const [loadingMonthly, setLoadingMonthly] = useState(false);
+  const [billingError, setBillingError] = useState("");
+  const [manageRow, setManageRow] = useState(null);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [billingForm, setBillingForm] = useState(null);
+  const [savingBilling, setSavingBilling] = useState(false);
+  const periodPrefix = `${year}-${String(month).padStart(2, "0")}`;
+  const months = Array.from({ length: 12 }, (_, index) => ({
+    value: index + 1,
+    label: new Intl.DateTimeFormat("en-US", {
+      month: "long",
+      timeZone: "UTC",
+    }).format(new Date(`2026-${String(index + 1).padStart(2, "0")}-01T00:00:00Z`)),
+  }));
+  const years = [currentYear - 1, currentYear, currentYear + 1];
+  const paymentStatusOptions = [
     {
-      label: "Total billable",
-      value: formatMoney(total),
-      detail: `${billable.length} work items`,
-      icon: CircleDollarSign,
-      tone: "bg-blue/10 text-blue",
+      value: "Unpaid",
+      label: "Unpaid",
+      description: "No payment recorded",
+      dotClass: "bg-slate-400",
     },
     {
+      value: "Partial",
+      label: "Partial",
+      description: "Partially paid",
+      dotClass: "bg-amber-500",
+    },
+    {
+      value: "Paid",
       label: "Paid",
-      value: formatMoney(paid),
-      detail: `${billable.filter((task) => task.paymentStatus === "Paid").length} settled`,
-      icon: CheckCircle2,
-      tone: "bg-emerald-50 text-emerald-700",
-    },
-    {
-      label: "Outstanding",
-      value: formatMoney(total - paid),
-      detail: "Awaiting payment",
-      icon: Clock3,
-      tone: "bg-orange-50 text-orange-700",
-    },
-    {
-      label: "Unpaid items",
-      value: String(unpaidCount).padStart(2, "0"),
-      detail: unpaidCount ? "Requires follow-up" : "Nothing outstanding",
-      icon: ReceiptText,
-      tone: "bg-red-50 text-red-700",
+      description: "Invoice settled",
+      dotClass: "bg-emerald-500",
     },
   ];
+  const invoiceStatusFor = (paidAmount, totalAmount) => {
+    if (Number(paidAmount || 0) <= 0) return "Unpaid";
+    if (Number(paidAmount || 0) >= Number(totalAmount || 0)) return "Paid";
+    return "Partial";
+  };
+  const periodKey = (targetMonth, targetYear) =>
+    `${targetYear}-${String(targetMonth).padStart(2, "0")}`;
+  const taskPeriodDate = (task) =>
+    String(task.completedAt || task.deadline || task.createdAt || "").slice(0, 7);
+  const activeClients = clients.filter(
+    (client) => String(client.status || "active").toLowerCase() === "active",
+  );
+  const fallbackRowForClient = (
+    client,
+    targetMonth = month,
+    targetYear = year,
+  ) => {
+    const targetPeriod = periodKey(targetMonth, targetYear);
+    const clientTasks = tasks.filter(
+      (task) =>
+        task.clientId === client.id && taskPeriodDate(task) === targetPeriod,
+    );
+    const extraTasks = clientTasks.filter((task) => task.billable);
+    const extraAmount = extraTasks.reduce(
+      (sum, task) => sum + Number(task.amount || 0),
+      0,
+    );
+    const monthlyFee = Number(client.monthlyFee || 0);
+    return {
+      id: "",
+      clientId: client.id,
+      clientName: client.name,
+      servicePackage: client.servicePackage || "",
+      month: targetMonth,
+      year: targetYear,
+      monthlyFee,
+      includedTaskCount: clientTasks.filter((task) => !task.billable).length,
+      extraTaskCount: extraTasks.length,
+      extraAmount,
+      totalAmount: monthlyFee + extraAmount,
+      paidAmount: 0,
+      outstandingAmount: monthlyFee + extraAmount,
+      status: "Unpaid",
+      notes: "",
+    };
+  };
+  const fallbackRows = activeClients.map((client) => fallbackRowForClient(client));
+  const rowForClientPeriod = (
+    clientId,
+    targetMonth = month,
+    targetYear = year,
+  ) => {
+    const existing =
+      targetMonth === month && targetYear === year
+        ? monthlyRows.find(
+            (row) => String(row.clientId) === String(clientId),
+          )
+        : null;
+    if (existing) return existing;
+    const client = clients.find((item) => String(item.id) === String(clientId));
+    return client ? fallbackRowForClient(client, targetMonth, targetYear) : null;
+  };
+  const invoiceRows = monthlyRows.length ? monthlyRows : fallbackRows;
+  const monthlyTotals = invoiceRows.reduce(
+    (totals, row) => ({
+      recurring: totals.recurring + Number(row.monthlyFee || 0),
+      extra: totals.extra + Number(row.extraAmount || 0),
+      paid: totals.paid + Number(row.paidAmount || 0),
+      outstanding: totals.outstanding + Number(row.outstandingAmount || 0),
+    }),
+    { recurring: 0, extra: 0, paid: 0, outstanding: 0 },
+  );
+  const billable = billings.filter(
+    (task) => !task.deadline || String(task.deadline).startsWith(periodPrefix),
+  );
+
+  const refreshMonthlyBilling = useCallback(async () => {
+    if (isFallback) {
+      setMonthlyRows([]);
+      return;
+    }
+    setLoadingMonthly(true);
+    setBillingError("");
+    try {
+      const response = await getBillings({ month, year });
+      setMonthlyRows((response.monthly_invoices || []).map(monthlyInvoiceFromApi));
+    } catch (error) {
+      setBillingError(error.message);
+      setMonthlyRows([]);
+    } finally {
+      setLoadingMonthly(false);
+    }
+  }, [isFallback, month, year]);
+
+  useEffect(() => {
+    if (month === currentMonth && year === currentYear) {
+      setMonthlyRows(monthlyInvoices);
+    }
+  }, [currentMonth, currentYear, month, monthlyInvoices, year]);
+
+  useEffect(() => {
+    refreshMonthlyBilling();
+  }, [refreshMonthlyBilling]);
+
+  const updateInvoice = async (row, patch = {}) => {
+    if (isFallback) {
+      setBillingError("Monthly invoice updates require the backend API.");
+      return false;
+    }
+    setBillingError("");
+    setSavingBilling(true);
+    try {
+      const payload = {
+        client_id: Number(row.clientId),
+        month: Number(patch.month ?? row.month ?? month),
+        year: Number(patch.year ?? row.year ?? year),
+        monthly_fee: Number(patch.monthly_fee ?? row.monthlyFee ?? 0),
+        paid_amount: Number(patch.paid_amount ?? row.paidAmount ?? 0),
+        status: patch.status || row.status,
+        notes: patch.notes ?? row.notes ?? "",
+        ...patch,
+      };
+      await updateMonthlyInvoice(payload);
+      await refreshMonthlyBilling();
+      toast.success("Monthly invoice updated.");
+      return true;
+    } catch (error) {
+      setBillingError(error.message);
+      toast.error(error.message);
+      return false;
+    } finally {
+      setSavingBilling(false);
+    }
+  };
+
+  const generateInvoice = async (row) => {
+    if (isFallback) {
+      setBillingError("Monthly invoice generation requires the backend API.");
+      return false;
+    }
+    setBillingError("");
+    setSavingBilling(true);
+    try {
+      await generateMonthlyInvoice({
+        client_id: Number(row.clientId),
+        month: Number(row.month || month),
+        year: Number(row.year || year),
+        monthly_fee: Number(row.monthlyFee || 0),
+        paid_amount: Number(row.paidAmount || 0),
+        status: row.status,
+        notes: row.notes || "",
+      });
+      await refreshMonthlyBilling();
+      toast.success("Monthly invoice generated.");
+      return true;
+    } catch (error) {
+      setBillingError(error.message);
+      toast.error(error.message);
+      return false;
+    } finally {
+      setSavingBilling(false);
+    }
+  };
+
+  const formFromRow = (row, mode = "manage") => ({
+    mode,
+    clientId: row.clientId || "",
+    clientName: row.clientName || "",
+    month: Number(row.month || month),
+    year: Number(row.year || year),
+    monthlyFee: String(row.monthlyFee ?? 0),
+    extraAmount: Number(row.extraAmount || 0),
+    paidAmount: String(row.paidAmount ?? 0),
+    status: row.status || invoiceStatusFor(row.paidAmount, row.totalAmount),
+    notes: row.notes || "",
+  });
+
+  const modalBaseRow = billingForm
+    ? rowForClientPeriod(
+        billingForm.clientId,
+        Number(billingForm.month || month),
+        Number(billingForm.year || year),
+      )
+    : null;
+  const modalMonthlyFee = Number(
+    billingForm?.monthlyFee ?? modalBaseRow?.monthlyFee ?? 0,
+  );
+  const modalExtraAmount = Number(modalBaseRow?.extraAmount || 0);
+  const modalTotalAmount = modalMonthlyFee + modalExtraAmount;
+  const modalPaidAmount = Math.max(
+    0,
+    Math.min(Number(billingForm?.paidAmount || 0), modalTotalAmount),
+  );
+  const modalStatus =
+    billingForm?.status || invoiceStatusFor(modalPaidAmount, modalTotalAmount);
+  const modalOutstanding = Math.max(0, modalTotalAmount - modalPaidAmount);
+  const modalRow = billingForm && modalBaseRow
+    ? {
+        ...modalBaseRow,
+        month: Number(billingForm.month || month),
+        year: Number(billingForm.year || year),
+        monthlyFee: modalMonthlyFee,
+        totalAmount: modalTotalAmount,
+        paidAmount: modalPaidAmount,
+        outstandingAmount: modalOutstanding,
+        status: modalStatus,
+        notes: billingForm.notes || "",
+      }
+    : null;
+
+  const openManageBilling = (row) => {
+    setManageRow(row);
+    setPaymentModalOpen(false);
+    setBillingForm(formFromRow(row, "manage"));
+  };
+
+  const openAddPayment = () => {
+    const row =
+      invoiceRows[0] ||
+      (activeClients[0] ? fallbackRowForClient(activeClients[0]) : null);
+    setManageRow(null);
+    setPaymentModalOpen(true);
+    setBillingForm(row ? formFromRow(row, "payment") : {
+      mode: "payment",
+      clientId: "",
+      clientName: "",
+      month,
+      year,
+      monthlyFee: "0",
+      extraAmount: 0,
+      paidAmount: "0",
+      status: "Unpaid",
+      notes: "",
+    });
+  };
+
+  const closeBillingModal = useCallback(() => {
+    setManageRow(null);
+    setPaymentModalOpen(false);
+    setBillingForm(null);
+  }, []);
+
+  const updateBillingForm = (patch) => {
+    setBillingForm((current) => {
+      const next = { ...current, ...patch };
+      const nextRow = rowForClientPeriod(
+        next.clientId,
+        Number(next.month || month),
+        Number(next.year || year),
+      );
+      if (
+        "clientId" in patch ||
+        "month" in patch ||
+        "year" in patch
+      ) {
+        next.clientName = nextRow?.clientName || "";
+        next.monthlyFee = String(nextRow?.monthlyFee ?? 0);
+        next.extraAmount = Number(nextRow?.extraAmount || 0);
+        next.paidAmount = String(nextRow?.paidAmount ?? 0);
+        next.status =
+          nextRow?.status ||
+          invoiceStatusFor(nextRow?.paidAmount, nextRow?.totalAmount);
+        next.notes = nextRow?.notes || "";
+      }
+      return next;
+    });
+  };
+
+  const syncBillingStatus = (status) => {
+    setBillingForm((current) => {
+      if (!current) return current;
+      const next = { ...current, status };
+      if (status === "Paid") next.paidAmount = String(modalTotalAmount);
+      if (status === "Unpaid") next.paidAmount = "0";
+      return next;
+    });
+  };
+
+  const saveModalInvoice = async (patch = {}) => {
+    if (!modalRow) return;
+    const saved = await updateInvoice(modalRow, patch);
+    if (saved) closeBillingModal();
+  };
+
+  const generateModalInvoice = async () => {
+    if (!modalRow) return;
+    const generated = await generateInvoice(modalRow);
+    if (generated) closeBillingModal();
+  };
+
+  const monthFieldOptions = months.map((item) => ({
+    value: item.value,
+    label: item.label,
+  }));
+  const yearFieldOptions = years.map((item) => ({
+    value: item,
+    label: String(item),
+  }));
+
+  const metricCards = [
+    ["Monthly Recurring Revenue", formatMoney(monthlyTotals.recurring), `${invoiceRows.length} active clients`, CalendarRange, "bg-blue/5 text-blue"],
+    ["Extra Billable Work", formatMoney(monthlyTotals.extra), `${invoiceRows.reduce((sum, row) => sum + Number(row.extraTaskCount || 0), 0)} extra tasks`, CircleDollarSign, "bg-violet-50 text-violet-700"],
+    ["Paid", formatMoney(monthlyTotals.paid), "Recorded monthly payments", CheckCircle2, "bg-emerald-50 text-emerald-700"],
+    ["Outstanding", formatMoney(monthlyTotals.outstanding), "Awaiting collection", Clock3, "bg-orange-50 text-orange-700"],
+  ];
+
   return (
     <>
       <PageHeader
         title="Billing"
-        description="Track billable work, invoices and payment collection."
+        description="Track monthly client packages, extra billable work, invoices and payment collection."
       />
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => (
+      <section className="mb-4 rounded-xl border border-line bg-white p-4 shadow-soft">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-900">
+              Monthly billing period
+            </h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              Package fees are combined with extra billable tasks for the selected month.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[160px_120px_auto_auto]">
+            <label>
+              <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                Month
+              </span>
+              <select
+                className="field"
+                value={month}
+                onChange={(event) => setMonth(Number(event.target.value))}
+              >
+                {months.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                Year
+              </span>
+              <select
+                className="field"
+                value={year}
+                onChange={(event) => setYear(Number(event.target.value))}
+              >
+                {years.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="button-secondary self-end"
+              onClick={refreshMonthlyBilling}
+              disabled={loadingMonthly}
+            >
+              <Repeat2 size={14} className={loadingMonthly ? "animate-spin" : ""} />
+              Refresh
+            </button>
+            <button
+              className="button-primary self-end"
+              type="button"
+              onClick={openAddPayment}
+            >
+              <Plus size={14} />
+              Add Payment
+            </button>
+          </div>
+        </div>
+        {billingError && (
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            {billingError}
+          </p>
+        )}
+      </section>
+
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {metricCards.map(([label, value, detail, Icon, tone]) => (
           <article
-            key={metric.label}
+            key={label}
             className="rounded-xl border border-line bg-white p-5 shadow-soft transition hover:-translate-y-0.5 hover:shadow-panel"
           >
             <div className="flex items-start justify-between">
-              <span
-                className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue/5 text-blue"
-              >
-                <metric.icon size={17} />
+              <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${tone}`}>
+                <Icon size={17} />
               </span>
               <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-300">
                 NPR
               </span>
             </div>
             <p className="mt-5 text-2xl font-semibold tracking-tight text-zinc-900">
-              {metric.value}
+              {value}
             </p>
-            <p className="mt-1 text-xs font-bold text-zinc-700">
-              {metric.label}
-            </p>
-            <p className="mt-1 text-[11px] text-zinc-400">{metric.detail}</p>
+            <p className="mt-1 text-xs font-bold text-zinc-700">{label}</p>
+            <p className="mt-1 text-[11px] text-zinc-400">{detail}</p>
           </article>
         ))}
       </div>
-      {billable.length ? (
-        <section className="overflow-hidden rounded-xl border border-line bg-white shadow-panel">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-5 py-4">
-            <div>
-              <h2 className="text-sm font-semibold text-zinc-900">
-                Billable work ledger
-              </h2>
-              <p className="mt-1 text-xs text-zinc-400">
-                Payment and invoice status update immediately
-              </p>
+
+      <section className="overflow-visible rounded-xl border border-line bg-white shadow-panel">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-5 py-4">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-900">
+              Monthly client invoices
+            </h2>
+            <p className="mt-1 text-xs text-zinc-400">
+              Package fee + extra billable work = total invoice amount.
+            </p>
+          </div>
+          <Badge className="border-zinc-200 bg-zinc-50 text-zinc-600">
+            {invoiceRows.length} clients
+          </Badge>
+        </div>
+        {invoiceRows.length ? (
+          <div className="divide-y divide-zinc-100">
+            {invoiceRows.map((row) => (
+              <article
+                key={`${row.clientId}-${row.month}-${row.year}`}
+                className="grid gap-4 px-5 py-4 transition hover:bg-zinc-50/70 2xl:grid-cols-[minmax(220px,1.05fr)_128px_92px_92px_124px_132px_128px_138px_110px] 2xl:items-center"
+              >
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-zinc-900">
+                      {row.clientName}
+                    </h3>
+                    <BillingBadge value={row.status} />
+                  </div>
+                  <p className="mt-1.5 text-xs font-medium text-zinc-500">
+                    {row.servicePackage || "No package set"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-zinc-400">
+                    {row.id ? `Invoice #${row.id}` : "Not generated yet"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                    Monthly fee
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-zinc-900">
+                    {formatMoney(row.monthlyFee)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                    Included
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-zinc-700">
+                    {row.includedTaskCount} tasks
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                    Extras
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-zinc-700">
+                    {row.extraTaskCount} tasks
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                    Extra amount
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-zinc-900">
+                    {formatMoney(row.extraAmount)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                    Total invoice
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-zinc-900">
+                    {formatMoney(row.totalAmount)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                    Paid amount
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-emerald-700">
+                    {formatMoney(row.paidAmount)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                    Outstanding
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-orange-700">
+                    {formatMoney(row.outstandingAmount)}
+                  </p>
+                </div>
+                <div className="2xl:text-right">
+                  <button
+                    className="button-secondary px-3 py-2 text-xs"
+                    type="button"
+                    onClick={() => openManageBilling(row)}
+                  >
+                    Manage
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="p-6">
+            <EmptyState
+              title="No monthly billing rows"
+              description="Active clients with package fees will appear here for the selected month."
+            />
+          </div>
+        )}
+      </section>
+
+      <Modal
+        open={Boolean(billingForm && (manageRow || paymentModalOpen))}
+        onClose={closeBillingModal}
+        title={
+          paymentModalOpen
+            ? "Add Payment"
+            : (
+              <>
+                Manage Billing {"\u2014"}{" "}
+                {billingForm?.clientName || modalRow?.clientName || "Client"}
+              </>
+            )
+        }
+        description="Update one client invoice for the selected month without changing the billing ledger layout."
+        size="max-w-4xl"
+      >
+        {billingForm && modalRow ? (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveModalInvoice();
+            }}
+          >
+            <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[1fr_0.8fr]">
+              <section className="space-y-4">
+                {paymentModalOpen && (
+                  <div>
+                    <span className="mb-2 block text-sm font-semibold">
+                      Client
+                    </span>
+                    <ClientCombobox
+                      clients={activeClients}
+                      value={billingForm.clientId}
+                      onChange={(clientId) => updateBillingForm({ clientId })}
+                    />
+                  </div>
+                )}
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <span className="mb-2 block text-sm font-semibold">
+                      Month
+                    </span>
+                    <ModernSelect
+                      options={monthFieldOptions}
+                      value={billingForm.month}
+                      onChange={(nextMonth) =>
+                        updateBillingForm({ month: Number(nextMonth) })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <span className="mb-2 block text-sm font-semibold">
+                      Year
+                    </span>
+                    <ModernSelect
+                      options={yearFieldOptions}
+                      value={billingForm.year}
+                      onChange={(nextYear) =>
+                        updateBillingForm({ year: Number(nextYear) })
+                      }
+                    />
+                  </div>
+                </div>
+
+                {!paymentModalOpen && (
+                  <Field label="Monthly fee">
+                    <input
+                      className="field"
+                      type="number"
+                      min="0"
+                      value={billingForm.monthlyFee}
+                      onChange={(event) =>
+                        updateBillingForm({
+                          monthlyFee: event.target.value,
+                          status: invoiceStatusFor(
+                            billingForm.paidAmount,
+                            Number(event.target.value || 0) + modalExtraAmount,
+                          ),
+                        })
+                      }
+                    />
+                  </Field>
+                )}
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Paid amount">
+                    <input
+                      className="field"
+                      type="number"
+                      min="0"
+                      max={modalTotalAmount}
+                      value={billingForm.paidAmount}
+                      onChange={(event) =>
+                        updateBillingForm({
+                          paidAmount: event.target.value,
+                          status: invoiceStatusFor(
+                            event.target.value,
+                            modalTotalAmount,
+                          ),
+                        })
+                      }
+                    />
+                  </Field>
+                  <div>
+                    <span className="mb-2 block text-sm font-semibold">
+                      Payment status
+                    </span>
+                    <ModernSelect
+                      options={paymentStatusOptions}
+                      value={modalStatus}
+                      onChange={syncBillingStatus}
+                    />
+                  </div>
+                </div>
+
+                <Field label="Payment note">
+                  <textarea
+                    className="field min-h-24 resize-y"
+                    value={billingForm.notes}
+                    onChange={(event) =>
+                      updateBillingForm({ notes: event.target.value })
+                    }
+                    placeholder="Advance payment, pending confirmation, or invoice remark"
+                  />
+                </Field>
+              </section>
+
+              <aside className="rounded-xl border border-line bg-zinc-50/70 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-400">
+                      Invoice summary
+                    </p>
+                    <h3 className="mt-2 text-base font-semibold text-zinc-900">
+                      {modalRow.clientName}
+                    </h3>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {modalRow.servicePackage || "No package set"}
+                    </p>
+                  </div>
+                  <BillingBadge value={modalStatus} />
+                </div>
+
+                <div className="mt-5 grid gap-3">
+                  {[
+                    ["Monthly fee", formatMoney(modalMonthlyFee)],
+                    ["Extra billable amount", formatMoney(modalExtraAmount)],
+                    ["Total invoice", formatMoney(modalTotalAmount)],
+                    ["Paid amount", formatMoney(modalPaidAmount)],
+                    ["Outstanding", formatMoney(modalOutstanding)],
+                  ].map(([label, value]) => (
+                    <div
+                      className="flex items-center justify-between gap-4 rounded-lg border border-zinc-200 bg-white px-3 py-2"
+                      key={label}
+                    >
+                      <span className="text-xs font-semibold text-zinc-500">
+                        {label}
+                      </span>
+                      <span className="text-sm font-bold tabular-nums text-zinc-900">
+                        {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-5 rounded-lg border border-dashed border-zinc-200 bg-white p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">
+                    Included work
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-zinc-800">
+                    {modalRow.includedTaskCount} included task
+                    {modalRow.includedTaskCount === 1 ? "" : "s"}{" "}
+                    {"\u00B7"}{" "}
+                    {modalRow.extraTaskCount} extra task
+                    {modalRow.extraTaskCount === 1 ? "" : "s"}
+                  </p>
+                </div>
+              </aside>
             </div>
-            <Badge className="border-zinc-200 bg-zinc-50 text-zinc-600">
-              {billable.length} items
-            </Badge>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-white px-5 py-4 sm:px-6">
+              <button
+                className="button-secondary"
+                type="button"
+                onClick={closeBillingModal}
+                disabled={savingBilling}
+              >
+                Cancel
+              </button>
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  className="button-secondary px-3 py-2 text-xs"
+                  type="button"
+                  onClick={generateModalInvoice}
+                  disabled={savingBilling}
+                >
+                  Generate invoice
+                </button>
+                <button
+                  className="button-secondary px-3 py-2 text-xs"
+                  type="button"
+                  onClick={() =>
+                    saveModalInvoice({ status: "Unpaid", paid_amount: 0 })
+                  }
+                  disabled={savingBilling}
+                >
+                  Mark as Unpaid
+                </button>
+                <button
+                  className="button-secondary px-3 py-2 text-xs"
+                  type="button"
+                  onClick={() =>
+                    saveModalInvoice({
+                      status: "Partial",
+                      paid_amount: modalPaidAmount,
+                    })
+                  }
+                  disabled={savingBilling}
+                >
+                  Mark as Partial
+                </button>
+                <button
+                  className="button-secondary px-3 py-2 text-xs"
+                  type="button"
+                  onClick={() =>
+                    saveModalInvoice({
+                      status: "Paid",
+                      paid_amount: modalTotalAmount,
+                    })
+                  }
+                  disabled={savingBilling}
+                >
+                  Mark as Paid
+                </button>
+                <button
+                  className="button-primary"
+                  type="submit"
+                  disabled={savingBilling}
+                >
+                  {savingBilling ? "Saving..." : "Save changes"}
+                </button>
+              </div>
+            </div>
+          </form>
+        ) : (
+          <div className="p-6">
+            <EmptyState
+              title="No active clients available"
+              description="Add an active client before recording monthly payments."
+            />
           </div>
-          <div className="hidden grid-cols-[minmax(260px,1.4fr)_150px_130px_150px_150px] gap-4 border-b border-zinc-100 bg-zinc-50/70 px-5 py-3 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400 lg:grid">
-            <span>Client work</span>
-            <span>Date</span>
-            <span>Amount</span>
-            <span>Payment</span>
-            <span>Invoice</span>
+        )}
+      </Modal>
+
+      <section className="mt-5 overflow-hidden rounded-xl border border-line bg-white shadow-panel">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-5 py-4">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-900">
+              Extra billable work ledger
+            </h2>
+            <p className="mt-1 text-xs text-zinc-400">
+              Task-level extras remain available for payment and invoice tracking.
+            </p>
           </div>
+          <Badge className="border-zinc-200 bg-zinc-50 text-zinc-600">
+            {billable.length} items
+          </Badge>
+        </div>
+        {billable.length ? (
           <div className="divide-y divide-zinc-100">
             {billable.map((task) => (
               <article
@@ -4653,9 +5514,7 @@ function BillingPage({ clients, billings, updateTask }) {
                     Date
                   </p>
                   <p className="mt-1 text-xs font-semibold text-zinc-600">
-                    {task.completedAt || task.deadline
-                      ? formatDate(task.completedAt || task.deadline)
-                      : "No date"}
+                    {task.deadline ? formatDate(task.deadline) : "No date"}
                   </p>
                 </div>
                 <div>
@@ -4700,32 +5559,26 @@ function BillingPage({ clients, billings, updateTask }) {
               </article>
             ))}
           </div>
-        </section>
-      ) : (
-        <div className="rounded-xl border border-line bg-white p-6 shadow-soft">
-          <EmptyState
-            title="No billable work yet"
-            description="Tasks marked as billable will appear here with payment and invoice tracking."
-          />
-        </div>
-      )}
+        ) : (
+          <div className="p-6">
+            <EmptyState
+              title="No extra billable work"
+              description="Tasks marked as extra billable work will appear here outside the monthly package."
+            />
+          </div>
+        )}
+      </section>
     </>
   );
 }
 
 function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   const workspace = useWorkspace();
-  const initialClientId =
-    window.location.hash.match(/^#clients\/(.+)$/)?.[1] || "";
-  const legacyKanbanRoute =
-    /\/kanban\/?$/.test(window.location.pathname) ||
-    /^#\/?kanban\/?$/.test(window.location.hash);
-  const [activePage, setActivePage] = useState(
-    initialClientId ? "Client Detail" : legacyKanbanRoute ? "Tasks" : "Dashboard",
-  );
-  const [taskView, setTaskView] = useState(legacyKanbanRoute ? "board" : "list");
+  const initialRoute = routeStateFromLocation();
+  const [activePage, setActivePage] = useState(initialRoute.page);
+  const [taskView, setTaskView] = useState(initialRoute.taskView);
   const [selectedClientId, setSelectedClientId] = useState(
-    initialClientId ? decodeURIComponent(initialClientId) : "",
+    initialRoute.clientId,
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -4792,16 +5645,19 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     workspace.deleteClient(id);
   const navigatePage = (page) => {
     const nextPage = page === "Kanban Board" ? "Tasks" : page;
+    const nextTaskView = page === "Kanban Board" ? "board" : taskView;
     if (page === "Kanban Board") setTaskView("board");
     setActivePage(nextPage);
     if (nextPage !== "Client Detail") {
       setSelectedClientId("");
-      if (window.location.hash.startsWith("#clients/"))
-        window.history.pushState(
-          {},
-          "",
-          `${window.location.pathname}${window.location.search}`,
-        );
+    }
+    pushAppRoute(nextPage, { taskView: nextTaskView });
+  };
+  const changeTaskView = (view) => {
+    const nextView = view === "board" ? "board" : "list";
+    setTaskView(nextView);
+    if (activePage === "Tasks") {
+      pushAppRoute("Tasks", { taskView: nextView });
     }
   };
   const openClient = (id) => {
@@ -4816,11 +5672,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     );
     setSelectedClientId(id);
     setActivePage("Client Detail");
-    window.history.pushState(
-      { clientId: id },
-      "",
-      `#clients/${encodeURIComponent(id)}`,
-    );
+    pushAppRoute("Client Detail", { clientId: id });
   };
   const loadNotifications = useCallback(async () => {
     if (workspace.isFallback) {
@@ -4901,16 +5753,10 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   };
   useEffect(() => {
     const syncRoute = () => {
-      const id = window.location.hash.match(/^#clients\/(.+)$/)?.[1];
-      if (id) {
-        setSelectedClientId(decodeURIComponent(id));
-        setActivePage("Client Detail");
-      } else {
-        setSelectedClientId("");
-        setActivePage((current) =>
-          current === "Client Detail" ? "Clients" : current,
-        );
-      }
+      const nextRoute = routeStateFromLocation();
+      setActivePage(nextRoute.page);
+      setTaskView(nextRoute.taskView);
+      setSelectedClientId(nextRoute.clientId);
     };
     window.addEventListener("popstate", syncRoute);
     window.addEventListener("hashchange", syncRoute);
@@ -4983,6 +5829,19 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
   const selectedClient = workspace.clients.find(
     (client) => client.id === selectedClientId,
   );
+  useEffect(() => {
+    if (
+      workspace.loading ||
+      activePage !== "Client Detail" ||
+      !selectedClientId ||
+      selectedClient
+    ) {
+      return;
+    }
+    setSelectedClientId("");
+    setActivePage("Clients");
+    pushAppRoute("Clients", {}, true);
+  }, [activePage, selectedClient, selectedClientId, workspace.loading]);
   const saveTaskWithRecent = async (task) => {
     await workspace.saveTask(task);
     await loadNotifications().catch(() => {});
@@ -5069,6 +5928,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
         client={selectedClient}
         tasks={workspace.tasks}
         billings={workspace.billings}
+        monthlyInvoices={workspace.monthlyInvoices || []}
         activities={(workspace.activities || [])
           .filter((activity) => activity.clientId === selectedClient.id)
           .slice(0, 20)}
@@ -5095,7 +5955,7 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
       <TasksPage
         {...shared}
         view={taskView}
-        onViewChange={setTaskView}
+        onViewChange={changeTaskView}
       />
     ),
     "Daily Logs": (
@@ -5160,8 +6020,11 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     Billing: (
       <BillingPage
         clients={workspace.clients}
+        tasks={workspace.tasks}
         billings={workspace.billings}
+        monthlyInvoices={workspace.monthlyInvoices || []}
         updateTask={workspace.updateTask}
+        isFallback={workspace.isFallback}
       />
     ),
     Team: (

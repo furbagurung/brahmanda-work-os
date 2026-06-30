@@ -12,7 +12,7 @@ import {
 } from './components'
 import { PRIORITIES, TASK_STATUSES } from './data'
 import { getReports } from './services/api'
-import { formatDate, formatMoney } from './utils'
+import { formatDate, formatMoney, todayDateString } from './utils'
 import { getAttachmentPreviewUrl } from './attachmentUtils'
 import { optimizeClientLogo } from './clientLogoUtils'
 import { ActivityFeed } from './ActivityPage'
@@ -74,6 +74,7 @@ export default function ClientDetailPage({
   client,
   tasks,
   billings,
+  monthlyInvoices = [],
   activities = [],
   isFallback,
   onBack,
@@ -106,6 +107,17 @@ export default function ClientDetailPage({
   const completedTasks = clientTasks.filter((task) => task.status === 'Completed')
   const clientBillings = billings.filter((billing) => billing.clientId === client.id)
   const billableTotal = clientBillings.reduce((sum, billing) => sum + Number(billing.amount), 0)
+  const today = todayDateString()
+  const currentMonth = Number(today.slice(5, 7))
+  const currentYear = Number(today.slice(0, 4))
+  const currentPeriod = `${currentYear}-${String(currentMonth).padStart(2, '0')}`
+  const currentMonthTasks = clientTasks.filter((task) => String(task.completedAt || task.deadline || task.createdAt || '').slice(0, 7) === currentPeriod)
+  const currentExtraTasks = currentMonthTasks.filter((task) => task.billable)
+  const currentInvoice = monthlyInvoices.find((invoice) => invoice.clientId === client.id && Number(invoice.month) === currentMonth && Number(invoice.year) === currentYear)
+  const currentExtraAmount = currentInvoice?.extraAmount ?? currentExtraTasks.reduce((sum, task) => sum + Number(task.amount || 0), 0)
+  const currentTotalInvoice = currentInvoice?.totalAmount ?? Number(client.monthlyFee || 0) + currentExtraAmount
+  const currentPaidAmount = currentInvoice?.paidAmount ?? 0
+  const currentOutstanding = currentInvoice?.outstandingAmount ?? Math.max(0, currentTotalInvoice - currentPaidAmount)
   const filteredTasks = clientTasks.filter((task) => (
     (statusFilter === 'All' || task.status === statusFilter)
     && (priorityFilter === 'All' || task.priority === priorityFilter)
@@ -224,7 +236,7 @@ export default function ClientDetailPage({
   ]
 
   const billingColumns = [
-    { key: 'title', label: 'Billable work', render: (billing) => <div><p className="font-semibold">{billing.title}</p><p className="mt-1 text-xs text-zinc-500">{formatDate(billing.deadline, { year: 'numeric', month: 'short', day: 'numeric' })}</p></div> },
+    { key: 'title', label: 'Extra billable work', render: (billing) => <div><p className="font-semibold">{billing.title}</p><p className="mt-1 text-xs text-zinc-500">{formatDate(billing.deadline, { year: 'numeric', month: 'short', day: 'numeric' })}</p></div> },
     { key: 'amount', label: 'Amount', render: (billing) => <span className="font-semibold">{formatMoney(billing.amount)}</span> },
     { key: 'payment', label: 'Payment', render: (billing) => <select className={`rounded-lg border px-2 py-2 text-xs font-semibold outline-none ${getBillingTone(billing.paymentStatus || 'Unpaid')}`} value={billing.paymentStatus || 'Unpaid'} onChange={(event) => updateTask(billing.id, { paymentStatus: event.target.value })}><option>Unpaid</option><option>Paid</option></select> },
     { key: 'invoice', label: 'Invoice', render: (billing) => <select className={`rounded-lg border px-2 py-2 text-xs font-semibold outline-none ${getBillingTone(billing.invoiceStatus || 'Not invoiced')}`} value={billing.invoiceStatus || 'Not invoiced'} onChange={(event) => updateTask(billing.id, { invoiceStatus: event.target.value })}><option>Not invoiced</option><option>Draft</option><option>Sent</option></select> },
@@ -236,7 +248,7 @@ export default function ClientDetailPage({
     ['Completed tasks', completedTasks.length, CheckCircle2],
     ['Pending tasks', clientTasks.length - completedTasks.length, CalendarDays],
     ['Revision tasks', clientTasks.filter((task) => task.status === 'Revision').length, RefreshCw],
-    ['Billable amount', formatMoney(billableTotal), CircleDollarSign],
+    ['Extra billable', formatMoney(billableTotal), CircleDollarSign],
     ['Reports generated', reports.length, FileText],
   ]
 
@@ -297,14 +309,25 @@ export default function ClientDetailPage({
     <div className="mt-5">
       {activeTab === 'Overview' && <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
         <section className="panel"><div className="flex items-center justify-between border-b border-line p-5"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue/5 text-blue"><ClipboardList size={16} /></span><div><h2 className="font-semibold">Recent tasks</h2><p className="mt-1 text-xs text-zinc-500">Latest work for this client</p></div></div><button className="button-secondary px-3 py-2" onClick={() => onNewTask({ clientId: client.id })}><Plus size={14} />Add task</button></div>{clientTasks.length ? <div className="divide-y divide-line">{clientTasks.slice(0, 6).map((task) => <div key={task.id} className="flex items-center justify-between gap-4 p-4"><div><p className="text-sm font-semibold">{task.title}</p><p className="mt-1 text-xs text-zinc-500">{formatDate(task.deadline)} · {task.priority} · {task.assignedUserName || 'Unassigned'}</p><div className="mt-2"><DeadlineBadge task={task} /></div></div><StatusBadge status={task.status} /></div>)}</div> : <EmptyState title="No client tasks" description="Add the first task for this client." action="Add task" onAction={() => onNewTask({ clientId: client.id })} />}</section>
-        <section className="panel p-5"><div className="flex items-center gap-3 border-b border-line pb-4"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600"><CircleDollarSign size={16} /></span><div><h2 className="font-semibold">Account summary</h2><p className="mt-1 text-xs text-zinc-500">Client terms and billing state</p></div></div><dl className="mt-4 space-y-4"><DetailItem label="Service package">{client.servicePackage}</DetailItem><DetailItem label="Monthly fee">{formatMoney(client.monthlyFee)}</DetailItem><DetailItem label="Start date">{client.startDate ? formatDate(client.startDate, { year: 'numeric', month: 'long', day: 'numeric' }) : 'Not added'}</DetailItem><DetailItem label="Billing status">{clientBillings.some((item) => item.paymentStatus !== 'Paid') ? 'Outstanding items' : clientBillings.length ? 'Paid' : 'No billable work'}</DetailItem></dl></section>
+        <section className="panel p-5"><div className="flex items-center gap-3 border-b border-line pb-4"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600"><CircleDollarSign size={16} /></span><div><h2 className="font-semibold">Account summary</h2><p className="mt-1 text-xs text-zinc-500">Client terms and billing state</p></div></div><dl className="mt-4 space-y-4"><DetailItem label="Service package">{client.servicePackage}</DetailItem><DetailItem label="Monthly fee">{formatMoney(client.monthlyFee)}</DetailItem><DetailItem label="Start date">{client.startDate ? formatDate(client.startDate, { year: 'numeric', month: 'long', day: 'numeric' }) : 'Not added'}</DetailItem><DetailItem label="Current invoice status">{currentInvoice?.status || (currentOutstanding > 0 ? 'Unpaid' : 'Paid')}</DetailItem></dl></section>
       </div>}
 
       {activeTab === 'Tasks' && <section className="panel"><div className="flex flex-col gap-3 border-b border-line p-4 md:flex-row md:items-center md:justify-between"><div className="grid gap-3 sm:grid-cols-2"><select className="field min-w-44" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>All</option>{TASK_STATUSES.map((status) => <option key={status} value={status}>{getStatusLabel(status)}</option>)}</select><select className="field min-w-44" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option>All</option>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select></div><button className="button-primary" onClick={() => onNewTask({ clientId: client.id })}><Plus size={15} />Add task</button></div><Table columns={taskColumns} data={filteredTasks} emptyMessage="No tasks match the selected filters." /></section>}
 
       {activeTab === 'Completed Work' && <section className="panel"><Table columns={completedColumns} data={completedTasks} emptyMessage="No completed work has been recorded for this client." /></section>}
 
-      {activeTab === 'Billing' && <><div className="mb-4 flex items-end justify-between border-b border-line pb-4"><div><p className="text-sm text-zinc-500">Total billable amount</p><p className="mt-1 text-2xl font-semibold">{formatMoney(billableTotal)}</p></div><p className="text-sm text-zinc-500">{clientBillings.length} item{clientBillings.length === 1 ? '' : 's'}</p></div><section className="panel"><Table columns={billingColumns} data={clientBillings} emptyMessage="No billable tasks have been added for this client." /></section></>}
+      {activeTab === 'Billing' && <div className="space-y-4">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {[
+            ['Monthly package fee', formatMoney(client.monthlyFee), 'Recurring client package'],
+            ['Current invoice status', currentInvoice?.status || 'Unpaid', currentInvoice ? `Invoice #${currentInvoice.id}` : 'Not generated yet'],
+            ['Included tasks', currentMonthTasks.filter((task) => !task.billable).length, 'Included in package'],
+            ['Extra billable tasks', currentExtraTasks.length, formatMoney(currentExtraAmount)],
+            ['Outstanding amount', formatMoney(currentOutstanding), `Paid ${formatMoney(currentPaidAmount)}`],
+          ].map(([label, value, detail]) => <article key={label} className="rounded-xl border border-line bg-white p-4 shadow-soft"><p className="text-xl font-semibold tabular-nums text-ink">{value}</p><p className="mt-1 text-xs font-semibold text-zinc-600">{label}</p><p className="mt-1 text-[11px] text-zinc-400">{detail}</p></article>)}
+        </section>
+        <section className="panel"><div className="border-b border-line p-5"><h2 className="font-semibold">Extra billable work</h2><p className="mt-1 text-xs text-zinc-500">Work outside the monthly package.</p></div><Table columns={billingColumns} data={clientBillings} emptyMessage="No extra billable tasks have been added for this client." /></section>
+      </div>}
 
       {activeTab === 'Reports' && <section className="panel">
         <div className="flex items-center justify-between border-b border-line p-5"><div><h2 className="font-semibold">Generated reports</h2><p className="mt-1 text-xs text-zinc-500">Saved monthly client reports</p></div><button className="button-secondary px-3 py-2" onClick={loadReports} disabled={reportsLoading}><RefreshCw size={14} className={reportsLoading ? 'animate-spin' : ''} />Refresh</button></div>

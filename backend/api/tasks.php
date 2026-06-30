@@ -126,6 +126,17 @@ function nextTaskOrder(PDO $pdo, string $status): int
     return (int) $statement->fetchColumn();
 }
 
+function topTaskOrder(PDO $pdo, string $status): int
+{
+    $statement = $pdo->prepare('SELECT MIN(NULLIF(task_order, 0)) FROM tasks WHERE status = ?');
+    $statement->execute([$status]);
+    $minimum = $statement->fetchColumn();
+    if ($minimum === false || $minimum === null) {
+        return 1000;
+    }
+    return max(1, (int) $minimum - 1000);
+}
+
 function reorderTasks(PDO $pdo, array $currentUser, array $items): void
 {
     if ($items === []) {
@@ -439,7 +450,7 @@ try {
 
         $pdo->beginTransaction();
         if (empty($data['task_order'])) {
-            $data['task_order'] = nextTaskOrder($pdo, (string) $data['status']);
+            $data['task_order'] = topTaskOrder($pdo, (string) $data['status']);
         }
 
         $statement = $pdo->prepare(

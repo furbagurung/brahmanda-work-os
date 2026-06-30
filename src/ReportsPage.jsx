@@ -53,12 +53,24 @@ export default function ReportsPage({ clients, tasks, settings, isFallback, onAc
   const deliverables = report?.deliverables || completed.filter((task) => ['Reels', 'Print Design', 'Creative'].includes(task.category))
   const technicalWork = report?.technical_work || completed.filter((task) => ['Web', 'Technical', 'Development', 'SEO', 'Digital'].includes(task.category))
   const revisions = report?.revisions_completed || completed.filter((task) => `${task.title} ${task.description || ''}`.toLowerCase().includes('revision'))
+  const includedPackageTasks = report?.included_package_tasks || completed.filter((task) => !Number(task.is_billable) && !task.billable)
   const pending = report?.pending_tasks || scopedTasks.filter((task) => task.status !== 'Completed')
   const billable = report?.extra_billable_work?.items || scopedTasks.filter((task) => task.billable && (task.completedAt || task.deadline || '').startsWith(periodPrefix))
   const nextMonthPlan = report?.next_month_plan || ['Complete pending deliverables and revisions.', 'Review campaign performance and document findings.', 'Confirm next month priorities with the client.']
   const monthLabel = MONTHS.find((item) => item.value === Number(month))?.label || ''
   const amountFor = (task) => Number(task.billable_amount ?? task.amount ?? 0)
   const billableTotal = Number(report?.extra_billable_work?.total ?? billable.reduce((total, task) => total + amountFor(task), 0))
+  const billingSummary = report?.billing_summary || {
+    monthly_fee: Number(client?.monthlyFee || 0),
+    service_package: client?.servicePackage || '',
+    included_task_count: includedPackageTasks.length,
+    extra_billable_task_count: billable.length,
+    extra_amount: billableTotal,
+    total_invoice_amount: Number(client?.monthlyFee || 0) + billableTotal,
+    paid_amount: 0,
+    outstanding_amount: Number(client?.monthlyFee || 0) + billableTotal,
+    payment_status: 'Unpaid',
+  }
   const attachmentsFor = (task) => (task.attachments || []).map((attachment) => ({
     ...attachment,
     url: getAttachmentPreviewUrl(attachment, 'download'),
@@ -88,12 +100,21 @@ ${listText(technicalWork)}
 Revisions completed:
 ${listText(revisions)}
 
+Monthly package:
+Package: ${billingSummary.service_package || client?.servicePackage || 'Not set'}
+Monthly package fee: ${formatMoney(billingSummary.monthly_fee, settings.currency)}
+Included package tasks: ${billingSummary.included_task_count}
+
 Pending tasks:
 ${listText(pending, (task) => `${task.title} (${getStatusLabel(task.status)})`)}
 
 Extra billable work:
 ${listText(billable, (task) => `${task.title}: ${formatMoney(amountFor(task))}`)}
-Total billable amount: ${formatMoney(billableTotal, settings.currency)}
+Extra billable amount: ${formatMoney(billingSummary.extra_amount, settings.currency)}
+Total invoice amount: ${formatMoney(billingSummary.total_invoice_amount, settings.currency)}
+Paid amount: ${formatMoney(billingSummary.paid_amount, settings.currency)}
+Outstanding amount: ${formatMoney(billingSummary.outstanding_amount, settings.currency)}
+Payment status: ${billingSummary.payment_status}
 
 Next month plan:
 ${nextMonthPlan.map((item) => `- ${item}`).join('\n')}
@@ -112,8 +133,10 @@ PAN: ${settings.pan_number}`
     deliverables: sourceReport?.deliverables || deliverables,
     technical_work: sourceReport?.technical_work || technicalWork,
     revisions_completed: sourceReport?.revisions_completed || revisions,
+    included_package_tasks: sourceReport?.included_package_tasks || includedPackageTasks,
     pending_tasks: sourceReport?.pending_tasks || pending,
     extra_billable_work: sourceReport?.extra_billable_work || { items: billable, total: billableTotal },
+    billing_summary: sourceReport?.billing_summary || billingSummary,
     next_month_plan: sourceReport?.next_month_plan || nextMonthPlan,
     prepared_by: settings.prepared_by,
     branding: settings,
@@ -179,6 +202,15 @@ PAN: ${settings.pan_number}`
     const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[character])
     const listHtml = (items, formatter = (item) => item.title) => items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(formatter(item))}</li>`).join('')}</ul>` : '<p>None recorded.</p>'
     const completedHtml = completed.length ? `<ul>${completed.map((task) => `<li><strong>${escapeHtml(task.title)}</strong>${attachmentsFor(task).length ? `<ul>${attachmentsFor(task).map((attachment) => `<li><a href="${escapeHtml(attachment.url)}">${escapeHtml(attachment.title)}</a></li>`).join('')}</ul>` : ''}</li>`).join('')}</ul>` : '<p>None recorded.</p>'
+    const enhancedHtml = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(client?.name || 'Client')} - ${monthLabel} ${year}</title><style>body{font-family:Helvetica,Arial,sans-serif;color:#18181b;max-width:800px;margin:48px auto;padding:0 24px;line-height:1.6}header{border-bottom:3px solid ${escapeHtml(settings.brand_color)};padding-bottom:24px;margin-bottom:24px}.brand{color:${escapeHtml(settings.brand_color)};font-weight:700;letter-spacing:.12em;font-size:12px}h1{margin:8px 0 0;font-size:30px}h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#52525b;border-top:1px solid #e4e4e7;padding-top:18px;margin-top:22px}li{margin:5px 0}a{color:${escapeHtml(settings.brand_color)}}.total{display:flex;justify-content:space-between;border-top:1px solid #e4e4e7;padding-top:10px;font-weight:700}footer{margin-top:36px;border-top:1px solid #e4e4e7;padding-top:18px;color:#52525b}</style></head><body><header><div class="brand">${escapeHtml(settings.logo_url || `${settings.agency_name} / Work OS`)}</div><h1>${escapeHtml(settings.report_title)}</h1><p>${escapeHtml(client?.name || '')} · ${monthLabel} ${year} · ${escapeHtml(status)}</p></header><p><strong>${escapeHtml(settings.legal_business_name)}</strong><br>${escapeHtml(settings.contact_person)} · ${escapeHtml(settings.agency_email)} · ${escapeHtml(settings.agency_phone)}<br>PAN: ${escapeHtml(settings.pan_number)}${settings.agency_address ? `<br>${escapeHtml(settings.agency_address)}` : ''}</p><h2>Work completed</h2>${completedHtml}<h2>Designs and content delivered</h2>${listHtml(deliverables)}<h2>Website and technical work</h2>${listHtml(technicalWork)}<h2>Revisions completed</h2>${listHtml(revisions)}<h2>Monthly package</h2><p><strong>${escapeHtml(billingSummary.service_package || client?.servicePackage || 'Not set')}</strong><br>Monthly package fee: ${escapeHtml(formatMoney(billingSummary.monthly_fee, settings.currency))}<br>Included package tasks: ${escapeHtml(billingSummary.included_task_count)}<br>Payment status: ${escapeHtml(billingSummary.payment_status)}</p><h2>Pending tasks</h2>${listHtml(pending, (task) => `${task.title} (${getStatusLabel(task.status)})`)}<h2>Extra billable work</h2>${listHtml(billable, (task) => `${task.title}: ${formatMoney(amountFor(task), settings.currency)}`)}<p class="total"><span>Total invoice amount</span><span>${escapeHtml(formatMoney(billingSummary.total_invoice_amount, settings.currency))}</span></p><p>Extra billable amount: ${escapeHtml(formatMoney(billingSummary.extra_amount, settings.currency))}<br>Paid: ${escapeHtml(formatMoney(billingSummary.paid_amount, settings.currency))}<br>Outstanding: ${escapeHtml(formatMoney(billingSummary.outstanding_amount, settings.currency))}</p><h2>Next month plan</h2>${listHtml(nextMonthPlan, (item) => item)}${settings.default_report_note ? `<h2>Note</h2><p>${escapeHtml(settings.default_report_note)}</p>` : ''}<footer>${escapeHtml(settings.report_footer_text)}<br>${escapeHtml(settings.prepared_by)}</footer></body></html>`
+    const enhancedUrl = URL.createObjectURL(new Blob([enhancedHtml], { type: 'text/html;charset=utf-8' }))
+    const enhancedLink = document.createElement('a')
+    enhancedLink.href = enhancedUrl
+    enhancedLink.download = `${(client?.name || 'client').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${year}-${String(month).padStart(2, '0')}-report.html`
+    enhancedLink.click()
+    URL.revokeObjectURL(enhancedUrl)
+    toast.success('Report downloaded.')
+    return
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(client?.name || 'Client')} - ${monthLabel} ${year}</title><style>body{font-family:Helvetica,Arial,sans-serif;color:#18181b;max-width:800px;margin:48px auto;padding:0 24px;line-height:1.6}header{border-bottom:3px solid ${escapeHtml(settings.brand_color)};padding-bottom:24px;margin-bottom:24px}.brand{color:${escapeHtml(settings.brand_color)};font-weight:700;letter-spacing:.12em;font-size:12px}h1{margin:8px 0 0;font-size:30px}h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#52525b;border-top:1px solid #e4e4e7;padding-top:18px;margin-top:22px}li{margin:5px 0}a{color:${escapeHtml(settings.brand_color)}}.total{display:flex;justify-content:space-between;border-top:1px solid #e4e4e7;padding-top:10px;font-weight:700}footer{margin-top:36px;border-top:1px solid #e4e4e7;padding-top:18px;color:#52525b}</style></head><body><header><div class="brand">${escapeHtml(settings.logo_url || `${settings.agency_name} / Work OS`)}</div><h1>${escapeHtml(settings.report_title)}</h1><p>${escapeHtml(client?.name || '')} · ${monthLabel} ${year} · ${escapeHtml(status)}</p></header><p><strong>${escapeHtml(settings.legal_business_name)}</strong><br>${escapeHtml(settings.contact_person)} · ${escapeHtml(settings.agency_email)} · ${escapeHtml(settings.agency_phone)}<br>PAN: ${escapeHtml(settings.pan_number)}${settings.agency_address ? `<br>${escapeHtml(settings.agency_address)}` : ''}</p><h2>Work completed</h2>${completedHtml}<h2>Designs and content delivered</h2>${listHtml(deliverables)}<h2>Website and technical work</h2>${listHtml(technicalWork)}<h2>Revisions completed</h2>${listHtml(revisions)}<h2>Pending tasks</h2>${listHtml(pending, (task) => `${task.title} (${getStatusLabel(task.status)})`)}<h2>Extra billable work</h2>${listHtml(billable, (task) => `${task.title}: ${formatMoney(amountFor(task), settings.currency)}`)}<p class="total"><span>Total billable amount</span><span>${escapeHtml(formatMoney(billableTotal, settings.currency))}</span></p><h2>Next month plan</h2>${listHtml(nextMonthPlan, (item) => item)}${settings.default_report_note ? `<h2>Note</h2><p>${escapeHtml(settings.default_report_note)}</p>` : ''}<footer>${escapeHtml(settings.report_footer_text)}<br>${escapeHtml(settings.prepared_by)}</footer></body></html>`
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }))
     const link = document.createElement('a')
@@ -222,9 +254,17 @@ PAN: ${settings.pan_number}`
         <ReportSection title="Designs and content delivered">{deliverables.length ? <ul className="space-y-2">{deliverables.map((task) => <li key={task.id}>{task.title}</li>)}</ul> : <p className="text-zinc-500">No design or content deliverables recorded.</p>}</ReportSection>
         <ReportSection title="Website and technical work">{technicalWork.length ? <ul className="space-y-2">{technicalWork.map((task) => <li key={task.id}>{task.title}</li>)}</ul> : <p className="text-zinc-500">No website or technical work recorded.</p>}</ReportSection>
         <ReportSection title="Revisions completed">{revisions.length ? <ul className="space-y-2">{revisions.map((task) => <li key={task.id}>{task.title}</li>)}</ul> : <p className="text-zinc-500">No completed revisions recorded.</p>}</ReportSection>
-        <ReportCard number="02" title="Pending tasks" icon={FileText}>{pending.length ? <div className="space-y-2">{pending.map((task) => <div key={task.id} className="flex items-center justify-between gap-4 border-b border-zinc-100 pb-2"><span>{task.title}</span><StatusBadge status={task.status} /></div>)}</div> : <p>No pending tasks.</p>}</ReportCard>
-        <ReportCard number="03" title="Billable extras" icon={ReceiptText}>{billable.length ? <div className="space-y-2">{billable.map((task) => <div key={task.id} className="flex justify-between gap-4"><span>{task.title}</span><strong>{formatMoney(amountFor(task))}</strong></div>)}</div> : <p className="text-zinc-500">No extra billable work recorded.</p>}<div className="mt-3 flex justify-between border-t border-zinc-900 pt-3 text-base"><span>Total billable amount</span><strong>{formatMoney(billableTotal)}</strong></div></ReportCard>
-        <ReportCard number="04" title="Next month plan" icon={FileText}><ol className="space-y-2">{nextMonthPlan.map((item, index) => <li className="flex gap-3" key={item}><span className="text-xs font-bold text-blue">{String(index + 1).padStart(2, '0')}</span><span>{item}</span></li>)}</ol></ReportCard>
+        <ReportCard number="02" title="Monthly package" icon={ReceiptText}>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div><p className="text-xs font-semibold text-zinc-400">Package</p><p className="mt-1 font-semibold text-zinc-800">{billingSummary.service_package || client?.servicePackage || 'Not set'}</p></div>
+            <div><p className="text-xs font-semibold text-zinc-400">Monthly fee</p><p className="mt-1 font-semibold text-zinc-800">{formatMoney(billingSummary.monthly_fee, settings.currency)}</p></div>
+            <div><p className="text-xs font-semibold text-zinc-400">Included tasks</p><p className="mt-1 font-semibold text-zinc-800">{billingSummary.included_task_count}</p></div>
+            <div><p className="text-xs font-semibold text-zinc-400">Payment status</p><p className="mt-1 font-semibold text-zinc-800">{billingSummary.payment_status}</p></div>
+          </div>
+        </ReportCard>
+        <ReportCard number="03" title="Pending tasks" icon={FileText}>{pending.length ? <div className="space-y-2">{pending.map((task) => <div key={task.id} className="flex items-center justify-between gap-4 border-b border-zinc-100 pb-2"><span>{task.title}</span><StatusBadge status={task.status} /></div>)}</div> : <p>No pending tasks.</p>}</ReportCard>
+        <ReportCard number="04" title="Billable extras" icon={ReceiptText}>{billable.length ? <div className="space-y-2">{billable.map((task) => <div key={task.id} className="flex justify-between gap-4"><span>{task.title}</span><strong>{formatMoney(amountFor(task))}</strong></div>)}</div> : <p className="text-zinc-500">No extra billable work recorded.</p>}<div className="mt-3 space-y-2 border-t border-zinc-900 pt-3 text-base"><div className="flex justify-between"><span>Extra billable amount</span><strong>{formatMoney(billingSummary.extra_amount)}</strong></div><div className="flex justify-between"><span>Total invoice amount</span><strong>{formatMoney(billingSummary.total_invoice_amount)}</strong></div><div className="flex justify-between text-sm text-zinc-500"><span>Outstanding</span><strong>{formatMoney(billingSummary.outstanding_amount)}</strong></div></div></ReportCard>
+        <ReportCard number="05" title="Next month plan" icon={FileText}><ol className="space-y-2">{nextMonthPlan.map((item, index) => <li className="flex gap-3" key={item}><span className="text-xs font-bold text-blue">{String(index + 1).padStart(2, '0')}</span><span>{item}</span></li>)}</ol></ReportCard>
         {settings.default_report_note && <ReportSection title="Report note"><p>{settings.default_report_note}</p></ReportSection>}
         <footer className="mt-7 border-t border-line pt-5 text-sm text-zinc-500"><p className="font-semibold text-ink">{settings.report_footer_text}</p><p className="mt-1">{settings.legal_business_name} · PAN {settings.pan_number}</p><p className="mt-1">{settings.contact_person} · {settings.agency_email} · {settings.agency_phone}</p></footer>
       </div>

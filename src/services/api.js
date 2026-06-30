@@ -128,6 +128,8 @@ export const getBillings = (params = {}) => {
   return request(`billing.php${query.toString() ? `?${query}` : ''}`)
 }
 export const updateBilling = (taskId, data) => request(`billing.php?id=${encodeURIComponent(taskId)}`, jsonOptions('PATCH', data))
+export const generateMonthlyInvoice = (data) => request('billing.php?action=generate_monthly_invoice', jsonOptions('POST', data))
+export const updateMonthlyInvoice = (data) => request('billing.php?action=monthly_invoice', jsonOptions('PATCH', data))
 
 export const getReports = (params = {}) => {
   const query = new URLSearchParams(params)
@@ -341,6 +343,28 @@ export function billingFromApi(billing) {
     invoiceStatus: billing.invoice_status || 'Not invoiced',
     deadline: billing.billing_date || '',
     status: billing.task_status || '',
+  }
+}
+
+export function monthlyInvoiceFromApi(invoice) {
+  return {
+    id: invoice.id ? String(invoice.id) : '',
+    clientId: String(invoice.client_id),
+    clientName: invoice.client_name || '',
+    servicePackage: invoice.service_package || '',
+    month: Number(invoice.invoice_month || invoice.month || 0),
+    year: Number(invoice.invoice_year || invoice.year || 0),
+    monthlyFee: Number(invoice.monthly_fee || 0),
+    includedTaskCount: Number(invoice.included_task_count || 0),
+    extraTaskCount: Number(invoice.extra_task_count || 0),
+    extraAmount: Number(invoice.extra_amount || 0),
+    totalAmount: Number(invoice.total_amount || 0),
+    paidAmount: Number(invoice.paid_amount || 0),
+    outstandingAmount: Number(invoice.outstanding_amount ?? Math.max(0, Number(invoice.total_amount || 0) - Number(invoice.paid_amount || 0))),
+    status: invoice.status || 'Unpaid',
+    notes: invoice.notes || '',
+    createdAt: invoice.created_at || '',
+    updatedAt: invoice.updated_at || '',
   }
 }
 
