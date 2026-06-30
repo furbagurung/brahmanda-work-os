@@ -19,6 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  ArrowUpDown,
   BarChart3,
   BellRing,
   CalendarDays,
@@ -33,6 +34,7 @@ import {
   Clock3,
   Command,
   Download,
+  Filter,
   FileText,
   History,
   ImagePlus,
@@ -50,6 +52,8 @@ import {
   Repeat2,
   Search,
   Settings,
+  SlidersHorizontal,
+  Table2,
   Trash2,
   UserRound,
   Users,
@@ -248,7 +252,7 @@ function routeFromLocation() {
 
 function routeStateFromLocation() {
   const route = routeFromLocation();
-  if (!route) return { page: "Dashboard", taskView: "list", clientId: "" };
+  if (!route) return { page: "Dashboard", taskView: "table", clientId: "" };
   const [pathPart, query = ""] = route.split("?");
   const path = normalizeRoutePath(pathPart);
   const params = new URLSearchParams(query);
@@ -257,30 +261,36 @@ function routeStateFromLocation() {
     return { page: "Tasks", taskView: "board", clientId: "" };
   }
   if (path === "tasks") {
-    const view = params.get("view") === "board" ? "board" : "list";
+    const requestedView = params.get("view");
+    const view = ["table", "board", "calendar", "list"].includes(requestedView)
+      ? requestedView
+      : "table";
     return { page: "Tasks", taskView: view, clientId: "" };
   }
   if (path.startsWith("clients/")) {
     const clientId = path.slice("clients/".length);
     return {
       page: clientId ? "Client Detail" : "Clients",
-      taskView: "list",
+      taskView: "table",
       clientId: clientId ? decodeURIComponent(clientId) : "",
     };
   }
   if (path === "clients") {
-    return { page: "Clients", taskView: "list", clientId: "" };
+    return { page: "Clients", taskView: "table", clientId: "" };
   }
   const page = ROUTE_PAGES[path];
-  return { page: page || "Dashboard", taskView: "list", clientId: "" };
+  return { page: page || "Dashboard", taskView: "table", clientId: "" };
 }
 
-function routeForPage(page, { taskView = "list", clientId = "" } = {}) {
+function routeForPage(page, { taskView = "table", clientId = "" } = {}) {
   if (page === "Client Detail" && clientId) {
     return `#/clients/${encodeURIComponent(clientId)}`;
   }
   if (page === "Tasks") {
-    return `#/tasks?view=${taskView === "board" ? "board" : "list"}`;
+    const view = ["table", "board", "calendar", "list"].includes(taskView)
+      ? taskView
+      : "table";
+    return `#/tasks?view=${view}`;
   }
   return `#/${PAGE_ROUTES[page] || PAGE_ROUTES.Dashboard}`;
 }
@@ -3794,6 +3804,171 @@ function TaskBoard({
   );
 }
 
+function TaskCompactList({ tasks, clients, onEditTask, updateTask }) {
+  if (!tasks.length) {
+    return (
+      <div className="rounded-xl border border-line bg-white p-6 shadow-soft">
+        <EmptyState
+          title="No matching tasks"
+          description="Adjust your filters or clear them to return to the full task workspace."
+        />
+      </div>
+    );
+  }
+  return (
+    <section className="overflow-hidden rounded-xl border border-line bg-white shadow-panel">
+      <div className="divide-y divide-line">
+        {tasks.map((task) => {
+          const client = clients.find((item) => item.id === task.clientId);
+          const initials = task.assignedUserName
+            ? task.assignedUserName
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((part) => part[0])
+                .join("")
+                .toUpperCase()
+            : "";
+          return (
+            <article
+              key={task.id}
+              className="grid gap-3 px-4 py-3 transition hover:bg-zinc-50/70 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center"
+            >
+              <button
+                className="min-w-0 text-left"
+                type="button"
+                onClick={() => onEditTask(task)}
+              >
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h3 className="truncate text-sm font-semibold text-zinc-900 hover:text-blue">
+                    {task.title}
+                  </h3>
+                  <PriorityBadge priority={task.priority} />
+                  {task.billable && (
+                    <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                      <CircleDollarSign size={11} className="mr-1" />
+                      Extra
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-1 truncate text-xs text-zinc-500">
+                  {client?.name || "Deleted client"} ·{" "}
+                  {task.deadline ? formatDate(task.deadline) : "No deadline"}
+                </p>
+              </button>
+              <StatusBadge status={task.status} />
+              <span className="flex items-center gap-2 text-xs font-medium text-zinc-500">
+                {initials ? (
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-ink text-[10px] font-bold text-white">
+                    {initials}
+                  </span>
+                ) : (
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-100 text-zinc-400">
+                    <UserRound size={13} />
+                  </span>
+                )}
+                <span className="hidden sm:inline">
+                  {task.assignedUserName || "Unassigned"}
+                </span>
+              </span>
+              <select
+                className="rounded-lg border border-line bg-white px-2 py-1.5 text-[10px] font-semibold text-zinc-600 outline-none focus:border-blue/40"
+                value={task.status}
+                onChange={(event) =>
+                  updateTask(task.id, { status: event.target.value })
+                }
+                aria-label={`Update ${task.title} status`}
+              >
+                {TASK_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {getStatusLabel(status)}
+                  </option>
+                ))}
+              </select>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function TaskCalendarGrid({ tasks, clients, onEditTask }) {
+  const datedTasks = tasks
+    .filter((task) => task.deadline || task.reminderDate)
+    .sort((a, b) =>
+      String(a.deadline || a.reminderDate || "").localeCompare(
+        String(b.deadline || b.reminderDate || ""),
+      ),
+    );
+  const groups = datedTasks.reduce((result, task) => {
+    const date = task.deadline || task.reminderDate || "No date";
+    if (!result[date]) result[date] = [];
+    result[date].push(task);
+    return result;
+  }, {});
+
+  if (!datedTasks.length) {
+    return (
+      <div className="rounded-xl border border-line bg-white p-6 shadow-soft">
+        <EmptyState
+          title="No dated tasks"
+          description="Tasks with deadlines or reminders will appear in this calendar view."
+        />
+      </div>
+    );
+  }
+
+  return (
+    <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {Object.entries(groups).map(([date, entries]) => (
+        <article
+          key={date}
+          className="overflow-hidden rounded-xl border border-line bg-white shadow-soft"
+        >
+          <div className="border-b border-line bg-zinc-50/70 px-4 py-3">
+            <p className="text-sm font-semibold text-zinc-900">
+              {formatDate(date, { weekday: "short", month: "short", day: "numeric" })}
+            </p>
+            <p className="mt-1 text-[11px] font-medium text-zinc-400">
+              {entries.length} task{entries.length === 1 ? "" : "s"}
+            </p>
+          </div>
+          <div className="divide-y divide-line">
+            {entries.map((task) => {
+              const client = clients.find((item) => item.id === task.clientId);
+              return (
+                <button
+                  key={task.id}
+                  type="button"
+                  className="block w-full px-4 py-3 text-left transition hover:bg-zinc-50"
+                  onClick={() => onEditTask(task)}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-zinc-900">
+                        {task.title}
+                      </p>
+                      <p className="mt-1 truncate text-xs text-zinc-500">
+                        {client?.name || "Deleted client"}
+                      </p>
+                    </div>
+                    <PriorityBadge priority={task.priority} />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <StatusBadge status={task.status} />
+                    <DeadlineBadge task={task} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </article>
+      ))}
+    </section>
+  );
+}
+
 function TasksPage({
   clients,
   users,
@@ -3818,6 +3993,10 @@ function TasksPage({
   const [bulkStatus, setBulkStatus] = useState("");
   const [bulkPriority, setBulkPriority] = useState("");
   const [bulkAssignee, setBulkAssignee] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+  const [sortMode, setSortMode] = useState("default");
+  const searchInputRef = useRef(null);
   const filtered = tasks.filter((task) => {
     const client = clients.find((item) => item.id === task.clientId);
     const deadline = deadlineState(task);
@@ -3852,7 +4031,15 @@ function TasksPage({
     const numeric = Number(value);
     return Number.isNaN(numeric) ? 0 : numeric;
   };
-  const sortedTasks = [...filtered].sort((a, b) => {
+  const priorityRank = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
+  const statusRank = {
+    New: 0,
+    "In Progress": 1,
+    "Waiting for Client": 2,
+    Revision: 3,
+    Completed: 4,
+  };
+  const baseTaskSort = (a, b) => {
     const aCompleted = a.status === "Completed";
     const bCompleted = b.status === "Completed";
     if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
@@ -3874,6 +4061,43 @@ function TasksPage({
     if (aCreatedTime !== bCreatedTime) return bCreatedTime - aCreatedTime;
 
     return idRank(b.id) - idRank(a.id);
+  };
+  const sortedTasks = [...filtered].sort((a, b) => {
+    if (sortMode === "oldest") {
+      const base = baseTaskSort(a, b);
+      if (a.status === "Completed" || b.status === "Completed") return base;
+      const aCreatedTime = timestamp(a.createdAt || a.updatedAt);
+      const bCreatedTime = timestamp(b.createdAt || b.updatedAt);
+      if (aCreatedTime !== bCreatedTime) return aCreatedTime - bCreatedTime;
+      return idRank(a.id) - idRank(b.id);
+    }
+    if (sortMode === "deadline") {
+      const base = baseTaskSort(a, b);
+      if (a.status === "Completed" || b.status === "Completed") return base;
+      return String(a.deadline || "9999-12-31").localeCompare(
+        String(b.deadline || "9999-12-31"),
+      );
+    }
+    if (sortMode === "priority") {
+      const base = baseTaskSort(a, b);
+      if (a.status === "Completed" || b.status === "Completed") return base;
+      const priorityDifference =
+        (priorityRank[a.priority] ?? 9) - (priorityRank[b.priority] ?? 9);
+      return priorityDifference || base;
+    }
+    if (sortMode === "status") {
+      const statusDifference =
+        (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9);
+      return statusDifference || baseTaskSort(a, b);
+    }
+    if (sortMode === "client") {
+      const aClient =
+        clients.find((client) => client.id === a.clientId)?.name || "";
+      const bClient =
+        clients.find((client) => client.id === b.clientId)?.name || "";
+      return aClient.localeCompare(bClient) || baseTaskSort(a, b);
+    }
+    return baseTaskSort(a, b);
   });
   const allVisibleSelected =
     filtered.length > 0 && filtered.every((task) => selected.includes(task.id));
@@ -3917,38 +4141,179 @@ function TasksPage({
     setBillableOnly(false);
     setRecurringOnly(false);
   };
+  const viewTabs = [
+    { value: "table", label: "Table", icon: Table2 },
+    { value: "board", label: "Board", icon: LayoutDashboard },
+    { value: "calendar", label: "Calendar", icon: CalendarDays },
+    { value: "list", label: "List", icon: ListChecks },
+  ];
+  const sortOptions = [
+    ["default", "Newest first"],
+    ["oldest", "Oldest first"],
+    ["deadline", "Deadline soonest"],
+    ["priority", "Priority high first"],
+    ["status", "Status order"],
+    ["client", "Client name"],
+  ];
+  const clientFilterOptions = [
+    { value: "All", label: "All clients" },
+    ...clients.map((client) => ({
+      value: client.id,
+      label: client.name,
+      description: client.servicePackage || "",
+      initials: client.initials,
+    })),
+  ];
+  const assigneeFilterOptions = [
+    { value: "All", label: "All assignees" },
+    { value: "Unassigned", label: "Unassigned", icon: UserRound },
+    ...users.map((user) => ({
+      value: String(user.id),
+      label: user.name,
+      description: user.role || "",
+      initials: String(user.name || "")
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join("")
+        .toUpperCase(),
+    })),
+  ];
+  const statusFilterOptions = [
+    { value: "All", label: "All statuses" },
+    ...TASK_STATUSES.map((status) => ({
+      value: status,
+      label: getStatusLabel(status),
+      dotClass: getStatusDotTone(status),
+    })),
+  ];
+  const priorityFilterOptions = [
+    { value: "All", label: "All priorities" },
+    ...PRIORITIES.map((priority) => ({ value: priority, label: priority })),
+  ];
+  const deadlineFilterOptions = [
+    { value: "All", label: "All deadlines" },
+    { value: "Overdue", label: "Overdue" },
+    { value: "Due Today", label: "Due today" },
+    { value: "Due This Week", label: "Due this week" },
+    { value: "No Deadline", label: "No deadline" },
+  ];
+  const activeFilterCount = [
+    clientFilter !== "All",
+    statusFilter !== "All",
+    priorityFilter !== "All",
+    assigneeFilter !== "All",
+    deadlineFilter !== "All",
+    billableOnly,
+    recurringOnly,
+  ].filter(Boolean).length;
   return (
     <>
-      <PageHeader
-        title="Tasks"
-        description={`${filtered.length} of ${tasks.length} tasks shown.`}
-        action={
-          <div className="flex flex-wrap gap-2">
-            <div className="inline-flex rounded-lg border border-line bg-white p-1 shadow-soft">
+      <section className="mb-5 rounded-xl border border-line bg-white shadow-soft">
+        <div className="flex flex-col gap-4 px-4 py-4 sm:px-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-[-0.035em] text-zinc-950 sm:text-3xl">
+              Tasks
+            </h1>
+            <p className="mt-1 text-sm leading-6 text-zinc-500">
+              Plan, assign, and track client work across every delivery view.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-white text-zinc-500 transition hover:border-zinc-300 hover:text-blue"
+              type="button"
+              onClick={() => searchInputRef.current?.focus()}
+              aria-label="Focus task search"
+            >
+              <Search size={15} />
+            </button>
+            <button
+              className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition ${filtersOpen ? "border-blue/20 bg-blue/5 text-blue" : "border-line bg-white text-zinc-500 hover:border-zinc-300 hover:text-ink"}`}
+              type="button"
+              onClick={() => setFiltersOpen((current) => !current)}
+            >
+              <Filter size={14} />
+              Filter
+              {activeFilterCount > 0 && (
+                <span className="rounded-full bg-blue px-1.5 py-0.5 text-[10px] text-white">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+            <div className="relative">
               <button
-                className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-semibold transition ${view === "list" ? "bg-ink text-white" : "text-zinc-500 hover:bg-zinc-50 hover:text-ink"}`}
+                className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition ${sortOpen ? "border-blue/20 bg-blue/5 text-blue" : "border-line bg-white text-zinc-500 hover:border-zinc-300 hover:text-ink"}`}
                 type="button"
-                onClick={() => onViewChange("list")}
+                onClick={() => setSortOpen((current) => !current)}
               >
-                <ListChecks size={14} />
-                List
+                <ArrowUpDown size={14} />
+                Sort
               </button>
-              <button
-                className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-semibold transition ${view === "board" ? "bg-ink text-white" : "text-zinc-500 hover:bg-zinc-50 hover:text-ink"}`}
-                type="button"
-                onClick={() => onViewChange("board")}
-              >
-                <LayoutDashboard size={14} />
-                Board
-              </button>
+              {sortOpen && (
+                <div className="absolute right-0 top-11 z-30 w-52 rounded-xl border border-line bg-white p-1 shadow-panel">
+                  {sortOptions.map(([value, label]) => (
+                    <button
+                      key={value}
+                      className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${sortMode === value ? "bg-ink text-white" : "text-zinc-600 hover:bg-zinc-50 hover:text-ink"}`}
+                      type="button"
+                      onClick={() => {
+                        setSortMode(value);
+                        setSortOpen(false);
+                      }}
+                    >
+                      {label}
+                      {sortMode === value && <CheckCircle2 size={13} />}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+            <button
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-white text-zinc-500 transition hover:border-zinc-300 hover:text-blue"
+              type="button"
+              aria-label="View options"
+            >
+              <SlidersHorizontal size={15} />
+            </button>
             <Button onClick={onNewTask}>
               <Plus size={15} />
-              Create task
+              New Task
             </Button>
           </div>
-        }
-      />
+        </div>
+        <div className="border-t border-line px-4 py-3 sm:px-5">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              {viewTabs.map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  className={`inline-flex h-9 items-center gap-2 rounded-full px-3 text-xs font-semibold transition ${view === value ? "bg-ink text-white shadow-soft" : "text-zinc-500 hover:bg-zinc-100 hover:text-ink"}`}
+                  type="button"
+                  onClick={() => onViewChange(value)}
+                >
+                  <Icon size={14} />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-xl border border-line bg-zinc-50/70 px-3 transition focus-within:border-blue/40 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue/10 xl:max-w-md">
+              <Search size={14} className="shrink-0 text-zinc-400" />
+              <input
+                ref={searchInputRef}
+                className="w-full bg-transparent py-2.5 text-sm font-medium outline-none placeholder:text-zinc-400"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search tasks, clients, or notes..."
+              />
+            </div>
+          </div>
+          <p className="mt-3 text-xs font-medium text-zinc-400">
+            {filtered.length} of {tasks.length} tasks shown
+          </p>
+        </div>
+      </section>
       {!tasks.length ? (
         <div className="rounded-xl border border-line bg-white p-5 shadow-soft">
           <EmptyState
@@ -3960,96 +4325,96 @@ function TasksPage({
         </div>
       ) : (
         <div className="space-y-3">
-          <section className="rounded-xl border border-line bg-white p-3 shadow-soft">
-            <div className="flex flex-col gap-3 xl:flex-row">
-              <div className="flex min-w-[240px] flex-[1.5] items-center gap-2 rounded-xl border border-line bg-zinc-50/70 px-3 transition focus-within:border-blue/40 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue/10">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-zinc-400 shadow-soft"><Search size={14} /></span>
-                <input
-                  className="w-full bg-transparent py-3 text-sm font-medium outline-none placeholder:text-zinc-400"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search tasks, clients, or notes..."
-                />
+          {filtersOpen && (
+            <section className="rounded-xl border border-line bg-white p-4 shadow-soft">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div>
+                  <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">
+                    Client
+                  </span>
+                  <ModernSelect
+                    options={clientFilterOptions}
+                    value={clientFilter}
+                    onChange={setClientFilter}
+                    searchable
+                    searchPlaceholder="Search clients..."
+                  />
+                </div>
+                <div>
+                  <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">
+                    Assignee
+                  </span>
+                  <ModernSelect
+                    options={assigneeFilterOptions}
+                    value={assigneeFilter}
+                    onChange={setAssigneeFilter}
+                    searchable
+                    searchPlaceholder="Search users..."
+                  />
+                </div>
+                <div>
+                  <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">
+                    Status
+                  </span>
+                  <ModernSelect
+                    options={statusFilterOptions}
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                  />
+                </div>
+                <div>
+                  <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">
+                    Priority
+                  </span>
+                  <ModernSelect
+                    options={priorityFilterOptions}
+                    value={priorityFilter}
+                    onChange={setPriorityFilter}
+                  />
+                </div>
+                <div>
+                  <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400">
+                    Deadline
+                  </span>
+                  <ModernSelect
+                    options={deadlineFilterOptions}
+                    value={deadlineFilter}
+                    onChange={setDeadlineFilter}
+                  />
+                </div>
               </div>
-              <div className="flex flex-1 flex-wrap gap-2">
-                <TaskFilterControl
-                  label="Client"
-                  value={clientFilter}
-                  onChange={(event) => setClientFilter(event.target.value)}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  className={`inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition ${billableOnly ? "border-blue bg-blue text-white" : "border-line bg-white text-zinc-600 hover:border-zinc-300"}`}
+                  type="button"
+                  onClick={() => setBillableOnly((current) => !current)}
+                  aria-pressed={billableOnly}
                 >
-                  <option>All</option>
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name}
-                    </option>
-                  ))}
-                </TaskFilterControl>
-                <TaskFilterControl
-                  label="Assignee"
-                  value={assigneeFilter}
-                  onChange={(event) => setAssigneeFilter(event.target.value)}
+                  <CircleDollarSign size={14} />
+                  Extra billable
+                </button>
+                <button
+                  className={`inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition ${recurringOnly ? "border-blue bg-blue text-white" : "border-line bg-white text-zinc-600 hover:border-zinc-300"}`}
+                  type="button"
+                  onClick={() => setRecurringOnly((current) => !current)}
+                  aria-pressed={recurringOnly}
                 >
-                  <option>All</option>
-                  <option>Unassigned</option>
-                  {users.map((user) => (
-                    <option key={user.id} value={String(user.id)}>
-                      {user.name}
-                    </option>
-                  ))}
-                </TaskFilterControl>
+                  <Repeat2 size={14} />
+                  Recurring
+                </button>
+                {activeFilterCount > 0 && (
+                  <button
+                    className="ml-auto text-xs font-bold text-blue hover:underline"
+                    type="button"
+                    onClick={clearFilters}
+                  >
+                    Clear filters
+                  </button>
+                )}
               </div>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <TaskFilterControl
-                label="Status"
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-              >
-                <option>All</option>
-                {TASK_STATUSES.map((status) => (
-                  <option key={status} value={status}>{getStatusLabel(status)}</option>
-                ))}
-              </TaskFilterControl>
-              <TaskFilterControl
-                label="Priority"
-                value={priorityFilter}
-                onChange={(event) => setPriorityFilter(event.target.value)}
-              >
-                <option>All</option>
-                {PRIORITIES.map((priority) => (
-                  <option key={priority}>{priority}</option>
-                ))}
-              </TaskFilterControl>
-              <TaskFilterControl
-                label="Deadline"
-                value={deadlineFilter}
-                onChange={(event) => setDeadlineFilter(event.target.value)}
-              >
-                <option>All</option>
-                <option>Overdue</option>
-                <option>Due Today</option>
-                <option>Due This Week</option>
-                <option>No Deadline</option>
-              </TaskFilterControl>
-              <button
-                  className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition ${billableOnly ? "border-blue bg-blue text-white" : "border-line bg-white text-zinc-600 hover:border-zinc-300"}`}
-                onClick={() => setBillableOnly((current) => !current)}
-                aria-pressed={billableOnly}
-              >
-                <CircleDollarSign size={14} />
-                Extra billable
-              </button>
-              <button
-                  className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition ${recurringOnly ? "border-blue bg-blue text-white" : "border-line bg-white text-zinc-600 hover:border-zinc-300"}`}
-                onClick={() => setRecurringOnly((current) => !current)}
-                aria-pressed={recurringOnly}
-              >
-                <Repeat2 size={14} />
-                Recurring
-              </button>
-            </div>
-          </section>
-          {view === "list" && selected.length > 0 && (
+            </section>
+          )}
+          {view === "table" && selected.length > 0 && (
             <section className="sticky top-3 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-blue/20 bg-white/95 p-3 shadow-panel backdrop-blur">
               <div className="mr-2 flex items-center gap-2 rounded-lg bg-blue px-3 py-2 text-xs font-bold text-white">
                 <CheckCircle2 size={14} />
@@ -4137,6 +4502,19 @@ function TasksPage({
               onEditTask={onEditTask}
               onDeleteTask={onDeleteTask}
               reorderTasks={reorderTasks}
+            />
+          ) : view === "calendar" ? (
+            <TaskCalendarGrid
+              tasks={sortedTasks}
+              clients={clients}
+              onEditTask={onEditTask}
+            />
+          ) : view === "list" ? (
+            <TaskCompactList
+              tasks={sortedTasks}
+              clients={clients}
+              onEditTask={onEditTask}
+              updateTask={updateTask}
             />
           ) : (
           <section className="overflow-hidden rounded-xl border border-line bg-white shadow-panel">
@@ -5654,7 +6032,9 @@ function WorkspaceApp({ user, onLogout, onUserUpdate }) {
     pushAppRoute(nextPage, { taskView: nextTaskView });
   };
   const changeTaskView = (view) => {
-    const nextView = view === "board" ? "board" : "list";
+    const nextView = ["table", "board", "calendar", "list"].includes(view)
+      ? view
+      : "table";
     setTaskView(nextView);
     if (activePage === "Tasks") {
       pushAppRoute("Tasks", { taskView: nextView });
