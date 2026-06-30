@@ -62,11 +62,14 @@ import {
   Badge,
   BillingBadge,
   Button,
+  CATEGORY_COMBOBOX_OPTIONS,
+  CLIENT_STATUS_COMBOBOX_OPTIONS,
   ClientCard,
   ClientCombobox,
   DeadlineBadge,
   EmptyState,
   Modal,
+  ModernSelect,
   PageHeader,
   PriorityBadge,
   ProofLink,
@@ -74,12 +77,12 @@ import {
   StatCard,
   StatusBadge,
   Table,
+  TASK_STATUS_COMBOBOX_OPTIONS,
   getBillingTone,
   getStatusLabel,
   getStatusDotTone,
 } from "./components";
 import {
-  CATEGORIES,
   initialClients,
   initialTasks,
   PRIORITIES,
@@ -1371,6 +1374,27 @@ function TaskForm({
       setCollaborationError(error.message);
     }
   };
+  const assignedUserOptions = [
+    {
+      value: "",
+      label: "Unassigned",
+      description: "No assigned user",
+      icon: UserRound,
+      tone: "bg-zinc-100 text-zinc-500",
+    },
+    ...users.map((user) => ({
+      value: String(user.id),
+      label: user.name,
+      description: user.role || user.status || "",
+      initials: String(user.name || "")
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join("")
+        .toUpperCase(),
+    })),
+  ];
   const submit = async (event) => {
     event.preventDefault();
     const attachments = form.attachments.filter((attachment) =>
@@ -1394,7 +1418,7 @@ function TaskForm({
   return (
     <form onSubmit={submit}>
       <div className="space-y-4 p-5 sm:p-6">
-        <FormSection icon={ClipboardList} title="Basic Info">
+        <FormSection icon={ClipboardList} title="Basic Info" allowOverflow>
           <Field label="Task title" className="sm:col-span-2">
             <input
               className="field"
@@ -1404,17 +1428,16 @@ function TaskForm({
               placeholder="What needs to be done?"
             />
           </Field>
-          <Field label="Category">
-            <select
-              className="field h-11 min-h-11 cursor-pointer rounded-xl border-zinc-200 bg-white px-3 py-2.5 font-medium text-zinc-700 hover:border-zinc-300 focus:border-blue/40 focus:ring-2 focus:ring-blue/10"
+          <div>
+            <span className="mb-2 block text-sm font-semibold">Category</span>
+            <ModernSelect
+              options={CATEGORY_COMBOBOX_OPTIONS}
               value={form.category}
-              onChange={(event) => change("category", event.target.value)}
-            >
-              {CATEGORIES.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </Field>
+              onChange={(category) => change("category", category)}
+              placeholder="Select category"
+              required
+            />
+          </div>
           <Field label="Priority">
             <select
               className="field"
@@ -1426,17 +1449,15 @@ function TaskForm({
               ))}
             </select>
           </Field>
-          <Field label="Status">
-            <select
-              className="field"
+          <div>
+            <span className="mb-2 block text-sm font-semibold">Status</span>
+            <ModernSelect
+              options={TASK_STATUS_COMBOBOX_OPTIONS}
               value={form.status}
-              onChange={(event) => change("status", event.target.value)}
-            >
-              {TASK_STATUSES.map((item) => (
-                <option key={item} value={item}>{getStatusLabel(item)}</option>
-              ))}
-            </select>
-          </Field>
+              onChange={(status) => change("status", status)}
+              required
+            />
+          </div>
         </FormSection>
         <FormSection
           icon={UserRound}
@@ -1451,20 +1472,20 @@ function TaskForm({
               onChange={(clientId) => change("clientId", clientId)}
             />
           </div>
-          <Field label="Assigned user">
-            <select
-              className="field"
+          <div>
+            <span className="mb-2 block text-sm font-semibold">
+              Assigned user
+            </span>
+            <ModernSelect
+              options={assignedUserOptions}
               value={form.assignedUserId || ""}
-              onChange={(event) => change("assignedUserId", event.target.value)}
-            >
-              <option value="">Unassigned</option>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+              onChange={(assignedUserId) =>
+                change("assignedUserId", assignedUserId)
+              }
+              searchable
+              searchPlaceholder="Search users..."
+            />
+          </div>
         </FormSection>
         <FormSection icon={BellRing} title="Deadline & Reminder">
           <Field label="Deadline">
@@ -2095,19 +2116,17 @@ function ClientForm({ client, onSave, onClose }) {
             onChange={(event) => change("startDate", event.target.value)}
           />
         </Field>
-        <Field label="Status">
-          <select
-            className="field"
+        <div>
+          <span className="mb-2 block text-sm font-semibold">Status</span>
+          <ModernSelect
+            options={CLIENT_STATUS_COMBOBOX_OPTIONS}
             value={String(form.status || "active")
               .toLowerCase()
               .replace(" ", "_")}
-            onChange={(event) => change("status", event.target.value)}
-          >
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="on_hold">On hold</option>
-          </select>
-        </Field>
+            onChange={(status) => change("status", status)}
+            required
+          />
+        </div>
         <Field label="Initials">
           <input
             className="field"

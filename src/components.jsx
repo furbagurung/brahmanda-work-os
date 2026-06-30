@@ -1,7 +1,8 @@
 import { forwardRef, useEffect, useRef, useState } from 'react'
 import {
-  ArrowDownRight, ArrowUpRight, CalendarDays, Check, ChevronDown, ChevronRight, CircleDollarSign,
-  ExternalLink, ListChecks, MoreHorizontal, Pencil, ReceiptText, Repeat2, Search, Trash2, UserRound, X,
+  ArrowDownRight, ArrowUpRight, BarChart3, CalendarDays, Check, ChevronDown, ChevronRight, CircleDollarSign,
+  ExternalLink, Globe2, Image, ListChecks, Monitor, MoreHorizontal, Pencil, ReceiptText, Repeat2,
+  Search, Sparkles, Trash2, UserRound, Video, X,
 } from 'lucide-react'
 
 import { deadlineState, formatDate, formatMoney } from './utils'
@@ -103,6 +104,29 @@ export const getStatusDotTone = (status) => ({
   Revision: 'bg-orange-500',
   Completed: 'bg-emerald-600',
 }[status] || 'bg-slate-400')
+
+export const CATEGORY_COMBOBOX_OPTIONS = [
+  { value: 'Reels', label: 'Reels', icon: Video, tone: 'bg-rose-50 text-rose-600' },
+  { value: 'Print Design', label: 'Print Design', icon: Image, tone: 'bg-violet-50 text-violet-600' },
+  { value: 'Creative', label: 'Creative', icon: Sparkles, tone: 'bg-amber-50 text-amber-700' },
+  { value: 'Web', label: 'Web', icon: Globe2, tone: 'bg-blue/5 text-blue' },
+  { value: 'Reporting', label: 'Reporting', icon: BarChart3, tone: 'bg-emerald-50 text-emerald-700' },
+  { value: 'Digital', label: 'Digital', icon: Monitor, tone: 'bg-slate-100 text-slate-600' },
+]
+
+export const TASK_STATUS_COMBOBOX_OPTIONS = [
+  { value: 'New', label: getStatusLabel('New'), dotClass: 'bg-slate-400' },
+  { value: 'In Progress', label: 'In Progress', dotClass: 'bg-blue' },
+  { value: 'Waiting for Client', label: 'Waiting for Client', dotClass: 'bg-amber-500' },
+  { value: 'Revision', label: 'Revision', dotClass: 'bg-orange-500' },
+  { value: 'Completed', label: 'Completed', dotClass: 'bg-emerald-600' },
+]
+
+export const CLIENT_STATUS_COMBOBOX_OPTIONS = [
+  { value: 'active', label: 'Active', dotClass: 'bg-emerald-600' },
+  { value: 'inactive', label: 'Inactive', dotClass: 'bg-slate-400' },
+  { value: 'on_hold', label: 'On hold', dotClass: 'bg-amber-500' },
+]
 
 export function getDeadlineTone(state) {
   const styles = {
@@ -209,6 +233,209 @@ export function TaskCard({ task, client, onEdit, onDelete, onStatusChange, statu
         <select className="w-full rounded-lg bg-canvas px-2 py-2 text-xs font-semibold outline-none transition hover:bg-zinc-100" value={task.status} onChange={(event) => onStatusChange(task.id, event.target.value)} aria-label="Change task status">{statuses.map((status) => <option key={status} value={status}>{getStatusLabel(status)}</option>)}</select>
       </div>
     </Card>
+  )
+}
+
+function ModernSelectLeading({ option }) {
+  if (!option) return null
+  if (option.dotClass) {
+    return (
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-50">
+        <span className={`h-2.5 w-2.5 rounded-full ${option.dotClass}`} />
+      </span>
+    )
+  }
+  if (option.initials) {
+    return (
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue/10 text-[10px] font-bold text-blue">
+        {option.initials}
+      </span>
+    )
+  }
+  if (option.icon) {
+    const Icon = option.icon
+    return (
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${option.tone || 'bg-zinc-100 text-zinc-500'}`}>
+        <Icon size={14} />
+      </span>
+    )
+  }
+  return null
+}
+
+export function ModernSelect({
+  options,
+  value,
+  onChange,
+  placeholder = 'Select an option',
+  searchable = false,
+  searchPlaceholder = 'Search...',
+  disabled = false,
+  required = false,
+  className = '',
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [activeIndex, setActiveIndex] = useState(0)
+  const rootRef = useRef(null)
+  const searchRef = useRef(null)
+  const selectedOption =
+    options.find((option) => String(option.value) === String(value)) ||
+    (value ? { value, label: String(value) } : null)
+  const filteredOptions = options.filter((option) =>
+    `${option.label} ${option.description || ''}`
+      .toLowerCase()
+      .includes(query.trim().toLowerCase()),
+  )
+
+  useEffect(() => {
+    if (!open) return undefined
+    const close = (event) => {
+      if (!rootRef.current?.contains(event.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    setQuery('')
+    setActiveIndex(0)
+    if (searchable) requestAnimationFrame(() => searchRef.current?.focus())
+  }, [open, searchable])
+
+  const choose = (option) => {
+    onChange(option.value)
+    setOpen(false)
+  }
+
+  const handleKeys = (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setOpen(false)
+      return
+    }
+    if (!filteredOptions.length) return
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActiveIndex((index) => (index + 1) % filteredOptions.length)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveIndex((index) => (index - 1 + filteredOptions.length) % filteredOptions.length)
+    } else if (event.key === 'Enter' && open) {
+      event.preventDefault()
+      choose(filteredOptions[activeIndex])
+    }
+  }
+
+  const validationOptions = selectedOption &&
+    !options.some((option) => String(option.value) === String(value))
+    ? [selectedOption, ...options]
+    : options
+
+  return (
+    <div ref={rootRef} className={`relative ${className}`}>
+      <select
+        className="pointer-events-none absolute h-px w-px opacity-0"
+        value={value}
+        onChange={() => {}}
+        required={required}
+        disabled={disabled}
+        tabIndex={-1}
+        aria-hidden="true"
+      >
+        <option value="">{placeholder}</option>
+        {validationOptions.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+      <button
+        type="button"
+        className={`flex h-11 w-full items-center gap-3 rounded-xl border bg-white px-2.5 text-left text-sm shadow-soft outline-none transition ${
+          open
+            ? 'border-blue/40 ring-2 ring-blue/10'
+            : 'border-zinc-200 hover:border-zinc-300'
+        } disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:opacity-60`}
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (!open && ['ArrowDown', 'Enter', ' '].includes(event.key)) {
+            event.preventDefault()
+            setOpen(true)
+            return
+          }
+          handleKeys(event)
+        }}
+      >
+        <ModernSelectLeading option={selectedOption} />
+        <span className="min-w-0 flex-1">
+          <span className={`block truncate font-medium ${selectedOption ? 'text-zinc-800' : 'text-zinc-400'}`}>
+            {selectedOption?.label || placeholder}
+          </span>
+          {selectedOption?.description && (
+            <span className="mt-0.5 block truncate text-[10px] capitalize text-zinc-400">
+              {selectedOption.description}
+            </span>
+          )}
+        </span>
+        <ChevronDown size={15} className={`shrink-0 text-zinc-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-[80] mt-2 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-panel">
+          {searchable && (
+            <div className="border-b border-zinc-100 p-2.5">
+              <div className="flex items-center gap-2 rounded-lg bg-zinc-50 px-3 focus-within:ring-2 focus-within:ring-blue/10">
+                <Search size={14} className="shrink-0 text-zinc-400" />
+                <input
+                  ref={searchRef}
+                  className="client-combobox-search min-w-0 flex-1 bg-transparent py-2 text-sm outline-none placeholder:text-zinc-400"
+                  value={query}
+                  onChange={(event) => {
+                    setQuery(event.target.value)
+                    setActiveIndex(0)
+                  }}
+                  onKeyDown={handleKeys}
+                  placeholder={searchPlaceholder}
+                />
+              </div>
+            </div>
+          )}
+          <div className="max-h-64 overflow-y-auto p-1.5" role="listbox">
+            {filteredOptions.map((option, index) => {
+              const selected = String(option.value) === String(value)
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  className={`flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition ${
+                    selected || index === activeIndex ? 'bg-blue/5' : 'hover:bg-zinc-50'
+                  }`}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => choose(option)}
+                >
+                  <ModernSelectLeading option={option} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-zinc-800">{option.label}</span>
+                    {option.description && (
+                      <span className="mt-0.5 block truncate text-[11px] capitalize text-zinc-400">{option.description}</span>
+                    )}
+                  </span>
+                  {selected && <Check size={15} className="shrink-0 text-blue" />}
+                </button>
+              )
+            })}
+            {!filteredOptions.length && (
+              <p className="px-3 py-6 text-center text-xs text-zinc-400">No options found.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 

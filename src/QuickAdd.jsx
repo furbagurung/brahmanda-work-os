@@ -3,8 +3,13 @@ import {
   CalendarCheck, CircleDollarSign, Plus, UserPlus, X,
 } from 'lucide-react'
 
-import { CATEGORIES, PRIORITIES, TASK_STATUSES } from './data'
-import { ClientCombobox, getStatusLabel } from './components'
+import { PRIORITIES } from './data'
+import {
+  CATEGORY_COMBOBOX_OPTIONS,
+  ClientCombobox,
+  ModernSelect,
+  TASK_STATUS_COMBOBOX_OPTIONS,
+} from './components'
 import { todayDateString } from './utils'
 
 export function QuickAddMenu({ open, onClose, onAddTask, onAddClient, onAddDailyLog, onAddBilling }) {
@@ -63,11 +68,11 @@ export function QuickTaskForm({ clients, defaults = {}, onSave, onClose }) {
     <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
       <div><span className={fieldLabel}>Client</span><ClientCombobox clients={clients} value={form.clientId} onChange={(clientId) => change('clientId', clientId)} /></div>
       <label><span className={fieldLabel}>Task title</span><input className="field" value={form.title} onChange={(event) => change('title', event.target.value)} required autoFocus /></label>
-      <label><span className={fieldLabel}>Category</span><select className="field h-11 min-h-11 cursor-pointer rounded-xl border-zinc-200 bg-white px-3 py-2.5 font-medium text-zinc-700 hover:border-zinc-300 focus:border-blue/40 focus:ring-2 focus:ring-blue/10" value={form.category} onChange={(event) => change('category', event.target.value)}>{CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select></label>
+      <div><span className={fieldLabel}>Category</span><ModernSelect options={CATEGORY_COMBOBOX_OPTIONS} value={form.category} onChange={(category) => change('category', category)} placeholder="Select category" required /></div>
       <label><span className={fieldLabel}>Priority</span><select className="field" value={form.priority} onChange={(event) => change('priority', event.target.value)}>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select></label>
       <label><span className={fieldLabel}>Deadline</span><input className="field" type="date" value={form.deadline} onChange={(event) => change('deadline', event.target.value)} /></label>
       <label><span className={fieldLabel}>Reminder date</span><input className="field" type="date" value={form.reminderDate} onChange={(event) => change('reminderDate', event.target.value)} /></label>
-      <label><span className={fieldLabel}>Status</span><select className="field" value={form.status} onChange={(event) => change('status', event.target.value)}>{TASK_STATUSES.map((status) => <option key={status} value={status}>{getStatusLabel(status)}</option>)}</select></label>
+      <div><span className={fieldLabel}>Status</span><ModernSelect options={TASK_STATUS_COMBOBOX_OPTIONS} value={form.status} onChange={(status) => change('status', status)} required /></div>
       <label><span className={fieldLabel}>Proof link</span><input className="field" type="url" value={form.proofLink} onChange={(event) => change('proofLink', event.target.value)} placeholder="https://" /></label>
       <label className="flex items-center gap-3 border border-line p-3 text-sm font-semibold sm:col-span-2"><input type="checkbox" checked={form.billable} onChange={(event) => change('billable', event.target.checked)} className="h-4 w-4 accent-blue" />Billable work</label>
       {form.billable && <label><span className={fieldLabel}>Billable amount</span><input className="field" type="number" min="0" value={form.amount} onChange={(event) => change('amount', event.target.value)} required /></label>}
