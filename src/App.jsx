@@ -598,6 +598,7 @@ function useWorkspace() {
       () => updateTaskLocal(id, patch),
       Boolean(options.rethrow),
     );
+    if (options.silent) return;
     if (options.feedbackMessage) toast.success(options.feedbackMessage);
     else if ("status" in patch) toast.success("Task status updated.");
     else if ("paymentStatus" in patch || "invoiceStatus" in patch)
@@ -3893,6 +3894,478 @@ function TaskCompactList({ tasks, clients, onEditTask, updateTask }) {
   );
 }
 
+function TaskDatabaseTable({
+  tasks,
+  clients,
+  users,
+  selected,
+  allVisibleSelected,
+  onToggle,
+  onToggleAll,
+  onEditTask,
+  onDeleteTask,
+  updateTask,
+  onNewTask,
+  clearFilters,
+}) {
+  const [editingCell, setEditingCell] = useState(null);
+  const [optimisticPatches, setOptimisticPatches] = useState({});
+  const visibleTasks = tasks.map((task) => ({
+    ...task,
+    ...(optimisticPatches[String(task.id)] || {}),
+  }));
+  const assignedUserOptions = [
+    {
+      value: "",
+      label: "Unassigned",
+      description: "No owner",
+      icon: UserRound,
+      tone: "bg-zinc-100 text-zinc-500",
+    },
+    ...users.map((user) => ({
+      value: String(user.id),
+      label: user.name,
+      description: user.role || user.status || "",
+      initials: String(user.name || "")
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join("")
+        .toUpperCase(),
+    })),
+  ];
+  const priorityOptions = PRIORITIES.map((priority) => ({
+    value: priority,
+    label: priority,
+  }));
+  const commitTaskPatch = async (task, patch) => {
+    const normalizedPatch = Object.fromEntries(
+      Object.entries(patch).filter(([key, value]) => task[key] !== value),
+    );
+    if (!Object.keys(normalizedPatch).length) return;
+    const taskKey = String(task.id);
+    const previousPatch = optimisticPatches[taskKey] || {};
+    setOptimisticPatches((current) => ({
+      ...current,
+      [taskKey]: { ...(current[taskKey] || {}), ...normalizedPatch },
+    }));
+    try {
+      await updateTask(task.id, normalizedPatch, {
+        silent: true,
+        rethrow: true,
+      });
+    } catch {
+      setOptimisticPatches((current) => {
+        const next = { ...current };
+        if (Object.keys(previousPatch).length) next[taskKey] = previousPatch;
+        else delete next[taskKey];
+        return next;
+      });
+    }
+  };
+  const startTextEdit = (task, field, value) =>
+    setEditingCell({
+      taskId: String(task.id),
+      field,
+      value: String(value ?? ""),
+    });
+  const cancelTextEdit = () => setEditingCell(null);
+  const commitTextEdit = async (task) => {
+    if (!editingCell || String(task.id) !== String(editingCell.taskId)) return;
+    const { field } = editingCell;
+    let value = editingCell.value;
+    setEditingCell(null);
+    if (field === "title") {
+      value = value.trim();
+      if (!value) return;
+    }
+    if (field === "amount") value = Number(value || 0);
+    await commitTaskPatch(task, { [field]: value });
+  };
+  const handleTextKeys = (event, task) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelTextEdit();
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitTextEdit(task);
+    }
+  };
+  const isEditing = (task, field) =>
+    editingCell?.taskId === String(task.id) && editingCell?.field === field;
+  const dateCellClass =
+    "h-8 w-full rounded-md border border-transparent bg-transparent px-2 text-xs font-medium text-zinc-700 outline-none hover:border-zinc-200 hover:bg-white focus:border-blue/40 focus:bg-white focus:ring-2 focus:ring-blue/10";
+  const dateButtonClass =
+    "flex h-8 w-full items-center rounded-md px-2 text-left text-xs font-medium text-zinc-700 hover:bg-white";
+  const compactSelectClass =
+    "[&_button]:h-8 [&_button]:rounded-md [&_button]:px-2 [&_button]:text-xs [&_button]:shadow-none";
+  const headerCellClass =
+    "border-b border-r border-zinc-100 bg-zinc-50/80 px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.11em] text-zinc-400";
+  const bodyCellClass =
+    "border-b border-r border-zinc-100 px-2 py-1.5 align-middle";
+
+  if (!tasks.length) {
+    return (
+      <section className="rounded-xl border border-line bg-white p-6 shadow-soft">
+        <EmptyState
+          title="No matching tasks"
+          description="Adjust your filters or clear them to return to the full task workspace."
+          action="Clear filters"
+          onAction={clearFilters}
+        />
+      </section>
+    );
+  }
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-line bg-white shadow-panel">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-4 py-3">
+        <label className="flex items-center gap-3 text-xs font-semibold text-zinc-500">
+          <input
+            className="h-4 w-4 rounded border-zinc-300 text-blue focus:ring-blue/20"
+            type="checkbox"
+            checked={allVisibleSelected}
+            onChange={onToggleAll}
+            aria-label="Select visible tasks"
+          />
+          <span>
+            <strong className="text-zinc-800">{tasks.length}</strong> task
+            {tasks.length === 1 ? "" : "s"} in table
+          </span>
+        </label>
+        <span className="text-[11px] font-medium text-zinc-400">
+          Click a cell to edit. Enter saves, Escape cancels.
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[1540px] border-collapse text-sm">
+          <thead className="sticky top-0 z-10">
+            <tr>
+              <th className={`${headerCellClass} w-10`}></th>
+              <th className={`${headerCellClass} w-[280px]`}>Task</th>
+              <th className={`${headerCellClass} w-40`}>Category</th>
+              <th className={`${headerCellClass} w-56`}>Client</th>
+              <th className={`${headerCellClass} w-48`}>Owner</th>
+              <th className={`${headerCellClass} w-36`}>Priority</th>
+              <th className={`${headerCellClass} w-44`}>Status</th>
+              <th className={`${headerCellClass} w-36`}>Deadline</th>
+              <th className={`${headerCellClass} w-36`}>Reminder</th>
+              <th className={`${headerCellClass} w-52`}>Billing</th>
+              <th className={`${headerCellClass} w-32`}>Recurring</th>
+              <th className={`${headerCellClass} w-20 border-r-0`}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleTasks.map((task) => {
+              const client = clients.find((item) => item.id === task.clientId);
+              const proofCount =
+                (task.attachments?.length || 0) + (task.proofLink ? 1 : 0);
+              return (
+                <tr
+                  key={task.id}
+                  className={`group transition hover:bg-zinc-50/70 ${
+                    selected.includes(task.id) ? "bg-blue/[0.035]" : "bg-white"
+                  }`}
+                >
+                  <td className={`${bodyCellClass} text-center`}>
+                    <input
+                      className="h-4 w-4 rounded border-zinc-300 text-blue focus:ring-blue/20"
+                      type="checkbox"
+                      checked={selected.includes(task.id)}
+                      onChange={() => onToggle(task.id)}
+                      aria-label={`Select ${task.title}`}
+                    />
+                  </td>
+                  <td className={bodyCellClass}>
+                    {isEditing(task, "title") ? (
+                      <input
+                        className="h-8 w-full rounded-md border border-blue/30 bg-white px-2 text-sm font-semibold text-zinc-900 outline-none ring-2 ring-blue/10"
+                        value={editingCell.value}
+                        autoFocus
+                        onChange={(event) =>
+                          setEditingCell((current) => ({
+                            ...current,
+                            value: event.target.value,
+                          }))
+                        }
+                        onBlur={() => commitTextEdit(task)}
+                        onKeyDown={(event) => handleTextKeys(event, task)}
+                      />
+                    ) : (
+                      <button
+                        className="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left hover:bg-white"
+                        type="button"
+                        onClick={() => startTextEdit(task, "title", task.title)}
+                      >
+                        <span className="truncate text-sm font-semibold text-zinc-900">
+                          {task.title || "Untitled task"}
+                        </span>
+                        {proofCount > 0 && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-zinc-400">
+                            <Paperclip size={11} />
+                            {proofCount}
+                          </span>
+                        )}
+                      </button>
+                    )}
+                  </td>
+                  <td className={bodyCellClass}>
+                    <ModernSelect
+                      className={compactSelectClass}
+                      options={CATEGORY_COMBOBOX_OPTIONS}
+                      value={task.category}
+                      onChange={(category) =>
+                        commitTaskPatch(task, { category })
+                      }
+                    />
+                  </td>
+                  <td className={bodyCellClass}>
+                    <ClientCombobox
+                      className={compactSelectClass}
+                      clients={clients}
+                      value={task.clientId}
+                      onChange={(clientId) =>
+                        commitTaskPatch(task, { clientId })
+                      }
+                    />
+                    {!client && (
+                      <p className="mt-1 px-2 text-[10px] font-medium text-zinc-400">
+                        Deleted client
+                      </p>
+                    )}
+                  </td>
+                  <td className={bodyCellClass}>
+                    <ModernSelect
+                      className={compactSelectClass}
+                      options={assignedUserOptions}
+                      value={task.assignedUserId || ""}
+                      searchable
+                      searchPlaceholder="Search users..."
+                      onChange={(assignedUserId) =>
+                        commitTaskPatch(task, {
+                          assignedUserId,
+                          assignedUserName:
+                            users.find(
+                              (user) =>
+                                String(user.id) === String(assignedUserId),
+                            )?.name || "",
+                        })
+                      }
+                    />
+                  </td>
+                  <td className={bodyCellClass}>
+                    <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+                      <PriorityBadge priority={task.priority} />
+                      <ModernSelect
+                        className={`${compactSelectClass} min-w-0`}
+                        options={priorityOptions}
+                        value={task.priority}
+                        onChange={(priority) =>
+                          commitTaskPatch(task, { priority })
+                        }
+                      />
+                    </div>
+                  </td>
+                  <td className={bodyCellClass}>
+                    <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+                      <StatusBadge status={task.status} />
+                      <ModernSelect
+                        className={`${compactSelectClass} min-w-0`}
+                        options={TASK_STATUS_COMBOBOX_OPTIONS}
+                        value={task.status}
+                        onChange={(status) =>
+                          commitTaskPatch(task, { status })
+                        }
+                      />
+                    </div>
+                  </td>
+                  <td className={bodyCellClass}>
+                    {isEditing(task, "deadline") ? (
+                      <input
+                        className={dateCellClass}
+                        type="date"
+                        value={editingCell.value}
+                        autoFocus
+                        onChange={(event) =>
+                          setEditingCell((current) => ({
+                            ...current,
+                            value: event.target.value,
+                          }))
+                        }
+                        onBlur={() => commitTextEdit(task)}
+                        onKeyDown={(event) => handleTextKeys(event, task)}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className={dateButtonClass}
+                        onClick={() =>
+                          startTextEdit(task, "deadline", task.deadline || "")
+                        }
+                      >
+                        {task.deadline
+                          ? formatDate(task.deadline, {
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : "No date"}
+                      </button>
+                    )}
+                  </td>
+                  <td className={bodyCellClass}>
+                    {isEditing(task, "reminderDate") ? (
+                      <input
+                        className={dateCellClass}
+                        type="date"
+                        value={editingCell.value}
+                        autoFocus
+                        onChange={(event) =>
+                          setEditingCell((current) => ({
+                            ...current,
+                            value: event.target.value,
+                          }))
+                        }
+                        onBlur={() => commitTextEdit(task)}
+                        onKeyDown={(event) => handleTextKeys(event, task)}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className={`${dateButtonClass} ${
+                          task.reminderDate ? "" : "text-zinc-400"
+                        }`}
+                        onClick={() =>
+                          startTextEdit(
+                            task,
+                            "reminderDate",
+                            task.reminderDate || "",
+                          )
+                        }
+                      >
+                        {task.reminderDate
+                          ? formatDate(task.reminderDate, {
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : "No reminder"}
+                      </button>
+                    )}
+                  </td>
+                  <td className={bodyCellClass}>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-[11px] font-semibold transition ${
+                          task.billable
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-zinc-200 bg-zinc-50 text-zinc-500"
+                        }`}
+                        onClick={() =>
+                          commitTaskPatch(task, {
+                            billable: !task.billable,
+                            amount: task.billable ? 0 : Number(task.amount || 0),
+                          })
+                        }
+                      >
+                        <CircleDollarSign size={12} />
+                        {task.billable ? "Extra billable" : "Included"}
+                      </button>
+                      {task.billable ? (
+                        isEditing(task, "amount") ? (
+                          <input
+                            className="h-7 w-24 rounded-md border border-blue/30 bg-white px-2 text-xs font-semibold outline-none ring-2 ring-blue/10"
+                            type="number"
+                            min="0"
+                            value={editingCell.value}
+                            autoFocus
+                            onChange={(event) =>
+                              setEditingCell((current) => ({
+                                ...current,
+                                value: event.target.value,
+                              }))
+                            }
+                            onBlur={() => commitTextEdit(task)}
+                            onKeyDown={(event) => handleTextKeys(event, task)}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className="h-7 rounded-md px-2 text-xs font-bold text-zinc-800 hover:bg-white"
+                            onClick={() =>
+                              startTextEdit(task, "amount", task.amount || 0)
+                            }
+                          >
+                            {formatMoney(task.amount)}
+                          </button>
+                        )
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className={bodyCellClass}>
+                    <button
+                      type="button"
+                      className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-[11px] font-semibold transition ${
+                        task.isRecurring
+                          ? "border-violet-200 bg-violet-50 text-violet-700"
+                          : "border-zinc-200 bg-zinc-50 text-zinc-500"
+                      }`}
+                      onClick={() =>
+                        commitTaskPatch(task, {
+                          isRecurring: !task.isRecurring,
+                          recurrenceType:
+                            task.recurrenceType || "monthly",
+                          recurrenceInterval:
+                            Number(task.recurrenceInterval || 1),
+                          nextOccurrenceDate: !task.isRecurring
+                            ? task.nextOccurrenceDate || task.deadline || TODAY
+                            : task.nextOccurrenceDate,
+                        })
+                      }
+                    >
+                      <Repeat2 size={12} />
+                      {task.isRecurring ? "Recurring" : "No"}
+                    </button>
+                  </td>
+                  <td className={`${bodyCellClass} border-r-0`}>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        className="rounded-md px-2 py-1 text-[11px] font-semibold text-zinc-500 hover:bg-zinc-100 hover:text-blue"
+                        onClick={() => onEditTask(task)}
+                      >
+                        Open
+                      </button>
+                      <ActionMenu
+                        onEdit={() => onEditTask(task)}
+                        onDelete={() => onDeleteTask(task.id)}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            <tr>
+              <td className="border-r border-zinc-100 px-2 py-2"></td>
+              <td colSpan={11} className="px-2 py-2">
+                <button
+                  type="button"
+                  className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm font-semibold text-zinc-500 transition hover:bg-zinc-50 hover:text-blue"
+                  onClick={onNewTask}
+                >
+                  <Plus size={15} />
+                  New task
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function TaskCalendarGrid({ tasks, clients, onEditTask }) {
   const datedTasks = tasks
     .filter((task) => task.deadline || task.reminderDate)
@@ -4517,71 +4990,33 @@ function TasksPage({
               updateTask={updateTask}
             />
           ) : (
-          <section className="overflow-hidden rounded-xl border border-line bg-white shadow-panel">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-4 py-3 sm:px-5">
-              <label className="flex items-center gap-3 text-xs font-semibold text-zinc-500">
-                <input
-                  className="h-4 w-4 rounded border-zinc-300 text-blue focus:ring-blue/20"
-                  type="checkbox"
-                  checked={allVisibleSelected}
-                  onChange={() =>
-                    setSelected(
-                      allVisibleSelected
-                        ? selected.filter(
-                            (id) => !filtered.some((task) => task.id === id),
-                          )
-                        : [
-                            ...new Set([
-                              ...selected,
-                              ...filtered.map((task) => task.id),
-                            ]),
-                          ],
-                    )
-                  }
-                  aria-label="Select visible tasks"
-                />
-                <span>
-                  <strong className="text-zinc-800">{filtered.length}</strong>{" "}
-                  of {tasks.length} tasks
-                </span>
-              </label>
-              {filtered.length === 0 && (
-                <button
-                  className="text-xs font-bold text-blue hover:underline"
-                  onClick={clearFilters}
-                >
-                  Clear all filters
-                </button>
-              )}
-            </div>
-            {filtered.length ? (
-              <div>
-                {sortedTasks.map((task) => (
-                  <TaskListRow
-                    key={task.id}
-                    task={task}
-                    client={clients.find(
-                      (client) => client.id === task.clientId,
-                    )}
-                    selected={selected.includes(task.id)}
-                    onToggle={() => toggleSelected(task.id)}
-                    onEdit={() => onEditTask(task)}
-                    onDelete={() => onDeleteTask(task.id)}
-                    updateTask={updateTask}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="p-6">
-                <EmptyState
-                  title="No matching tasks"
-                  description="Adjust your filters or clear them to return to the full task workspace."
-                  action="Clear filters"
-                  onAction={clearFilters}
-                />
-              </div>
-            )}
-          </section>
+            <TaskDatabaseTable
+              tasks={sortedTasks}
+              clients={clients}
+              users={users}
+              selected={selected}
+              allVisibleSelected={allVisibleSelected}
+              onToggle={toggleSelected}
+              onToggleAll={() =>
+                setSelected(
+                  allVisibleSelected
+                    ? selected.filter(
+                        (id) => !filtered.some((task) => task.id === id),
+                      )
+                    : [
+                        ...new Set([
+                          ...selected,
+                          ...filtered.map((task) => task.id),
+                        ]),
+                      ],
+                )
+              }
+              onEditTask={onEditTask}
+              onDeleteTask={onDeleteTask}
+              updateTask={updateTask}
+              onNewTask={onNewTask}
+              clearFilters={clearFilters}
+            />
           )}
         </div>
       )}
