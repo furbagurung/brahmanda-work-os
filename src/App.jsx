@@ -151,6 +151,15 @@ import {
 } from "./attachmentUtils";
 import { optimizeClientLogo } from "./clientLogoUtils";
 import {
+  AppBadge,
+  AppButton,
+  AppCombobox,
+  AppDatePicker,
+  AppInput,
+  AppSelect,
+  AppTable,
+} from "./components/app-ui";
+import {
   deadlineState,
   formatDate,
   formatMoney,
@@ -178,6 +187,7 @@ import NotificationsPage, {
 import { getCurrentUser, logout, updateCurrentUser } from "./services/auth";
 
 const STORAGE_KEY = "brahmanda-work-os-v2";
+const TASK_TABLE_COLUMN_STORAGE_KEY = "brahmanda_tasks_table_column_widths";
 const TODAY = todayDateString();
 const DEFAULT_SETTINGS = {
   agency_name: "Brahmanda Tech",
@@ -1218,6 +1228,25 @@ const blankTask = (clientId = "") => ({
   paymentStatus: "Unpaid",
   invoiceStatus: "Not invoiced",
 });
+
+const TASK_TABLE_COLUMNS = [
+  { key: "select", label: "", width: 42, min: 42, max: 42 },
+  { key: "title", label: "Task", width: 280, min: 180, max: 560, resizable: true },
+  { key: "category", label: "Category", width: 160, min: 130, max: 280, resizable: true },
+  { key: "client", label: "Client", width: 224, min: 160, max: 360, resizable: true },
+  { key: "owner", label: "Owner", width: 192, min: 150, max: 320, resizable: true },
+  { key: "priority", label: "Priority", width: 144, min: 120, max: 240, resizable: true },
+  { key: "status", label: "Status", width: 176, min: 150, max: 280, resizable: true },
+  { key: "deadline", label: "Deadline", width: 144, min: 120, max: 220, resizable: true },
+  { key: "reminder", label: "Reminder", width: 144, min: 120, max: 220, resizable: true },
+  { key: "billing", label: "Billing", width: 208, min: 170, max: 360, resizable: true },
+  { key: "recurring", label: "Recurring", width: 128, min: 110, max: 220, resizable: true },
+  { key: "actions", label: "", width: 96, min: 76, max: 180, resizable: true },
+];
+
+const DEFAULT_TASK_TABLE_COLUMN_WIDTHS = Object.fromEntries(
+  TASK_TABLE_COLUMNS.map((column) => [column.key, column.width]),
+);
 
 const topTaskOrderForStatus = (tasks, status) => {
   const orders = tasks
@@ -3907,13 +3936,31 @@ function TaskDatabaseTable({
   updateTask,
   onNewTask,
   clearFilters,
+  columnResetToken = 0,
 }) {
   const [editingCell, setEditingCell] = useState(null);
   const [optimisticPatches, setOptimisticPatches] = useState({});
+  const [resizingColumn, setResizingColumn] = useState("");
+  const [columnWidths, setColumnWidths] = useState(() => {
+    try {
+      return {
+        ...DEFAULT_TASK_TABLE_COLUMN_WIDTHS,
+        ...(JSON.parse(
+          localStorage.getItem(TASK_TABLE_COLUMN_STORAGE_KEY) || "{}",
+        ) || {}),
+      };
+    } catch {
+      return DEFAULT_TASK_TABLE_COLUMN_WIDTHS;
+    }
+  });
   const visibleTasks = tasks.map((task) => ({
     ...task,
     ...(optimisticPatches[String(task.id)] || {}),
   }));
+  const tableWidth = TASK_TABLE_COLUMNS.reduce(
+    (sum, column) => sum + Number(columnWidths[column.key] || column.width),
+    0,
+  );
   const assignedUserOptions = [
     {
       value: "",
@@ -3935,6 +3982,12 @@ function TaskDatabaseTable({
         .toUpperCase(),
     })),
   ];
+  const clientOptions = clients.map((client) => ({
+    value: String(client.id),
+    label: client.name,
+    description: client.servicePackage || "",
+    initials: client.initials,
+  }));
   const priorityOptions = PRIORITIES.map((priority) => ({
     value: priority,
     label: priority,
@@ -3995,16 +4048,49 @@ function TaskDatabaseTable({
   };
   const isEditing = (task, field) =>
     editingCell?.taskId === String(task.id) && editingCell?.field === field;
-  const dateCellClass =
-    "h-8 w-full rounded-md border border-transparent bg-transparent px-2 text-xs font-medium text-zinc-700 outline-none hover:border-zinc-200 hover:bg-white focus:border-blue/40 focus:bg-white focus:ring-2 focus:ring-blue/10";
-  const dateButtonClass =
-    "flex h-8 w-full items-center rounded-md px-2 text-left text-xs font-medium text-zinc-700 hover:bg-white";
-  const compactSelectClass =
-    "[&_button]:h-8 [&_button]:rounded-md [&_button]:px-2 [&_button]:text-xs [&_button]:shadow-none";
   const headerCellClass =
     "border-b border-r border-zinc-100 bg-zinc-50/80 px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.11em] text-zinc-400";
   const bodyCellClass =
     "border-b border-r border-zinc-100 px-2 py-1.5 align-middle";
+  useEffect(() => {
+    if (!columnResetToken) return;
+    setColumnWidths(DEFAULT_TASK_TABLE_COLUMN_WIDTHS);
+    localStorage.removeItem(TASK_TABLE_COLUMN_STORAGE_KEY);
+  }, [columnResetToken]);
+  const startColumnResize = (event, column) => {
+    if (!column.resizable) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startWidth = Number(columnWidths[column.key] || column.width);
+    setResizingColumn(column.key);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    const handleMove = (moveEvent) => {
+      const rawWidth = startWidth + moveEvent.clientX - startX;
+      const nextWidth = Math.min(
+        column.max || 640,
+        Math.max(column.min || 80, rawWidth),
+      );
+      setColumnWidths((current) => {
+        const next = { ...current, [column.key]: Math.round(nextWidth) };
+        localStorage.setItem(
+          TASK_TABLE_COLUMN_STORAGE_KEY,
+          JSON.stringify(next),
+        );
+        return next;
+      });
+    };
+    const handleUp = () => {
+      setResizingColumn("");
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+  };
 
   if (!tasks.length) {
     return (
@@ -4040,36 +4126,61 @@ function TaskDatabaseTable({
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1540px] border-collapse text-sm">
-          <thead className="sticky top-0 z-10">
-            <tr>
-              <th className={`${headerCellClass} w-10`}></th>
-              <th className={`${headerCellClass} w-[280px]`}>Task</th>
-              <th className={`${headerCellClass} w-40`}>Category</th>
-              <th className={`${headerCellClass} w-56`}>Client</th>
-              <th className={`${headerCellClass} w-48`}>Owner</th>
-              <th className={`${headerCellClass} w-36`}>Priority</th>
-              <th className={`${headerCellClass} w-44`}>Status</th>
-              <th className={`${headerCellClass} w-36`}>Deadline</th>
-              <th className={`${headerCellClass} w-36`}>Reminder</th>
-              <th className={`${headerCellClass} w-52`}>Billing</th>
-              <th className={`${headerCellClass} w-32`}>Recurring</th>
-              <th className={`${headerCellClass} w-20 border-r-0`}></th>
-            </tr>
-          </thead>
-          <tbody>
+        <AppTable
+          className="border-collapse text-sm"
+          style={{ tableLayout: "fixed", minWidth: tableWidth, width: tableWidth }}
+        >
+          <colgroup>
+            {TASK_TABLE_COLUMNS.map((column) => (
+              <col
+                key={column.key}
+                style={{ width: columnWidths[column.key] || column.width }}
+              />
+            ))}
+          </colgroup>
+          <AppTable.Header className="sticky top-0 z-10">
+            <AppTable.Row className="hover:bg-transparent">
+              {TASK_TABLE_COLUMNS.map((column, index) => (
+                <AppTable.Head
+                  key={column.key}
+                  className={`${headerCellClass} relative select-none ${
+                    index === TASK_TABLE_COLUMNS.length - 1 ? "border-r-0" : ""
+                  }`}
+                >
+                  <span className="block truncate pr-2">{column.label}</span>
+                  {column.resizable && (
+                    <span
+                      className={`absolute inset-y-0 right-0 z-20 w-1 cursor-col-resize transition ${
+                        resizingColumn === column.key
+                          ? "bg-blue"
+                          : "bg-transparent hover:bg-blue/30"
+                      }`}
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label={`Resize ${column.label || "actions"} column`}
+                      onMouseDown={(event) =>
+                        startColumnResize(event, column)
+                      }
+                      onClick={(event) => event.stopPropagation()}
+                    />
+                  )}
+                </AppTable.Head>
+              ))}
+            </AppTable.Row>
+          </AppTable.Header>
+          <AppTable.Body>
             {visibleTasks.map((task) => {
               const client = clients.find((item) => item.id === task.clientId);
               const proofCount =
                 (task.attachments?.length || 0) + (task.proofLink ? 1 : 0);
               return (
-                <tr
+                <AppTable.Row
                   key={task.id}
                   className={`group transition hover:bg-zinc-50/70 ${
                     selected.includes(task.id) ? "bg-blue/[0.035]" : "bg-white"
                   }`}
                 >
-                  <td className={`${bodyCellClass} text-center`}>
+                  <AppTable.Cell className={`${bodyCellClass} text-center`}>
                     <input
                       className="h-4 w-4 rounded border-zinc-300 text-blue focus:ring-blue/20"
                       type="checkbox"
@@ -4077,10 +4188,10 @@ function TaskDatabaseTable({
                       onChange={() => onToggle(task.id)}
                       aria-label={`Select ${task.title}`}
                     />
-                  </td>
-                  <td className={bodyCellClass}>
+                  </AppTable.Cell>
+                  <AppTable.Cell className={bodyCellClass}>
                     {isEditing(task, "title") ? (
-                      <input
+                      <AppInput
                         className="h-8 w-full rounded-md border border-blue/30 bg-white px-2 text-sm font-semibold text-zinc-900 outline-none ring-2 ring-blue/10"
                         value={editingCell.value}
                         autoFocus
@@ -4103,29 +4214,29 @@ function TaskDatabaseTable({
                           {task.title || "Untitled task"}
                         </span>
                         {proofCount > 0 && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-zinc-400">
+                          <AppBadge tone="neutral" className="h-5 gap-1 px-1.5 text-[10px]">
                             <Paperclip size={11} />
                             {proofCount}
-                          </span>
+                          </AppBadge>
                         )}
                       </button>
                     )}
-                  </td>
-                  <td className={bodyCellClass}>
-                    <ModernSelect
-                      className={compactSelectClass}
+                  </AppTable.Cell>
+                  <AppTable.Cell className={bodyCellClass}>
+                    <AppSelect
                       options={CATEGORY_COMBOBOX_OPTIONS}
                       value={task.category}
                       onChange={(category) =>
                         commitTaskPatch(task, { category })
                       }
                     />
-                  </td>
-                  <td className={bodyCellClass}>
-                    <ClientCombobox
-                      className={compactSelectClass}
-                      clients={clients}
+                  </AppTable.Cell>
+                  <AppTable.Cell className={bodyCellClass}>
+                    <AppCombobox
+                      options={clientOptions}
                       value={task.clientId}
+                      placeholder="Select client"
+                      searchPlaceholder="Search clients..."
                       onChange={(clientId) =>
                         commitTaskPatch(task, { clientId })
                       }
@@ -4135,13 +4246,12 @@ function TaskDatabaseTable({
                         Deleted client
                       </p>
                     )}
-                  </td>
-                  <td className={bodyCellClass}>
-                    <ModernSelect
-                      className={compactSelectClass}
+                  </AppTable.Cell>
+                  <AppTable.Cell className={bodyCellClass}>
+                    <AppCombobox
                       options={assignedUserOptions}
                       value={task.assignedUserId || ""}
-                      searchable
+                      placeholder="Unassigned"
                       searchPlaceholder="Search users..."
                       onChange={(assignedUserId) =>
                         commitTaskPatch(task, {
@@ -4154,12 +4264,12 @@ function TaskDatabaseTable({
                         })
                       }
                     />
-                  </td>
-                  <td className={bodyCellClass}>
+                  </AppTable.Cell>
+                  <AppTable.Cell className={bodyCellClass}>
                     <div className="grid grid-cols-[1fr_auto] items-center gap-2">
                       <PriorityBadge priority={task.priority} />
-                      <ModernSelect
-                        className={`${compactSelectClass} min-w-0`}
+                      <AppSelect
+                        className="min-w-0"
                         options={priorityOptions}
                         value={task.priority}
                         onChange={(priority) =>
@@ -4167,12 +4277,12 @@ function TaskDatabaseTable({
                         }
                       />
                     </div>
-                  </td>
-                  <td className={bodyCellClass}>
+                  </AppTable.Cell>
+                  <AppTable.Cell className={bodyCellClass}>
                     <div className="grid grid-cols-[1fr_auto] items-center gap-2">
                       <StatusBadge status={task.status} />
-                      <ModernSelect
-                        className={`${compactSelectClass} min-w-0`}
+                      <AppSelect
+                        className="min-w-0"
                         options={TASK_STATUS_COMBOBOX_OPTIONS}
                         value={task.status}
                         onChange={(status) =>
@@ -4180,84 +4290,31 @@ function TaskDatabaseTable({
                         }
                       />
                     </div>
-                  </td>
-                  <td className={bodyCellClass}>
-                    {isEditing(task, "deadline") ? (
-                      <input
-                        className={dateCellClass}
-                        type="date"
-                        value={editingCell.value}
-                        autoFocus
-                        onChange={(event) =>
-                          setEditingCell((current) => ({
-                            ...current,
-                            value: event.target.value,
-                          }))
-                        }
-                        onBlur={() => commitTextEdit(task)}
-                        onKeyDown={(event) => handleTextKeys(event, task)}
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        className={dateButtonClass}
-                        onClick={() =>
-                          startTextEdit(task, "deadline", task.deadline || "")
-                        }
-                      >
-                        {task.deadline
-                          ? formatDate(task.deadline, {
-                              month: "short",
-                              day: "numeric",
-                            })
-                          : "No date"}
-                      </button>
-                    )}
-                  </td>
-                  <td className={bodyCellClass}>
-                    {isEditing(task, "reminderDate") ? (
-                      <input
-                        className={dateCellClass}
-                        type="date"
-                        value={editingCell.value}
-                        autoFocus
-                        onChange={(event) =>
-                          setEditingCell((current) => ({
-                            ...current,
-                            value: event.target.value,
-                          }))
-                        }
-                        onBlur={() => commitTextEdit(task)}
-                        onKeyDown={(event) => handleTextKeys(event, task)}
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        className={`${dateButtonClass} ${
-                          task.reminderDate ? "" : "text-zinc-400"
-                        }`}
-                        onClick={() =>
-                          startTextEdit(
-                            task,
-                            "reminderDate",
-                            task.reminderDate || "",
-                          )
-                        }
-                      >
-                        {task.reminderDate
-                          ? formatDate(task.reminderDate, {
-                              month: "short",
-                              day: "numeric",
-                            })
-                          : "No reminder"}
-                      </button>
-                    )}
-                  </td>
-                  <td className={bodyCellClass}>
+                  </AppTable.Cell>
+                  <AppTable.Cell className={bodyCellClass}>
+                    <AppDatePicker
+                      value={task.deadline || ""}
+                      placeholder="No date"
+                      onChange={(deadline) =>
+                        commitTaskPatch(task, { deadline })
+                      }
+                    />
+                  </AppTable.Cell>
+                  <AppTable.Cell className={bodyCellClass}>
+                    <AppDatePicker
+                      value={task.reminderDate || ""}
+                      placeholder="No reminder"
+                      onChange={(reminderDate) =>
+                        commitTaskPatch(task, { reminderDate })
+                      }
+                    />
+                  </AppTable.Cell>
+                  <AppTable.Cell className={bodyCellClass}>
                     <div className="flex items-center gap-2">
-                      <button
+                      <AppButton
                         type="button"
-                        className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-[11px] font-semibold transition ${
+                        variant="secondary"
+                        className={`h-7 gap-1.5 px-2 text-[11px] font-semibold shadow-none ${
                           task.billable
                             ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                             : "border-zinc-200 bg-zinc-50 text-zinc-500"
@@ -4271,10 +4328,10 @@ function TaskDatabaseTable({
                       >
                         <CircleDollarSign size={12} />
                         {task.billable ? "Extra billable" : "Included"}
-                      </button>
+                      </AppButton>
                       {task.billable ? (
                         isEditing(task, "amount") ? (
-                          <input
+                          <AppInput
                             className="h-7 w-24 rounded-md border border-blue/30 bg-white px-2 text-xs font-semibold outline-none ring-2 ring-blue/10"
                             type="number"
                             min="0"
@@ -4302,11 +4359,12 @@ function TaskDatabaseTable({
                         )
                       ) : null}
                     </div>
-                  </td>
-                  <td className={bodyCellClass}>
-                    <button
+                  </AppTable.Cell>
+                  <AppTable.Cell className={bodyCellClass}>
+                    <AppButton
                       type="button"
-                      className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-[11px] font-semibold transition ${
+                      variant="secondary"
+                      className={`h-7 gap-1.5 px-2 text-[11px] font-semibold shadow-none ${
                         task.isRecurring
                           ? "border-violet-200 bg-violet-50 text-violet-700"
                           : "border-zinc-200 bg-zinc-50 text-zinc-500"
@@ -4326,41 +4384,44 @@ function TaskDatabaseTable({
                     >
                       <Repeat2 size={12} />
                       {task.isRecurring ? "Recurring" : "No"}
-                    </button>
-                  </td>
-                  <td className={`${bodyCellClass} border-r-0`}>
+                    </AppButton>
+                  </AppTable.Cell>
+                  <AppTable.Cell className={`${bodyCellClass} border-r-0`}>
                     <div className="flex items-center justify-end gap-1">
-                      <button
+                      <AppButton
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         className="rounded-md px-2 py-1 text-[11px] font-semibold text-zinc-500 hover:bg-zinc-100 hover:text-blue"
                         onClick={() => onEditTask(task)}
                       >
                         Open
-                      </button>
+                      </AppButton>
                       <ActionMenu
                         onEdit={() => onEditTask(task)}
                         onDelete={() => onDeleteTask(task.id)}
                       />
                     </div>
-                  </td>
-                </tr>
+                  </AppTable.Cell>
+                </AppTable.Row>
               );
             })}
-            <tr>
-              <td className="border-r border-zinc-100 px-2 py-2"></td>
-              <td colSpan={11} className="px-2 py-2">
-                <button
+            <AppTable.Row className="hover:bg-zinc-50">
+              <AppTable.Cell className="border-r border-zinc-100 px-2 py-2"></AppTable.Cell>
+              <AppTable.Cell colSpan={11} className="px-2 py-2">
+                <AppButton
                   type="button"
+                  variant="ghost"
                   className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm font-semibold text-zinc-500 transition hover:bg-zinc-50 hover:text-blue"
                   onClick={onNewTask}
                 >
                   <Plus size={15} />
                   New task
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                </AppButton>
+              </AppTable.Cell>
+            </AppTable.Row>
+          </AppTable.Body>
+        </AppTable>
       </div>
     </section>
   );
@@ -4468,6 +4529,8 @@ function TasksPage({
   const [bulkAssignee, setBulkAssignee] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
+  const [viewOptionsOpen, setViewOptionsOpen] = useState(false);
+  const [columnResetToken, setColumnResetToken] = useState(0);
   const [sortMode, setSortMode] = useState("default");
   const searchInputRef = useRef(null);
   const filtered = tasks.filter((task) => {
@@ -4743,13 +4806,41 @@ function TasksPage({
                 </div>
               )}
             </div>
-            <button
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-white text-zinc-500 transition hover:border-zinc-300 hover:text-blue"
-              type="button"
-              aria-label="View options"
-            >
-              <SlidersHorizontal size={15} />
-            </button>
+            <div className="relative">
+              <button
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition ${
+                  viewOptionsOpen
+                    ? "border-blue/20 bg-blue/5 text-blue"
+                    : "border-line bg-white text-zinc-500 hover:border-zinc-300 hover:text-blue"
+                }`}
+                type="button"
+                aria-label="View options"
+                onClick={() => setViewOptionsOpen((current) => !current)}
+              >
+                <SlidersHorizontal size={15} />
+              </button>
+              {viewOptionsOpen && (
+                <div className="absolute right-0 top-11 z-30 w-56 rounded-xl border border-line bg-white p-1 shadow-panel">
+                  {view === "table" ? (
+                    <button
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-zinc-600 transition hover:bg-zinc-50 hover:text-ink"
+                      type="button"
+                      onClick={() => {
+                        setColumnResetToken((value) => value + 1);
+                        setViewOptionsOpen(false);
+                      }}
+                    >
+                      <SlidersHorizontal size={13} />
+                      Reset column widths
+                    </button>
+                  ) : (
+                    <p className="px-3 py-2 text-xs font-medium text-zinc-400">
+                      Table column settings appear in Table view.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
             <Button onClick={onNewTask}>
               <Plus size={15} />
               New Task
@@ -5016,6 +5107,7 @@ function TasksPage({
               updateTask={updateTask}
               onNewTask={onNewTask}
               clearFilters={clearFilters}
+              columnResetToken={columnResetToken}
             />
           )}
         </div>
